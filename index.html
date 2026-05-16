@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Zgłoś Incydent – FIA System</title>
+
+  <style>
+    /* ====== GLOBAL ====== */
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: url("https://i.imgur.com/GD8gTyw.jpeg") center/cover no-repeat fixed;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    body::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 1;
+    }
+
+    .card {
+      background: #1f2937;
+      padding: 24px 28px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      width: 1400px;
+      max-width: 95vw;
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .lang-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #374151;
+      border: 1px solid #4b5563;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #fff;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    h1 { margin: 0 0 4px; font-size: 22px; color: #fff; }
+    .section-title { font-size: 16px; margin: 0 0 8px; color: #fff; }
+    .subtitle { margin: 0 0 16px; font-size: 13px; color: #9ca3af; }
+
+    /* ====== FORM ELEMENTS ====== */
+    label { display: block; font-size: 13px; margin-bottom: 4px; color: #d1d5db; }
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 10px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+    textarea { resize: vertical; min-height: 100px; }
+    .field { margin-bottom: 12px; }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
+
+    /* ====== BUTTONS ====== */
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      margin-top: 4px;
+      white-space: nowrap;
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.1s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-secondary { background: #4b5563; }
+    .btn-danger { background: #b91c1c; }
+    .btn-success { background: #10b981; }
+
+    /* ====== PANEL LAYOUT ====== */
+    .menu { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .menu button { margin-top: 0; }
+    .section { display: none; border-top: 1px solid #374151; padding-top: 12px; margin-top: 4px; }
+    .section.active { display: block; }
+
+    /* ====== ADMIN: STATS & FILTERS ====== */
+    .admin-stats {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .stat-box {
+      flex: 1;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 10px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+    .stat-box span { display: block; font-size: 11px; color: #9ca3af; text-transform: uppercase; }
+    .stat-box strong { font-size: 18px; color: #fff; }
+
+    .admin-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-input { flex: 2; min-width: 200px; }
+    .filter-select { flex: 1; min-width: 140px; }
+
+    /* Akcje masowe bar */
+    .bulk-actions-bar {
+      background: #1e293b;
+      border: 1px solid #475569;
+      padding: 10px 16px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .bulk-actions-bar .btns { display: flex; gap: 8px; }
+    .bulk-actions-bar button { margin: 0; padding: 6px 14px; font-size: 12px; border-radius: 8px; }
+
+    /* ====== TABLE WITH PROPORTIONAL COLUMNS ====== */
+    .table-wrapper { border: 1px solid #374151; border-radius: 10px; margin-top: 10px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    th, td { border: 1px solid #374151; padding: 10px 10px; text-align: left; vertical-align: top; }
+    th { background: #111827; color: #fff; }
+    tr:nth-child(even) { background: #111827; }
+    tr:nth-child(odd) { background: #1f2937; }
+
+    th:nth-child(1), td:nth-child(1) { width: 4%; text-align: center; } /* Checkbox */
+    th:nth-child(2), td:nth-child(2) { width: 7%; }   /* ID */
+    th:nth-child(3), td:nth-child(3) { width: 11%; }  /* Zgłaszający */
+    th:nth-child(4), td:nth-child(4) { width: 14%; }  /* Tor / Kategoria */
+    th:nth-child(5), td:nth-child(5) { width: 10%; }  /* Sesja */
+    th:nth-child(6), td:nth-child(6) { width: 11%; }  /* Oskarżony (Nick/ID) */
+    th:nth-child(7), td:nth-child(7) { width: 22%; }  /* Opis zdarzenia */
+    th:nth-child(8), td:nth-child(8) { width: 8%; }   /* Dowody */
+    th:nth-child(9), td:nth-child(9) { width: 13%; }  /* Status i Akcje */
+
+    .cell-wrap { 
+      word-break: break-word; 
+      white-space: pre-wrap; 
+      max-height: 65px; 
+      overflow: hidden; 
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+    
+    .evidence-link { 
+      color: #3b82f6; 
+      text-decoration: none; 
+      font-weight: bold; 
+      display: inline-block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .evidence-link:hover { text-decoration: underline; }
+    .action-btns { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+    .action-btns button { margin: 0; padding: 4px 8px; font-size: 11px; border-radius: 6px; }
+
+    .btn-view { background: #4b5563; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-top: 4px; }
+    .btn-verdict-transfer { background: linear-gradient(135deg, #a855f7, #6366f1); }
+
+    /* ====== LIVE CHAT ====== */
+    #chatBox {
+      height: 300px;
+      background: #111827;
+      border-radius: 10px;
+      padding: 15px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .msg { padding: 8px 12px; border-radius: 8px; font-size: 13px; max-width: 80%; line-height: 1.4; }
+    .msg-steward { background: #1e3a8a; align-self: flex-start; border-left: 4px solid #3b82f6; }
+    .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 2px; display: block; }
+
+    /* ====== MODAL VIEW ====== */
+    .login-modal, .desc-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10;
+      display: none; align-items: center; justify-content: center;
+    }
+    .login-box, .desc-box { background: #1f2937; padding: 24px; border-radius: 16px; width: 320px; text-align: center; }
+    .desc-box { width: 550px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
+    .history-item { background: #111827; border: 1px solid #374151; border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+    optgroup { background: #111827; color: #3b82f6; font-style: normal; }
+
+    /* ====== COMBINED JUDGE RESPONSE PANEL ====== */
+    .verdict-panel {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .status-msg { margin-top: 10px; font-size: 12px; min-height: 16px; }
+    .status-msg.ok { color: #4ade80; }
+    .status-msg.err { color: #f97373; }
+  </style>
+</head>
+
+<body>
+  <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
+
+  <div id="adminLoginModal" class="login-modal">
+    <div class="login-box">
+      <h1 data-key="adminPanel">Panel FIA</h1>
+      <div class="field">
+        <label data-key="adminPass">Hasło Administracyjne</label>
+        <input id="adminPass" type="password">
+      </div>
+      <button onclick="checkAdminAuth()" data-key="loginBtn">Zaloguj</button>
+      <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
+      <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
+    </div>
+  </div>
+
+  <div id="descModal" class="desc-modal">
+    <div class="desc-box">
+      <h2 class="section-title" id="descModalTitle">Opis zgłoszenia</h2>
+      <div id="descModalBody" style="background:#111827; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
+      
+      <div>
+        <label style="font-weight: bold; margin-bottom: 4px;" id="lblModalNotes">Uzasadnienie sędziowskie / Notatki:</label>
+        <textarea id="modalNotesField" placeholder="Wpisz oficjalne uzasadnienie kary, uwagi lub notatki robocze..." style="min-height: 80px;"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button onclick="saveModalNotes()" style="flex:1;">Zapisz Notatki</button>
+        <button class="btn-secondary" onclick="closeDescModal()" style="flex:1;">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="top-bar">
+      <div>
+        <h1 data-key="mainTitle">System Zgłoszeń FIA</h1>
+        <p class="subtitle" data-key="mainSubtitle">Zarządzanie incydentami wyścigowymi</p>
+      </div>
+    </div>
+
+    <div class="menu">
+      <button onclick="showSection('formSection')" data-key="navNew">Nowe Zgłoszenie</button>
+      <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Twoja Historia</button>
+      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
+    </div>
+
+    <div id="formSection" class="section active">
+      <h2 class="section-title" data-key="secDetails">Szczegóły Incydentu</h2>
+      <form id="complaintForm">
+        <div class="row">
+          <div class="field"><label data-key="labelNick">Twój Nick</label><input id="nick" type="text" required /></div>
+          <div class="field"><label data-key="labelDiscord">Twoje Discord ID</label><input id="discordId" type="text" required /></div>
+        </div>
+        <div class="row">
+          <div class="field">
+              <label data-key="labelCategory">Kategoria</label>
+              <select id="category" required></select>
+          </div>
+          <div class="field">
+              <label data-key="labelTrack">Tor wyścigowy</label>
+              <select id="track" required></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label data-key="labelSession">Rodzaj Sesji</label><select id="sessionType" required></select></div>
+          <div class="field"><label data-key="labelAccusedNick">Nick osoby zgłaszanej</label><input id="accusedNick" type="text" required></div>
+          <div class="field"><label data-key="labelAccusedDiscord">Discord ID osoby zgłaszanej</label><input id="accusedDiscordId" type="text" required></div>
+        </div>
+        <div class="field"><label data-key="labelDesc">Opis zdarzenia</label><textarea id="details" required></textarea></div>
+        <div class="field"><label data-key="labelEvidence">Dowody (Link)</label><input id="evidence" type="text" placeholder="https://..."></div>
+        <button type="submit" data-key="btnSubmit">Prześlij Zgłoszenie</button>
+      </form>
+    </div>
+
+    <div id="historySection" class="section">
+      <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
+      <div id="historyList"></div>
+    </div>
+
+    <div id="chatSection" class="section">
+      <h2 class="section-title" data-key="chatTitle">Czat ze Stewardem (Tryb Steward)</h2>
+      <div id="chatBox"></div>
+      <div class="row">
+        <input id="chatNick" type="text" placeholder="Nick" style="width: 100px;">
+        <input id="chatMsg" type="text" data-placeholder="chatPlaceholder" placeholder="Napisz wiadomość...">
+        <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
+        <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Wróć do Panelu</button>
+      </div>
+    </div>
+
+    <div id="adminSection" class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h2 class="section-title" data-key="adminSecTitle">Zarządzanie Zgłoszeniami</h2>
+        <div style="display: flex; gap: 6px;">
+          <button style="background: #0284c7; font-size:12px; padding: 5px 12px;" onclick="exportDatabase()">EKSPORTUJ BAZĘ (.txt)</button>
+          <button style="background: #10b981; font-size:12px; padding: 5px 12px;" onclick="showSection('chatSection')" data-key="btnOpenChat">Otwórz Czat</button>
+          <button class="btn-danger" style="padding: 5px 12px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">RESETUJ ID</button>
+        </div>
+      </div>
+
+      <div class="admin-stats">
+        <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
+        <div class="stat-box"><span id="lblStatPending" style="color:#fbbf24;">Oczekujące</span><strong id="statPending">0</strong></div>
+        <div class="stat-box"><span id="lblStatAccepted" style="color:#10b981;">Przyjęte</span><strong id="statAccepted">0</strong></div>
+        <div class="stat-box"><span id="lblStatRejected" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
+      </div>
+
+      <div class="admin-controls">
+        <input id="adminSearch" type="text" class="search-input" placeholder="Szukaj po nicku, oskarżonym, torze..." oninput="renderAdmin()">
+        
+        <select id="adminFilterStatus" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Status: Wszystkie</option>
+          <option value="Oczekuje">Oczekujące</option>
+          <option value="Przyjęte">Przyjęte</option>
+          <option value="Odrzucone">Odrzucone</option>
+        </select>
+
+        <select id="adminFilterTrack" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wszystkie tory</option>
+        </select>
+
+        <select id="adminFilterCategory" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wszystkie kategorie</option>
+          <option value="Incydenty Wyścigowe">Incydenty Wyścigowe</option>
+          <option value="Procedury i VSC/SC">Procedury i VSC/SC</option>
+          <option value="Niesportowe">Niesportowe</option>
+        </select>
+      </div>
+
+      <div id="bulkBar" class="bulk-actions-bar">
+        <span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: #f1f5f9;">Wybrano: 0 zgłoszeń</span>
+        <div class="btns">
+          <button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
+          <button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
+          <button style="background: #64748b;" onclick="bulkDelete()">Masowo Usuń</button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
+              <th>ID</th>
+              <th data-key="thReporter">Zgłaszający</th>
+              <th>Tor / Kategoria</th>
+              <th data-key="labelSession">Rodzaj Sesji</th>
+              <th data-key="thAccused">Oskarżony (Nick / ID)</th>
+              <th data-key="labelDesc">Opis zdarzenia</th>
+              <th data-key="labelEvidence">Dowody</th>
+              <th data-key="thStatus">Status / Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="verdict-panel">
+        <h2 class="section-title" data-key="verdictMainTitle" style="font-size: 18px; border-bottom: 1px solid #374151; padding-bottom: 6px; margin-bottom: 14px;">Odpowiedź Sędziowska (Wydaj Werdykt)</h2>
+        
+        <div style="background: #1e293b; border: 1px solid #334155; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;">
+          <div class="field" style="margin-bottom: 8px;">
+            <label style="color: #9ca3af; font-weight: bold;" data-key="lblPreviewDesc">Podgląd: Opis zdarzenia</label>
+            <div id="verdictPreviewDesc" style="background: #0f172a; padding: 10px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; color: #cbd5e1; border: 1px solid #334155; max-height: 120px; overflow-y: auto;">-</div>
+          </div>
+          <div class="field" style="margin-bottom: 0;">
+            <label style="color: #9ca3af; font-weight: bold;" data-key="lblPreviewEvidence">Podgląd: Dowód</label>
+            <div id="verdictPreviewEvidence" style="background: #0f172a; padding: 10px; border-radius: 8px; font-size: 13px; color: #cbd5e1; border: 1px solid #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+          </div>
+        </div>
+
+        <form id="responseForm">
+          <div class="row">
+            <div class="field">
+              <label for="caseId" data-key="caseIdLabel">ID sprawy</label>
+              <input id="caseId" type="text" placeholder="np. #2024-118" required />
+            </div>
+            <div class="field">
+              <label for="accusedId" data-key="accusedIdLabel">Discord ID winnego (do pingowania)</label>
+              <input id="accusedId" type="text" placeholder="np. 123456789012345678" required>
+            </div>
+          </div>
+  
+          <div class="field">
+            <label for="decision" data-key="decisionLabel">Decyzja</label>
+            <select id="decision" required>
+              <option value="" data-key="optDefault">Wybierz...</option>
+              <option value="Brak naruszenia" data-key="opt1">Brak naruszenia</option>
+              <option value="Naruszenie – ostrzeżenie" data-key="opt2">Naruszenie – ostrzeżenie</option>
+              <option value="Naruszenie – kara czasowa" data-key="opt3">Naruszenie – kara czasowa</option>
+              <option value="Naruszenie – dyskwalifikacja" data-key="opt4">Naruszenie – dyskwalifikacja</option>
+            </select>
+          </div>
+  
+          <div class="row">
+            <div class="field">
+              <label for="timePenalty" data-key="timeLabel">Kara czasowa</label>
+              <input id="timePenalty" type="text" placeholder="np. +5s / brak">
+            </div>
+            <div class="field">
+              <label for="pointsPenalty" data-key="pointsLabel">Punkty karne</label>
+              <input id="pointsPenalty" type="text" placeholder="np. 2 pkt">
+            </div>
+          </div>
+  
+          <div class="field">
+            <label for="verdictDetails" data-key="detailsLabel">Uzasadnienie</label>
+            <textarea id="verdictDetails" placeholder="Opisz decyzję..." required style="min-height:80px; max-height:200px;"></textarea>
+          </div>
+  
+          <div class="field">
+            <label for="judge" data-key="judgeLabel">Sędzia prowadzący</label>
+            <input id="judge" type="text" placeholder="np. A. Nowak" required />
+          </div>
+  
+          <button type="submit" data-key="sendBtn" style="width: 100%; box-shadow: 0 10px 25px rgba(59,130,246,0.4);">Wyślij decyzję</button>
+          <div id="status" class="status-msg"></div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+// --- KONFIGURACJA ---
+const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
+const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
+const CHAT_WEBHOOK = "https://discord.com/api/webhooks/1503802447322152960/I1yBJxH5YxkgDMfmXJCpGTX0G-N0wSoLplHjh2NFEN9-YqOIirthTwJKMg-tBTe3MHM5";
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
+
+const ROLE_STEWARD_ID = "1443302932811616346";      
+const ROLE_HEAD_STEWARD_ID = "1463610534309007380"; 
+
+const DB_NAME = "FIA_DATABASE_FINAL";
+const COUNTER_NAME = "FIA_ID_COUNTER";
+let isAdminAuthenticated = false;
+let currentLang = 'pl';
+let currentlyEditedReportId = null;
+
+const langData = {
+    pl: {
+        adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
+        mainTitle: "System Zgłoszeń FIA", mainSubtitle: "Zarządzanie incydentami wyścigowymi",
+        navNew: "Nowe Zgłoszenie", navHistory: "Twoja Historia", navAdmin: "Panel Administracyjny",
+        secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
+        labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
+        labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
+        btnSubmit: "Prześlij Zgłoszenie", chatTitle: "Czat ze Stewardem (Tryb Steward)",
+        chatPlaceholder: "Napisz wiadomość...", btnSend: "Wyślij", btnBack: "Wróć do Panelu",
+        adminSecTitle: "Zarządzanie Zgłoszeniami", btnOpenChat: "Otwórz Czat", btnResetId: "RESETUJ ID",
+        thReporter: "Zgłaszający", thTrack: "Tor / Sesja", thAccused: "Oskarżony (Nick / ID)", thStatus: "Status", thActions: "Akcje",
+        btnAccept: "Przyjmij", btnReject: "Odrzuć", btnDelete: "Usuń",
+        statusPending: "Oczekuje", statusAccepted: "Przyjęte", statusRejected: "Odrzucone",
+        promptReject: "Podaj powód odrzucenia:", alertSent: "Zgłoszono!", confirmDelete: "Usunąć?", confirmReset: "Zresetować licznik?",
+        optChooseTrack: "Wybierz tor...", optChooseCat: "Wybierz przewinienie...",
+        sessions: ["Wyścig Główny", "Sprint", "Kwalifikacje", "Trening"],
+        dcReportTitle: "🚩 NOWE ZGŁOSZENIE", dcDecisionTitle: "📢 STATUS ZGŁOSZENIA",
+        dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko", dcLabelTrack: "📍 Tor",
+        dcLabelSession: "🏎️ Tor / Sesja", dcLabelAccused: "👤 Oskarżony", dcLabelReason: "❌ Powód",
+        dcMsgDecision: "Twoje zgłoszenie zostało",
+        evidenceNone: "Brak", evidenceBtn: "Link 🔗",
+        
+        verdictMainTitle: "Odpowiedź Sędziowska (Wydaj Werdykt)",
+        caseIdLabel: "ID sprawy",
+        accusedIdLabel: "Discord ID winnego (do pingowania)",
+        decisionLabel: "Decyzja",
+        optDefault: "Wybierz...",
+        opt1: "Brak naruszenia",
+        opt2: "Naruszenie – ostrzeżenie",
+        opt3: "Naruszenie – kara czasowa",
+        opt4: "Naruszenie – dyskwalifikacja",
+        timeLabel: "Kara czasowa",
+        pointsLabel: "Punkty karne",
+        detailsLabel: "Uzasadnienie",
+        judgeLabel: "Sędzia prowadzący",
+        sendBtn: "Wyślij decyzję",
+        statusSending: "Wysyłanie...",
+        statusOk: "Decozycja wysłana.",
+        statusErr: "Nie udało się wysłać decyzji.",
+        embedTitle: "⚖️ Odpowiedź Zespołu Sędziowskiego",
+        fieldCase: "ID sprawy",
+        fieldWinner: "Winny",
+        fieldDecision: "Decyzja",
+        fieldTime: "Kara czasowa",
+        fieldPoints: "Punkty karne",
+        fieldDetails: "Uzasadnienie",
+        fieldJudge: "Sędzia prowadzący",
+        contentMsg: "Opublikowano decyzję dla: ",
+        lblPreviewDesc: "Podgląd: Opis zdarzenia",
+        lblPreviewEvidence: "Podgląd: Dowód"
+    },
+    en: {
+        adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
+        mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
+        navNew: "New Report", navHistory: "Your History", navAdmin: "Admin Panel",
+        secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
+        labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
+        labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
+        btnSubmit: "Submit Report", chatTitle: "Chat with Steward (Steward Mode)",
+        chatPlaceholder: "Write a message...", btnSend: "Send", btnBack: "Back to Panel",
+        adminSecTitle: "Report Management", btnOpenChat: "Open Chat", btnResetId: "RESET ID",
+        thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
+        btnAccept: "Accept", btnReject: "Reject", btnDelete: "Delete",
+        statusPending: "Pending", statusAccepted: "Accepted", statusRejected: "Rejected",
+        promptReject: "Enter rejection reason:", alertSent: "Report sent!", confirmDelete: "Delete?", confirmReset: "Reset ID counter?",
+        optChooseTrack: "Choose track...", optChooseCat: "Choose violation...",
+        sessions: ["Main Race", "Sprint", "Qualifying", "Practice"],
+        dcReportTitle: "🚩 NEW REPORT", dcDecisionTitle: "📢 REPORT STATUS",
+        dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against", dcLabelTrack: "📍 Track",
+        dcLabelSession: "🏎️ Track / Session", dcLabelAccused: "👤 Accused", dcLabelReason: "❌ Reason",
+        dcMsgDecision: "Your report has been",
+        evidenceNone: "None", evidenceBtn: "Link 🔗",
+        
+        verdictMainTitle: "Stewards Decision (Send Verdict)",
+        caseIdLabel: "Case ID",
+        accusedIdLabel: "Discord ID of accused (for ping)",
+        decisionLabel: "Decision",
+        optDefault: "Select...",
+        opt1: "No violation",
+        opt2: "Violation – warning",
+        opt3: "Violation – time penalty",
+        opt4: "Violation – disqualification",
+        timeLabel: "Time penalty",
+        pointsLabel: "Penalty points",
+        detailsLabel: "Reasoning",
+        judgeLabel: "Lead Steward",
+        sendBtn: "Send Decision",
+        statusSending: "Sending...",
+        statusOk: "Decision sent.",
+        statusErr: "Failed to send decision.",
+        embedTitle: "⚖️ Stewards' Official Decision",
+        fieldCase: "Case ID",
+        fieldWinner: "Accused",
+        fieldDecision: "Decision",
+        fieldTime: "Time Penalty",
+        fieldPoints: "Penalty Points",
+        fieldDetails: "Reasoning",
+        fieldJudge: "Lead Steward",
+        contentMsg: "Decision published for: "	,
+        lblPreviewDesc: "Preview: Incident Description",
+        lblPreviewEvidence: "Preview: Evidence"
+    }
+};
+
+const categoriesStructure = {
+    pl: {
+        "Incydenty Wyścigowe": ["Brake check", "Spowodowanie kolizji", "Wypychanie poza tor", "Agresywny divebomb", "Nierespektowanie overlapu", "Niebezpieczny powrót", "Zmiana linii", "Blokowanie w kwalifikacjach"],
+        "Procedury i VSC/SC": ["Delta VSC/SC", "Restart", "Wywołanie SC", "Linia boksów"],
+        "Niesportowe": ["Reset do toru", "Celowe rozbicie", "Wycofanie się", "Jazda na SI", "Start bez zgody", "Brak obecności"]
+    },
+    en: {
+        "Racing Incidents": ["Brake check", "Causing a collision", "Pushing off track", "Aggressive divebomb", "Disrespecting overlap", "Dangerous re-entry", "Dangerous line change", "Blocking in qualifying"],
+        "Procedures & VSC/SC": ["Increasing delta under VSC/SC", "Dangerous driving on restart", "Attempting to trigger SC", "Crossing pit entry/exit line"],
+        "Unsporting Behavior": ["Illegal 'Reset to track' use", "Deliberate crash", "Retiring on track", "AI Driving", "Starting session without host consent", "No-show (absence)"]
+    }
+};
+
+const tracks = ["Bahrain (Sakhir)", "Saudi Arabia (Jeddah)", "Australia (Melbourne)", "Japan (Suzuka)", "China (Shanghai)", "USA (Miami)", "Italy (Imola)", "Monaco (Monte Carlo)", "Canada (Montreal)", "Spain (Barcelona)", "Austria (Spielberg)", "Great Britain (Silverstone)", "Hungary (Budapest)", "Belgium (Spa)", "Netherlands (Zandvoort)", "Italy (Monza)", "Azerbaijan (Baku)", "Singapore (Marina Bay)", "USA (Austin)", "Mexico (Mexico City)", "Brazil (Interlagos)", "USA (Las Vegas)", "Qatar (Lusail)", "UAE (Abu Dhabi)"];
+
+function toggleLang() {
+    currentLang = currentLang === 'pl' ? 'en' : 'pl';
+    updateUI();
+}
+
+function updateUI() {
+    document.querySelectorAll('[data-key]').forEach(el => {
+        const key = el.getAttribute('data-key');
+        el.textContent = langData[currentLang][key];
+    });
+
+    document.querySelectorAll('[data-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-placeholder');
+        el.placeholder = langData[currentLang][key];
+    });
+
+    const sType = document.getElementById("sessionType");
+    sType.innerHTML = "";
+    langData[currentLang].sessions.forEach(s => {
+        let opt = document.createElement("option");
+        opt.value = s; opt.text = s;
+        sType.add(opt);
+    });
+
+    const trackSelect = document.getElementById("track");
+    trackSelect.innerHTML = `<option value="">${langData[currentLang].optChooseTrack}</option>`;
+    tracks.forEach(t => {
+        let opt = document.createElement("option");
+        opt.value = t; opt.text = t;
+        trackSelect.add(opt);
+    });
+
+    const catSelect = document.getElementById("category");
+    catSelect.innerHTML = `<option value="">${langData[currentLang].optChooseCat}</option>`;
+    for (const [group, items] of Object.entries(categoriesStructure[currentLang])) {
+        let optGroup = document.createElement("optgroup");
+        optGroup.label = group;
+        items.forEach(item => {
+            let opt = document.createElement("option");
+            opt.value = item; opt.text = item;
+            optGroup.appendChild(opt);
+        });
+        catSelect.appendChild(optGroup);
+    }
+
+    const trackFilter = document.getElementById("adminFilterTrack");
+    trackFilter.innerHTML = `<option value="ALL">${currentLang === 'pl' ? 'Wszystkie tory' : 'All tracks'}</option>`;
+    tracks.forEach(t => {
+        let opt = document.createElement("option");
+        opt.value = t; opt.text = t;
+        trackFilter.add(opt);
+    });
+
+    document.getElementById("lblStatAll").textContent = currentLang === 'pl' ? "Wszystkie" : "All";
+    document.getElementById("lblStatPending").textContent = currentLang === 'pl' ? "Oczekujące" : "Pending";
+    document.getElementById("lblStatAccepted").textContent = currentLang === 'pl' ? "Przyjęte" : "Accepted";
+    document.getElementById("lblStatRejected").textContent = currentLang === 'pl' ? "Odrzucone" : "Rejected";
+    document.getElementById("adminSearch").placeholder = currentLang === 'pl' ? "Szukaj po nicku, oskarżonym, torze..." : "Search by nick, accused, track...";
+    document.getElementById("lblModalNotes").textContent = currentLang === 'pl' ? "Uzasadnienie sędziowskie / Notatki:" : "Steward justification / Notes:";
+    document.getElementById("modalNotesField").placeholder = currentLang === 'pl' ? "Wpisz oficjalne uzasadnienie kary, uwagi lub notatki robocze..." : "Enter official penalty reasons, remarks or workflow notes...";
+
+    const fStatus = document.getElementById("adminFilterStatus");
+    fStatus.options[0].text = currentLang === 'pl' ? "Status: Wszystkie" : "Status: All";
+    fStatus.options[1].text = currentLang === 'pl' ? "Oczekujące" : "Pending";
+    fStatus.options[2].text = currentLang === 'pl' ? "Przyjęte" : "Accepted";
+    fStatus.options[3].text = currentLang === 'pl' ? "Odrzucone" : "Rejected";
+
+    document.getElementById("caseId").placeholder = currentLang === 'pl' ? "np. #2024-118" : "e.g. #2024-118";
+    document.getElementById("accusedId").placeholder = currentLang === 'pl' ? "np. 123456789012345678" : "e.g. 123456789012345678";
+    document.getElementById("timePenalty").placeholder = currentLang === 'pl' ? "np. +5s / brak" : "e.g. +5s / none";
+    document.getElementById("pointsPenalty").placeholder = currentLang === 'pl' ? "np. 2 pkt" : "e.g. 2 pts";
+    document.getElementById("verdictDetails").placeholder = currentLang === 'pl' ? "Opisz decyzję..." : "Describe decision...";
+    document.getElementById("judge").placeholder = currentLang === 'pl' ? "np. A. Nowak" : "e.g. A. Smith";
+
+    if (isAdminAuthenticated) renderAdmin();
+}
+
+function getHistory() { return JSON.parse(localStorage.getItem(DB_NAME) || "[]"); }
+function saveHistory(h) { localStorage.setItem(DB_NAME, JSON.stringify(h)); }
+
+function getNextId() {
+    let current = parseInt(localStorage.getItem(COUNTER_NAME) || 0) + 1;
+    localStorage.setItem(COUNTER_NAME, current);
+    return "FIA-" + String(current).padStart(4, '0');
+}
+
+function openAdminLogin() {
+    if (isAdminAuthenticated) showSection('adminSection');
+    else document.getElementById("adminLoginModal").style.display = "flex";
+}
+function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; }
+function checkAdminAuth() {
+    if (document.getElementById("adminPass").value === "KLW26/27") {
+        isAdminAuthenticated = true; closeAdminLogin(); showSection('adminSection');
+    } else { document.getElementById("loginStatus").textContent = currentLang === 'pl' ? "Błędne hasło." : "Invalid password."; }
+}
+
+function showSection(id) {
+    if ((id === 'adminSection' || id === 'chatSection') && !isAdminAuthenticated) { openAdminLogin(); return; }
+    document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    if (id === 'historySection') renderHistory();
+    if (id === 'adminSection') renderAdmin();
+}
+
+function openDescModal(id, text, notes) {
+    currentlyEditedReportId = id;
+    document.getElementById("descModalTitle").textContent = (currentLang === 'pl' ? "Zgłoszenie " : "Report ") + id;
+    document.getElementById("descModalBody").textContent = text;
+    document.getElementById("modalNotesField").value = notes || "";
+    document.getElementById("descModal").style.display = "flex";
+}
+function closeDescModal() { 
+    document.getElementById("descModal").style.display = "none"; 
+    currentlyEditedReportId = null;
+}
+
+function saveModalNotes() {
+    if (!currentlyEditedReportId) return;
+    const notesValue = document.getElementById("modalNotesField").value;
+    let h = getHistory();
+    let idx = h.findIndex(x => x.id === currentlyEditedReportId);
+    if (idx !== -1) {
+        h[idx].notes = notesValue;
+        saveHistory(h);
+        renderAdmin();
+        alert(currentLang === 'pl' ? "Notatki sędziowskie zostały zapisane!" : "Steward notes successfully saved!");
+        closeDescModal();
+    }
+}
+
+function sendChatMessage() {
+    const nick = document.getElementById("chatNick").value || "Steward";
+    const msg = document.getElementById("chatMsg").value;
+    if (!msg) return;
+
+    const chatBox = document.getElementById("chatBox");
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    chatBox.innerHTML += `<div class="msg msg-steward"><span class="msg-meta">${nick} • ${time}</span>${msg}</div>`;
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    fetch(CHAT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: nick, content: msg })
+    });
+    document.getElementById("chatMsg").value = "";
+}
+
+function calculateAdminStats(allReports) {
+    let pending = 0, accepted = 0, rejected = 0;
+    allReports.forEach(r => {
+        if (r.status === "Przyjęte") accepted++;
+        else if (r.status === "Odrzucone") rejected++;
+        else pending++;
+    });
+    document.getElementById("statAll").textContent = allReports.length;
+    document.getElementById("statPending").textContent = pending;
+    document.getElementById("statAccepted").textContent = accepted;
+    document.getElementById("statRejected").textContent = rejected;
+}
+
+function findMainCategoryGroup(subCategory) {
+    for (const lang of ['pl', 'en']) {
+        for (const [mainGroup, list] of Object.entries(categoriesStructure[lang])) {
+            if (list.includes(subCategory)) return mainGroup;
+        }
+    }
+    return "";
+}
+
+function transferToVerdict(caseId, accusedId, detailsText, evidenceText) {
+    document.getElementById("caseId").value = caseId;
+    document.getElementById("accusedId").value = accusedId;
+    
+    // Uzupelnianie sekcji podgladu
+    document.getElementById("verdictPreviewDesc").textContent = detailsText || "-";
+    
+    const previewEvidence = document.getElementById("verdictPreviewEvidence");
+    if (evidenceText && evidenceText.startsWith("http")) {
+        previewEvidence.innerHTML = `<a href="${evidenceText}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: bold;">${evidenceText} 🔗</a>`;
+    } else {
+        previewEvidence.textContent = evidenceText || "-";
+    }
+
+    document.getElementById("caseId").scrollIntoView({ behavior: 'smooth' });
+    
+    const panel = document.querySelector(".verdict-panel");
+    panel.style.borderColor = "#3b82f6";
+    setTimeout(() => { panel.style.borderColor = "#374151"; }, 1500);
+}
+
+function renderAdmin() {
+    const tbody = document.getElementById("adminTableBody");
+    tbody.innerHTML = "";
+    
+    const allReports = getHistory();
+    calculateAdminStats(allReports);
+
+    const searchVal = document.getElementById("adminSearch").value.toLowerCase();
+    const filterStatus = document.getElementById("adminFilterStatus").value;
+    const filterTrack = document.getElementById("adminFilterTrack").value;
+    const filterCat = document.getElementById("adminFilterCategory").value;
+
+    allReports.forEach(item => {
+        const matchesStatus = (filterStatus === "ALL" || item.status === filterStatus);
+        const matchesTrack = (filterTrack === "ALL" || item.track === filterTrack);
+        
+        let matchesCat = true;
+        if (filterCat !== "ALL") {
+            const mappedGroup = findMainCategoryGroup(item.category);
+            if (filterCat === "Incydenty Wyścigowe") matchesCat = (mappedGroup === "Incydenty Wyścigowe" || mappedGroup === "Racing Incidents");
+            else if (filterCat === "Procedury i VSC/SC") matchesCat = (mappedGroup === "Procedury i VSC/SC" || mappedGroup === "Procedures & VSC/SC");
+            else if (filterCat === "Niesportowe") matchesCat = (mappedGroup === "Niesportowe" || mappedGroup === "Unsporting Behavior");
+        }
+
+        const matchesSearch = (
+            item.nick.toLowerCase().includes(searchVal) || 
+            (item.accusedNick && item.accusedNick.toLowerCase().includes(searchVal)) || 
+            item.accusedDiscordId.toLowerCase().includes(searchVal) || 
+            item.track.toLowerCase().includes(searchVal) ||
+            item.id.toLowerCase().includes(searchVal)
+        );
+
+        if (!matchesStatus || !matchesTrack || !matchesCat || !matchesSearch) return;
+
+        const statusText = item.status === "Przyjęte" ? langData[currentLang].statusAccepted : (item.status === "Odrzucone" ? langData[currentLang].statusRejected : langData[currentLang].statusPending);
+        const statusColor = item.status === "Przyjęte" ? "#10b981" : (item.status === "Odrzucone" ? "#ef4444" : "#fbbf24");
+        
+        let reason = item.rejectionReason ? `<br><small style="color:#f87171; word-break: break-all;">❌ ${item.rejectionReason}</small>` : "";
+        if (item.notes) {
+            reason += `<br><small style="color:#60a5fa; word-break: break-all;">📝 Notatka: ${item.notes}</small>`;
+        }
+        
+        const evidenceContent = item.evidence ? `<a class="evidence-link" href="${item.evidence}" target="_blank">${langData[currentLang].evidenceBtn}</a>` : langData[currentLang].evidenceNone;
+
+        const safeDetails = item.details.replace(/['"`\\]/g, '\\$&');
+        const safeNotes = (item.notes || "").replace(/['"`\\]/g, '\\$&');
+        const accusedDisplay = item.accusedNick ? `${item.accusedNick}<br><span style="color:#9ca3af; font-size:10px;">ID: ${item.accusedDiscordId}</span>` : item.accusedDiscordId;
+
+        tbody.innerHTML += `<tr>
+            <td style="text-align:center;"><input type="checkbox" class="report-checkbox" value="${item.id}" onclick="onCheckboxSelect()"></td>
+            <td><strong>${item.id}</strong></td>
+            <td><div class="cell-wrap">${item.nick}</div></td>
+            <td><div class="cell-wrap"><strong>${item.track}</strong><br><span style="color:#9ca3af; font-size:11px;">${item.category || ''}</span></div></td>
+            <td><div class="cell-wrap">${item.sessionType}</div></td>
+            <td><div class="cell-wrap">${accusedDisplay}</div></td>
+            <td>
+                <div class="cell-wrap">${item.details}</div>
+                <button class="btn-view" onclick="openDescModal('${item.id}', '${safeDetails}', '${safeNotes}')">${currentLang === 'pl' ? 'Pokaż pełny opis / edytuj' : 'View full text / edit'}</button>
+            </td>
+            <td>${evidenceContent}</td>
+            <td>
+                <span style="color:${statusColor}; font-weight: bold;">${statusText}</span>${reason}
+                <div class="action-btns">
+                    <button class="btn-success" onclick="updateStatus('${item.id}', 'Przyjęte')">${langData[currentLang].btnAccept}</button>
+                    <button class="btn-danger" onclick="updateStatus('${item.id}', 'Odrzucone')">${langData[currentLang].btnReject}</button>
+                    <button class="btn-verdict-transfer" onclick="transferToVerdict('${item.id}', '${item.accusedDiscordId}', '${safeDetails}', '${item.evidence || ''}')">${currentLang === 'pl' ? '⚖️ Do werdyktu' : '⚖️ To Verdict'}</button>
+                    <button class="btn-secondary" style="background:#4b5563;" onclick="deleteItem('${item.id}')">${langData[currentLang].btnDelete}</button>
+                </div>
+            </td>
+        </tr>`;
+    });
+
+    document.getElementById("selectAllCheckboxes").checked = false;
+    onCheckboxSelect();
+}
+
+function toggleSelectAll(master) {
+    document.querySelectorAll(".report-checkbox").forEach(cb => cb.checked = master.checked);
+    onCheckboxSelect();
+}
+
+function onCheckboxSelect() {
+    const selected = document.querySelectorAll(".report-checkbox:checked");
+    const bulkBar = document.getElementById("bulkBar");
+    const countLabel = document.getElementById("bulkSelectedCount");
+    
+    if (selected.length > 0) {
+        bulkBar.style.display = "flex";
+        countLabel.textContent = currentLang === 'pl' ? `Wybrano: ${selected.length} zgłoszeń` : `Selected: ${selected.length} reports`;
+    } else {
+        bulkBar.style.display = "none";
+    }
+}
+
+async function bulkStatusUpdate(newStatus) {
+    const selected = document.querySelectorAll(".report-checkbox:checked");
+    if (selected.length === 0) return;
+
+    let reason = "";
+    if (newStatus === 'Odrzucone') {
+        reason = prompt(langData[currentLang].promptReject);
+        if (reason === null) return;
+    }
+
+    let h = getHistory();
+    for (let cb of selected) {
+        let id = cb.value;
+        let idx = h.findIndex(x => x.id === id);
+        if (idx !== -1) {
+            h[idx].status = newStatus;
+            h[idx].rejectionReason = reason;
+
+            const translatedStatus = newStatus === "Przyjęte" ? langData[currentLang].statusAccepted : langData[currentLang].statusRejected;
+            const color = newStatus === "Przyjęte" ? 656897 : 15679532;
+
+            const embed = {
+                title: `${langData[currentLang].dcDecisionTitle}: ${id}`,
+                description: `${langData[currentLang].dcMsgDecision}: **${translatedStatus.toUpperCase()}** (Akcja masowa sędziów)`,
+                color: color,
+                fields: [
+                    { name: langData[currentLang].dcLabelSession, value: `${h[idx].track} / ${h[idx].sessionType}`, inline: true },
+                    { name: langData[currentLang].dcLabelAccused, value: h[idx].accusedNick || h[idx].accusedDiscordId, inline: true }
+                ],
+                footer: { text: "FIA System Bulk Decision" },
+                timestamp: new Date().toISOString()
+            };
+            if (reason) embed.fields.push({ name: langData[currentLang].dcLabelReason, value: reason, inline: false });
+
+            try {
+                await fetch(DECISION_WEBHOOK, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        content: `<@${h[idx].discordId}>`, 
+                        embeds: [embed],
+                        allowed_mentions: { parse: [] }
+                    })
+                });
+            } catch (e) { console.error(e); }
+        }
+    }
+
+    saveHistory(h);
+    renderAdmin();
+}
+
+function bulkDelete() {
+    const selected = document.querySelectorAll(".report-checkbox:checked");
+    if (selected.length === 0) return;
+    
+    if (confirm(currentLang === 'pl' ? `Czy na pewno chcesz usunąć te ${selected.length} zgłoszenia?` : `Are you sure you want to delete these ${selected.length} reports?`)) {
+        let idsToDelete = Array.from(selected).map(cb => cb.value);
+        let filtered = getHistory().filter(x => !idsToDelete.includes(x.id));
+        saveHistory(filtered);
+        renderAdmin();
+    }
+}
+
+function exportDatabase() {
+    const data = getHistory();
+    if (data.length === 0) {
+        alert(currentLang === 'pl' ? "Brak danych do eksportu." : "No data available to export.");
+        return;
+    }
+    
+    let fileContent = "==================================================\n";
+    fileContent += "        FIA INCIDENTS DATABASE EXPORT             \n";
+    fileContent += `        Wygenerowano: ${new Date().toLocaleString()} \n`;
+    fileContent += "==================================================\n\n";
+
+    data.forEach(item => {
+        fileContent += `[ID]: ${item.id}\n`;
+        fileContent += `[Status]: ${item.status}\n`;
+        fileContent += `[Zgłaszający]: ${item.nick} (Discord: ${item.discordId})\n`;
+        fileContent += `[Oskarżony Nick]: ${item.accusedNick || 'Brak'}\n`;
+        fileContent += `[Oskarżony Discord ID]: ${item.accusedDiscordId}\n`;
+        fileContent += `[Tor & Przewinienie]: ${item.track} | ${item.category || 'Brak'}\n`;
+        fileContent += `[Sesja]: ${item.sessionType}\n`;
+        fileContent += `[Opis zdarzenia]:\n${item.details}\n`;
+        fileContent += `[Dowody]: ${item.evidence || 'Brak'}\n`;
+        if (item.rejectionReason) fileContent += `[Powód odrzucenia]: ${item.rejectionReason}\n`;
+        if (item.notes) fileContent += `[Notatki sędziowskie]: ${item.notes}\n`;
+        fileContent += "--------------------------------------------------\n\n";
+    });
+
+    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `FIA_Database_Export_${new Date().toISOString().slice(0,10)}.txt`;
+    link.click();
+}
+
+function renderHistory() {
+    const list = document.getElementById("historyList");
+    list.innerHTML = "";
+    getHistory().forEach(item => {
+        const statusText = item.status === "Przyjęte" ? langData[currentLang].statusAccepted : (item.status === "Odrzucone" ? langData[currentLang].statusRejected : langData[currentLang].statusPending);
+        const color = item.status === "Przyjęte" ? "#10b981" : (item.status === "Odrzucone" ? "#ef4444" : "#fbbf24");
+        list.innerHTML += `<div class="history-item"><strong>${item.id}</strong> | ${item.track} | Status: <span style="color:${color}">${statusText}</span></div>`;
+    });
+}
+
+async function updateStatus(id, newStatus) {
+    let reason = "";
+    if (newStatus === 'Odrzucone') {
+        reason = prompt(langData[currentLang].promptReject);
+        if (reason === null) return;
+    }
+    
+    let h = getHistory();
+    let idx = h.findIndex(x => x.id === id);
+    if (idx !== -1) {
+        h[idx].status = newStatus;
+        h[idx].rejectionReason = reason;
+        saveHistory(h); 
+        renderAdmin();
+
+        const translatedStatus = newStatus === "Przyjęte" ? langData[currentLang].statusAccepted : langData[currentLang].statusRejected;
+        const color = newStatus === "Przyjęte" ? 656897 : 15679532;
+
+        const embed = {
+            title: `${langData[currentLang].dcDecisionTitle}: ${id}`,
+            description: `${langData[currentLang].dcMsgDecision}: **${translatedStatus.toUpperCase()}**`,
+            color: color,
+            fields: [
+                { name: langData[currentLang].dcLabelSession, value: `${h[idx].track} / ${h[idx].sessionType}`, inline: true },
+                { name: langData[currentLang].dcLabelAccused, value: h[idx].accusedNick || h[idx].accusedDiscordId, inline: true }
+            ],
+            footer: { text: "FIA System Decision" },
+            timestamp: new Date().toISOString()
+        };
+
+        if (reason) {
+            embed.fields.push({ name: langData[currentLang].dcLabelReason, value: reason, inline: false });
+        }
+
+        try {
+            await fetch(DECISION_WEBHOOK, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    content: `<@${h[idx].discordId}>`, 
+                    embeds: [embed],
+                    allowed_mentions: { parse: [] }
+                })
+            });
+        } catch (error) { console.error(error); }
+    }
+}
+
+function deleteItem(id) { if(confirm(langData[currentLang].confirmDelete)) { saveHistory(getHistory().filter(x => x.id !== id)); renderAdmin(); } }
+function resetIDCounter() { if(confirm(langData[currentLang].confirmReset)) { localStorage.removeItem(COUNTER_NAME); renderAdmin(); } }
+
+document.getElementById("complaintForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = {
+        id: getNextId(),
+        nick: document.getElementById("nick").value,
+        discordId: document.getElementById("discordId").value,
+        category: document.getElementById("category").value,
+        track: document.getElementById("track").value,
+        sessionType: document.getElementById("sessionType").value,
+        accusedNick: document.getElementById("accusedNick").value,
+        accusedDiscordId: document.getElementById("accusedDiscordId").value,
+        details: document.getElementById("details").value,
+        evidence: document.getElementById("evidence").value,
+        status: "Oczekuje",
+        notes: ""
+    };
+    saveHistory([data, ...getHistory()]);
+
+    const embed = {
+        title: `${langData[currentLang].dcReportTitle}: ${data.id}`,
+        color: 16498468,
+        fields: [
+            { name: langData[currentLang].dcLabelReporter, value: data.nick, inline: true },
+            { name: langData[currentLang].dcLabelAgainst, value: data.accusedNick, inline: true },
+            { name: langData[currentLang].dcLabelTrack, value: data.track, inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fetch(NEW_REPORT_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                content: `<@&${ROLE_STEWARD_ID}> <@&${ROLE_HEAD_STEWARD_ID}>`,
+                embeds: [embed] 
+            })
+        });
+    } catch (error) { console.error(error); }
+
+    alert(langData[currentLang].alertSent); e.target.reset(); showSection('historySection');
+});
+
+// HANDLER DLA FORMULARZA WERDYKTÓW
+document.getElementById("responseForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const t = langData[currentLang];
+    const statusEl = document.getElementById("status");
+    statusEl.textContent = t.statusSending;
+    statusEl.className = "status-msg";
+
+    const caseId = document.getElementById("caseId").value.trim();
+    const accusedId = document.getElementById("accusedId").value.trim();
+    const decision = document.getElementById("decision").value;
+    const timePenalty = document.getElementById("timePenalty").value.trim() || (currentLang === 'pl' ? "Brak" : "None");
+    const pointsPenalty = document.getElementById("pointsPenalty").value.trim() || "0";
+    const details = document.getElementById("verdictDetails").value.trim();
+    const judge = document.getElementById("judge").value.trim();
+
+    const embed = {
+        title: t.embedTitle,
+        color: 0x00aaff,
+        fields: [
+          { name: t.fieldCase, value: caseId, inline: true },
+          { name: t.fieldWinner, value: `<@${accusedId}>`, inline: true },
+          { name: t.fieldDecision, value: decision, inline: true },
+          { name: t.fieldTime, value: timePenalty, inline: true },
+          { name: t.fieldPoints, value: pointsPenalty, inline: true },
+          { name: t.fieldDetails, value: details, inline: false },
+          { name: t.fieldJudge, value: judge, inline: false }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    const payload = {
+        content: `${t.contentMsg}<@${accusedId}>`,
+        username: "Zespół Sędziowski",
+        avatar_url: "https://i.imgur.com/4M34hi2.png",
+        embeds: [embed]
+    };
+
+    try {
+        const res = await fetch(DISCORD_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error();
+        statusEl.textContent = t.statusOk;
+        statusEl.className = "status-msg ok";
+        
+        // Czyszczenie formularza oraz podglądu po udanym wysłaniu
+        e.target.reset();
+        document.getElementById("verdictPreviewDesc").textContent = "-";
+        document.getElementById("verdictPreviewEvidence").textContent = "-";
+    } catch (err) {
+        statusEl.textContent = t.statusErr;
+        statusEl.className = "status-msg err";
+    }
+});
+
+updateUI();
+</script>
+</body>
+</html>
