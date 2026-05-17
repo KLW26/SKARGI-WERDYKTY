@@ -8,7 +8,7 @@
     /* ====== GLOBAL ====== */
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      background: url("https://i.imgur.com/GD8gTyw.jpeg") center/cover no-repeat fixed;
+      background: url("https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=1920") center/cover no-repeat fixed;
       color: #e5e7eb;
       display: flex;
       align-items: center;
@@ -22,7 +22,7 @@
     body::after {
       content: "";
       position: absolute; inset: 0;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.7);
       z-index: 1;
     }
 
@@ -236,9 +236,15 @@
     .msg-player { background: #374151; align-self: flex-end; border-right: 4px solid #10b981; }
     .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 2px; display: block; }
 
+    /* Sędziowski kontener wiadomości domyślnie schowany */
+    .steward-chat-wrapper {
+      display: none;
+      flex-direction: column;
+    }
+
     /* ====== MODAL VIEW ====== */
     .login-modal, .desc-modal {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100;
       display: none; align-items: center; justify-content: center;
     }
     .login-box, .desc-box { background: #1f2937; padding: 24px; border-radius: 16px; width: 320px; text-align: center; }
@@ -257,20 +263,6 @@
     .status-msg { margin-top: 10px; font-size: 12px; min-height: 16px; }
     .status-msg.ok { color: #4ade80; }
     .status-msg.err { color: #f97373; }
-
-    .btn-open-link {
-      display: inline-block;
-      background: #2563eb;
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 12px;
-      text-decoration: none;
-      font-weight: bold;
-      margin-top: 6px;
-      transition: background 0.2s;
-    }
-    .btn-open-link:hover { background: #1d4ed8; }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -412,12 +404,22 @@
 
     <div id="chatSection" class="section">
       <h2 class="section-title" data-key="chatTitle">Czat na Żywo (Panel Sędziowski)</h2>
-      <div id="chatBox"></div>
-      <div class="row">
-        <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
-        <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
-        <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
-        <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Powrót do panelu</button>
+      
+      <div class="row" style="margin-bottom:15px;">
+        <select id="chatCaseSelect" style="max-width:320px;" onchange="handleStewardChatSelection(this)">
+          <option value="">Wybierz ID zgłoszenia...</option>
+        </select>
+      </div>
+
+      <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
+        <div id="chatBox"></div>
+        <div class="row">
+          <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
+          <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
+          <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
+          <button class="btn-danger" onclick="clearChat()">Wyczyść czat</button>
+          <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Powrót do panelu</button>
+        </div>
       </div>
     </div>
 
@@ -589,7 +591,6 @@
   </div>
 
 <script>
-// --- CONFIGURATION & FIREBASE SETUP ---
 const firebaseConfig = {
     databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/" 
 };
@@ -636,11 +637,8 @@ const langData = {
         sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
         embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Kierowca", fieldEvidence: "🎬 Dowód",
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
-        lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link dowodu", appealSecTitle: "Formularz Apelacyjny",
-        appealSubtitle: "Odwołaj się od decyzji sędziów.", labelAppealCaseId: "ID Sprawy", labelAppealReason: "Uzasadnienie",
-        labelAppealEvidence: "Nowe dowody", btnSubmitAppeal: "Wyślij Apelację", alertAppealSent: "Apelacja wysłana!",
-        alertCaseNotFound: "Nie znaleziono zgłoszenia.", dcAppealTitle: "⚖️ NOWA APELACJA",
-        btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie..."
+        lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!", alertCaseNotFound: "Nie znaleziono zgłoszenia.",
+        dcAppealTitle: "⚖️ NOWA APELACJA", btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie..."
     },
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
@@ -662,24 +660,21 @@ const langData = {
         dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
         decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt4: "Disqualification",
-        optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal rejected",
+        optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
-        sendBtn: "Send Decision", statusSending: "Sending...", statusOk: "Sent.", statusErr: "Error.",
-        embedTitle: "⚖️ Stewards' Decision", fieldCase: "Case ID", fieldWinner: "Accused", fieldEvidence: "🎬 Evidence",
+        sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
+        embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Driver", fieldEvidence: "🎬 Evidence",
         fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
-        lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence link", appealSecTitle: "Appeal Form",
-        appealSubtitle: "Appeal the decision.", labelAppealCaseId: "Case ID", labelAppealReason: "Reasoning",
-        labelAppealEvidence: "New evidence", btnSubmitAppeal: "Submit Appeal", alertAppealSent: "Appeal submitted!",
-        alertCaseNotFound: "Not found.", dcAppealTitle: "⚖️ NEW APPEAL",
-        btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type a message..."
+        lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!", alertCaseNotFound: "Report not found.",
+        dcAppealTitle: "⚖️ NEW APPEAL", btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type chat message..."
     }
 };
 
 const categoriesStructure = {
     pl: {
-        "Incydenty Wyścigowe": ["Brake check", "Spowodowanie kolizji", "Wypychanie poza tor", "Agresywny divebomb", "Nierespektowanie overlapu", "Niebezpieczny powrót", "Zmiana linii", "Blokowanie w kwalifikacjach"],
-        "Procedury i VSC/SC": ["Delta VSC/SC", "Restart", "Wywołanie SC", "Linia boksów"],
-        "Niesportowe": ["Reset do toru", "Celowe rozbicie", "Wycofanie się", "Jazda na SI", "Start bez zgody", "Brak obecności"]
+        "Incydenty Wyścigowe": ["Brake check / Testowanie hamulców", "Spowodowanie kolizji", "Wypychanie z toru", "Zbyt agresywny atak (Divebomb)", "Nieustąpienie pozycji przy nakładaniu", "Niebezpieczny powrót na tor (Re-entry)", "Zygzakowanie / Niebezpieczna zmiana linii", "Blokowanie w kwalifikacjach"],
+        "Procedury i VSC/SC": ["Naruszenie delty VSC/SC", "Naruszenie procedury restartu", "Spowodowanie wyjazdu SC", "Przekroczenie linii wyjazdowej z alei"],
+        "Niesportowe Zachowanie": ["Używanie opcji 'Reset to track'", "Celowe rozbicie pojazdu", "Porzucenie sesji (Retirement) w złym miejscu", "Jazda pod wpływem AI", "Niezatwierdzony start", "Nieusprawiedliwiona nieobecność"]
     },
     en: {
         "Racing Incidents": ["Brake check", "Causing a collision", "Pushing off track", "Aggressive divebomb", "Disrespecting overlap", "Dangerous re-entry", "Dangerous line change", "Blocking in qualifying"],
@@ -689,10 +684,10 @@ const categoriesStructure = {
 };
 
 const tracks = [
-    "Bahrajn (Sakhir)", "Arabia Saudyjska (Jeddah)", "Australia (Melbourne)", "Japonia (Suzuka)", "Chiny (Szanghaj)", "USA (Miami)",
-    "Imola (Emilia-Romagna)", "Monako (Monte Carlo)", "Kanada (Montreal)", "Hiszpania (Barcelona)", "Austria (Spielberg)",
-    "Wielka Brytania (Silverstone)", "Węgry (Budapeszt)", "Belgia (Spa-Francorchamps)", "Holandia (Zandvoort)", "Włochy (Monza)",
-    "Azerbejdżan (Baku)", "Singapur (Marina Bay)", "USA (Austin)", "Meksyk (Hermanos Rodriguez)", "Brazylia (Interlagos)",
+    "Bahrajn (Sakhir)", "Arabia Saudyjska (Jeddah)", "Australia (Melbourne)", "Japonia (Suzuka)", "Chiny (Szanghaj)", "USA (Miami)", 
+    "Imola (Emilia-Romagna)", "Monako (Monte Carlo)", "Kanada (Montreal)", "Hiszpania (Barcelona)", "Austria (Spielberg)", 
+    "Wielka Brytania (Silverstone)", "Węgry (Budapeszt)", "Belgia (Spa-Francorchamps)", "Holandia (Zandvoort)", "Włochy (Monza)", 
+    "Azerbejdżan (Baku)", "Singapur (Marina Bay)", "USA (Austin)", "Meksyk (Hermanos Rodriguez)", "Brazylia (Interlagos)", 
     "USA (Las Vegas)", "Katar (Lusail)", "Abu Zabi (Yas Marina)"
 ];
 
@@ -701,71 +696,75 @@ window.addEventListener("DOMContentLoaded", () => {
         const data = snapshot.val();
         globalIncidents = data ? Object.values(data) : [];
         renderHistory();
-        if (isAdminAuthenticated) renderAdmin();
+        if (isAdminAuthenticated) {
+            renderAdmin();
+            updateChatCaseSelect();
+        }
     });
 
     database.ref("appeals").on("value", (snapshot) => {
         const data = snapshot.val();
         globalAppeals = data ? Object.values(data) : [];
-        renderHistory(); 
-        if (isAdminAuthenticated) renderAdmin();
+        renderHistory();
+        if (isAdminAuthenticated) {
+            renderAdmin();
+            updateChatCaseSelect();
+        }
     });
 
-    // --- SHARED LIVE CHAT REAMS (FOR ADMINS AND PLAYERS) ---
     database.ref("chat").on("value", (snapshot) => {
         const data = snapshot.val();
-        
-        // Render dla panelu admina
         const adminChatBox = document.getElementById("chatBox");
         adminChatBox.innerHTML = "";
-        
-        // Render dla panelu aktywnego gracza
         const playerChatBox = document.getElementById("playerChatBox");
         playerChatBox.innerHTML = "";
 
         if (data) {
             Object.values(data).forEach(m => {
-                // Budowanie bazy HTML dla wiadomości
                 const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
                 const msgClass = isSteward ? "msg msg-steward" : "msg msg-player";
 
-                const messageHtml = `<span class="msg-meta">${m.timestamp || ""} - <strong>${m.nick}</strong>:</span>${m.text}`;
-                
-                // Wstrzyknij do czatu adminów
-                const divAdmin = document.createElement("div");
-                divAdmin.className = msgClass;
-                divAdmin.innerHTML = messageHtml;
-                adminChatBox.appendChild(divAdmin);
+                const wrapper = document.createElement("div");
+                wrapper.className = msgClass;
 
-                // Wstrzyknij do czatu gracza
-                const divPlayer = document.createElement("div");
-                divPlayer.className = msgClass;
-                divPlayer.innerHTML = messageHtml;
-                playerChatBox.appendChild(divPlayer);
+                const meta = document.createElement("span");
+                meta.className = "msg-meta";
+                meta.textContent = `${m.nick} [${m.caseId || 'Ogólny'}]`;
+
+                const bodyText = document.createTextNode(m.text);
+                wrapper.appendChild(meta);
+                wrapper.appendChild(bodyText);
+
+                if (isAdminAuthenticated) {
+                    adminChatBox.appendChild(wrapper.cloneNode(true));
+                }
+                if (authorizedHistoryDiscordId && (m.userDiscordId === authorizedHistoryDiscordId || isSteward)) {
+                    playerChatBox.appendChild(wrapper.cloneNode(true));
+                }
             });
-            
             adminChatBox.scrollTop = adminChatBox.scrollHeight;
             playerChatBox.scrollTop = playerChatBox.scrollHeight;
         }
     });
 
-    updateUI();
+    updateLangDOM();
 });
 
 function toggleLang() {
     currentLang = currentLang === 'pl' ? 'en' : 'pl';
-    updateUI();
+    updateLangDOM();
 }
 
-function updateUI() {
-    document.querySelectorAll('[data-key]').forEach(el => {
-        const key = el.getAttribute('data-key');
-        el.textContent = langData[currentLang][key];
-    });
-
-    document.querySelectorAll('[data-placeholder]').forEach(el => {
-        const key = el.getAttribute('data-placeholder');
-        el.placeholder = langData[currentLang][key];
+function updateLangDOM() {
+    document.querySelectorAll("[data-key]").forEach(el => {
+        const key = el.getAttribute("data-key");
+        if (langData[currentLang][key]) {
+            if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+                el.placeholder = langData[currentLang][key];
+            } else {
+                el.textContent = langData[currentLang][key];
+            }
+        }
     });
 
     const sType = document.getElementById("sessionType");
@@ -778,7 +777,8 @@ function updateUI() {
     const trackSelect = document.getElementById("track");
     trackSelect.innerHTML = `<option value="">${langData[currentLang].optChooseTrack}</option>`;
     tracks.forEach(t => {
-        let opt = document.createElement("option"); opt.value = t; opt.text = t; trackSelect.add(opt);
+        let opt = document.createElement("option");
+        opt.value = t; opt.text = t; trackSelect.add(opt);
     });
 
     const catSelect = document.getElementById("category");
@@ -787,7 +787,8 @@ function updateUI() {
         let optGroup = document.createElement("optgroup");
         optGroup.label = group;
         items.forEach(item => {
-            let opt = document.createElement("option"); opt.value = item; opt.text = item; optGroup.appendChild(opt);
+            let opt = document.createElement("option");
+            opt.value = item; opt.text = item; optGroup.appendChild(opt);
         });
         catSelect.appendChild(optGroup);
     }
@@ -795,11 +796,15 @@ function updateUI() {
     const trackFilter = document.getElementById("adminFilterTrack");
     trackFilter.innerHTML = `<option value="ALL">${currentLang === 'pl' ? 'Wszystkie tory' : 'All tracks'}</option>`;
     tracks.forEach(t => {
-        let opt = document.createElement("option"); opt.value = t; opt.text = t; trackFilter.add(opt);
+        let opt = document.createElement("option");
+        opt.value = t; opt.text = t; trackFilter.add(opt);
     });
 
     renderHistory();
-    if (isAdminAuthenticated) renderAdmin();
+    if (isAdminAuthenticated) {
+        renderAdmin();
+        updateChatCaseSelect();
+    }
 }
 
 function showSection(id) {
@@ -824,11 +829,9 @@ function resetIDCounter() {
     }
 }
 
-// --- SUBMIT COMPLAINT ---
 document.getElementById("complaintForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const t = langData[currentLang];
-    
     const id = await getNextID();
     const nick = document.getElementById("nick").value;
     const discordId = document.getElementById("discordId").value;
@@ -840,43 +843,33 @@ document.getElementById("complaintForm").addEventListener("submit", async (e) =>
     const details = document.getElementById("details").value;
     const evidence = document.getElementById("evidence").value;
 
-    const newReport = {
-        id, nick, discordId, category, track, session,
-        accusedNick, accusedDiscordId, details, evidence,
-        status: "Oczekuje", timestamp: new Date().toLocaleString(), notes: ""
-    };
-
+    const newReport = { id, nick, discordId, category, track, session, accusedNick, accusedDiscordId, details, evidence, status: "Oczekuje", notes: "" };
     await database.ref("incidents/" + id).set(newReport);
 
     const embed = {
         title: t.dcReportTitle, color: 16711680,
         fields: [
-          { name: "🆔 ID Zgłoszenia", value: `\`${id}\``, inline: true },
-          { name: t.dcLabelReporter, value: `${nick} (<@${discordId}>)`, inline: true },
-          { name: t.dcLabelAgainst, value: `${accusedNick} (<@${accusedDiscordId}>)`, inline: true }
+            { name: "🆔 ID Zgłoszenia", value: `\`${id}\``, inline: true },
+            { name: t.dcLabelReporter, value: `${nick} (<@${discordId}>)`, inline: true },
+            { name: "📍 Tor / Sesja", value: `${track} (${session})`, inline: false },
+            { name: t.dcLabelAgainst, value: `${accusedNick} (<@${accusedDiscordId}>)`, inline: true }
         ],
         timestamp: new Date().toISOString()
     };
 
     try {
-        await fetch(NEW_REPORT_WEBHOOK, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: `Dodano nowe zgłoszenie od <@${discordId}>`, embeds: [embed] })
-        });
-    } catch(err) { console.error("Webhook error", err); }
+        await fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "🔔 Nowe zgłoszenie w bazie danych!", embeds: [embed] }) });
+    } catch(err) { console.error(err); }
 
-    alert(t.alertSent);
-    e.target.reset();
+    alert(t.alertSent); e.target.reset();
 });
 
-// --- SUBMIT APPEAL ---
 document.getElementById("appealForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const t = langData[currentLang];
-
-    const caseId = document.getElementById("appealCaseId").value.trim();
+    const caseId = document.getElementById("appealCaseId").value.trim().toUpperCase();
     const nick = document.getElementById("appealNick").value;
-    const discordId = document.getElementById("appealDiscordId").value;
+    const discordId = document.getElementById("appealDiscordId").value.trim();
     const appealReason = document.getElementById("appealReason").value;
     const appealEvidenceUrl = document.getElementById("appealEvidence").value;
 
@@ -884,7 +877,6 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
     if (!foundReport) { alert(t.alertCaseNotFound); return; }
 
     await database.ref("incidents/" + caseId + "/status").set("W apelacji");
-
     const appealId = await getNextAppealID();
     const newAppeal = { appealId, caseId, nick, discordId, reason: appealReason, evidence: appealEvidenceUrl, status: "Nowa" };
     await database.ref("appeals/" + appealId).set(newAppeal);
@@ -892,83 +884,72 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
     const embed = {
         title: t.dcAppealTitle, color: 15105572,
         fields: [
-          { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
-          { name: "👤 Apelujący", value: `${nick} (<@${discordId}>)`, inline: true }
-        ],
-        timestamp: new Date().toISOString()
+            { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
+            { name: "👤 Apelujący", value: `${nick} (<@${discordId}>)`, inline: true }
+        ], timestamp: new Date().toISOString()
     };
 
     try {
-        await fetch(NEW_REPORT_WEBHOOK, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: `🚨 Nowa apelacja dla sprawy \`${caseId}\` od <@${discordId}>!`, embeds: [embed] })
-        });
+        await fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `🚨 Nowa apelacja dla sprawy \`${caseId}\` od <@${discordId}>!`, embeds: [embed] }) });
     } catch(err) { console.error("Webhook error", err); }
 
-    alert(t.alertAppealSent);
-    e.target.reset();
-    showSection("formSection");
+    alert(t.alertSent); e.target.reset(); showSection("formSection");
 });
 
-// --- GENEROWANIE I WYŚWIETLANIE PINU BEZPOŚREDNIO W PANELU ---
 async function requestVerificationPin() {
     const statusBox = document.getElementById("authBoxStatus");
     const dcInput = document.getElementById("historyDiscordInput").value.trim();
-
     if (!dcInput || dcInput.length < 15 || isNaN(dcInput)) {
         statusBox.style.color = "#f97373";
         statusBox.textContent = currentLang === 'pl' ? "Wprowadź poprawne, cyfrowe Discord ID!" : "Enter a valid numeric Discord ID!";
         return;
     }
-
     activeVerificationPin = String(Math.floor(1000 + Math.random() * 9000));
     authorizedHistoryDiscordId = dcInput;
 
     try {
-        await database.ref("verification_pins/" + dcInput).set({
-            pin: activeVerificationPin,
-            timestamp: firebase.database.ServerValue.TIMESTAMP
-        });
-    } catch (e) {
-        console.error("Błąd zapisu PIN do Firebase:", e);
-    }
+        await database.ref("verification_pins/" + dcInput).set({ pin: activeVerificationPin, timestamp: firebase.database.ServerValue.TIMESTAMP });
+    } catch (e) { console.error("Błąd zapisu PIN do Firebase:", e); }
 
     document.getElementById("generatedPinDisplay").textContent = activeVerificationPin;
     document.getElementById("pvRedirectRow").style.display = "block";
     document.getElementById("pinVerificationRow").style.display = "flex";
-
     statusBox.style.color = "#10b981";
-    statusBox.textContent = currentLang === 'pl' 
-        ? "Kod dostępu wygenerowany pomyślnie bezpośrednio w panelu!" 
-        : "Access code successfully generated right in the panel!";
+    statusBox.textContent = currentLang === 'pl' ? "Kod autoryzacji wygenerowany pomyślnie." : "Verification code generated successfully.";
 }
 
 function verifyHistoryPin() {
     const statusBox = document.getElementById("authBoxStatus");
-    const enteredPin = document.getElementById("historyPinInput").value.trim();
+    const userPin = document.getElementById("historyPinInput").value.trim();
 
-    if (activeVerificationPin && enteredPin === activeVerificationPin) {
-        statusBox.style.color = "#4ade80";
-        statusBox.textContent = currentLang === 'pl' ? "Autoryzacja pomyślna. Wczytuję historię..." : "Authorization successful. Loading records...";
-        
-        document.getElementById("historyAuthBox").style.borderLeft = "4px solid #10b981";
-        document.getElementById("pvRedirectRow").style.display = "none";
-        document.getElementById("pinVerificationRow").style.display = "none";
-        document.getElementById("historyDiscordInput").disabled = true;
-        
-        // --- ODBLOKOWANIE CZATU DLA GRACZA PO WPISANIU PINU ---
+    if (userPin === activeVerificationPin && activeVerificationPin !== null) {
+        statusBox.style.color = "#10b981";
+        statusBox.textContent = currentLang === 'pl' ? "Weryfikacja udana. Uzyskano wgląd." : "Verification successful. Access granted.";
         document.getElementById("playerChatBoxContainer").style.display = "block";
-        
-        database.ref("verification_pins/" + authorizedHistoryDiscordId).remove();
-        
         renderHistory();
     } else {
         statusBox.style.color = "#f97373";
-        statusBox.textContent = currentLang === 'pl' ? "Niepoprawny kod PIN! Przepisz kod dokładnie i spróbuj ponownie." : "Invalid PIN code! Copy the code accurately and try again.";
+        statusBox.textContent = currentLang === 'pl' ? "Błędny kod PIN autoryzacji!" : "Invalid verification PIN!";
     }
 }
 
-// --- RENDER HISTORII ---
+async function sendPlayerChatMessage() {
+    const msgInput = document.getElementById("playerChatMsg");
+    const text = msgInput.value.trim();
+    if (!text || !authorizedHistoryDiscordId) return;
+
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set({
+        nick: document.getElementById("historyDiscordInput").value.trim(),
+        text: text,
+        role: "player",
+        userDiscordId: authorizedHistoryDiscordId,
+        caseId: "Kierowca",
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    msgInput.value = "";
+}
+
 function renderHistory() {
     const list = document.getElementById("historyList");
     list.innerHTML = "";
@@ -1004,7 +985,6 @@ function renderHistory() {
         if (r.status === "W apelacji") translatedStatus = t.statusAppeal;
 
         const relatedAppeals = globalAppeals.filter(a => a.caseId === r.id && (a.discordId === authorizedHistoryDiscordId || r.discordId === authorizedHistoryDiscordId || r.accusedDiscordId === authorizedHistoryDiscordId));
-
         let appealsHtml = "";
         if (relatedAppeals.length > 0) {
             appealsHtml = `<div style="margin-top: 8px; border-left: 2px solid #eab308; padding-left: 8px;">
@@ -1018,39 +998,63 @@ function renderHistory() {
         const div = document.createElement("div");
         div.className = "history-item";
         div.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <strong style="color:#fff; font-size:14px;">${r.id}</strong>
-            <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius999px;">${translatedStatus}</span>
-          </div>
-          <p style="margin:2px 0; font-size:12px; color:#9ca3af;"><strong>Tor:</strong> ${r.track} (${r.session}) | <strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
-          <p style="margin:4px 0; font-size:12px; background:#1f2937; padding:6px; border-radius:6px; color:#cbd5e1; border:1px solid #374151;">${r.details}</p>
-          ${r.notes ? `<p style="margin:4px 0; font-size:12px; color:#f87171;"><strong>Uzasadnienie sędziowskie:</strong> ${r.notes}</p>` : ""}
-          ${appealsHtml}
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #374151; padding-bottom:6px; margin-bottom:6px;">
+                <span style="font-size:14px; font-weight:bold; color:#fff;">${r.id}</span>
+                <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:4px;">${translatedStatus}</span>
+            </div>
+            <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track} (${r.session}) | <strong>Kategoria:</strong> ${r.category}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Oskarżony:</strong> ${r.accusedNick} (ID: ${r.accusedDiscordId})</p>
+            <p style="margin:4px 0; color:#cbd5e1; font-size:12px; background:#1f2937; padding:8px; border-radius:6px;">${r.details}</p>
+            ${r.notes ? `<p style="margin:4px 0; color:#f8fafc; font-size:12px; background:#1e293b; padding:8px; border-radius:6px; border-left:3px solid #3b82f6;"><strong>Werdykt / Notatki FIA:</strong> ${r.notes}</p>` : ""}
+            ${appealsHtml}
         `;
         list.appendChild(div);
     });
 }
 
-// --- ADMIN PANEL AUTH ---
 function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; }
 function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; }
 function checkAdminAuth() {
-    const p = document.getElementById("adminPass").value;
-    if (p === "steward2025" || p === "headsteward2025") {
+    const passwordInput = document.getElementById("adminPass").value;
+    if (passwordInput === "fia2024") {
         isAdminAuthenticated = true;
-        document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
-        closeAdminLogin(); showSection("adminSection"); renderAdmin();
+        closeAdminLogin();
+        document.getElementById("adminMenuBtn").className = "btn-success";
+        showSection('adminSection');
+        renderAdmin();
+        updateChatCaseSelect();
     } else {
         document.getElementById("loginStatus").textContent = "Błędne hasło!";
     }
 }
 
-// --- ADMIN RENDER ---
+function updateChatCaseSelect() {
+    const select = document.getElementById("chatCaseSelect");
+    if (!select) return;
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Wybierz ID zgłoszenia...</option>';
+    globalIncidents.forEach(report => {
+        const option = document.createElement("option");
+        option.value = report.id;
+        option.textContent = `${report.id} — ${report.nick} vs ${report.accusedNick}`;
+        select.appendChild(option);
+    });
+    select.value = currentValue;
+}
+
+function handleStewardChatSelection(selectElement) {
+    const chatContentWrapper = document.getElementById("stewardChatContentWrapper");
+    if (selectElement.value !== "") {
+        chatContentWrapper.style.display = "flex";
+    } else {
+        chatContentWrapper.style.display = "none";
+    }
+}
+
 function renderAdmin() {
     const tbody = document.getElementById("adminTableBody");
     tbody.innerHTML = "";
     const t = langData[currentLang];
-
     const searchQuery = document.getElementById("adminSearch").value.toLowerCase();
     const filterStatus = document.getElementById("adminFilterStatus").value;
     const filterTrack = document.getElementById("adminFilterTrack").value;
@@ -1100,23 +1104,26 @@ function renderAdmin() {
             if (r.status === "W apelacji") trStatusText = t.statusAppeal;
 
             tr.innerHTML = `
-              <td class="col-cb"><input type="checkbox" class="report-checkbox" data-id="${r.id}" onclick="updateBulkBarVisibility()"></td>
-              <td class="col-id"><strong>${r.id}</strong></td>
-              <td class="col-rep"><div class="cell-wrap"><strong>${r.nick}</strong><br>ID: ${r.discordId}</div></td>
-              <td class="col-track"><div class="cell-wrap">🏁 ${r.track}<br><span style="font-size:10px;color:#60a5fa;">${r.category}</span></div></td>
-              <td class="col-sess">${r.session}</td>
-              <td class="col-acc"><div class="cell-wrap"><strong>${r.accusedNick}</strong><br>ID: ${r.accusedDiscordId}</div></td>
-              <td class="col-desc"><div class="cell-wrap">${r.details}</div><button class="btn-view" onclick="openDescModal('${r.id}')">Pokaż / Notatki</button></td>
-              <td class="col-ev">${r.evidence ? `<a class="evidence-link" href="${r.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
-              <td class="col-stat">
-                <span style="display:block; text-align:center; background:${badgeBg}; color:#000; font-weight:bold; padding:2px; border-radius:4px; margin-bottom:4px; font-size:10px;">${trStatusText}</span>
-                <div class="action-btns">
-                  <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
-                  <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
-                  <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
-                  <button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>
-                </div>
-              </td>
+                <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
+                <td><strong style="color:#fff;">${r.id}</strong></td>
+                <td><strong>${r.nick}</strong><br><span style="color:#9ca3af; font-size:10px;">ID: ${r.discordId}</span></td>
+                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:#cbd5e1; font-size:11px;">${r.category}</span></td>
+                <td>${r.session}</td>
+                <td><strong>${r.accusedNick}</strong><br><span style="color:#9ca3af; font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
+                <td>
+                    <div class="cell-wrap">${r.details}</div>
+                    <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
+                </td>
+                <td>${r.evidence ? `<a class="evidence-link" href="${r.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
+                <td>
+                    <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>
+                    <div class="action-btns">
+                        <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
+                        <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
+                        <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
+                        <button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>
+                    </div>
+                </td>
             `;
             tbody.appendChild(tr);
         }
@@ -1130,19 +1137,19 @@ function renderAdmin() {
         globalAppeals.forEach(a => {
             const trA = document.createElement("tr");
             trA.innerHTML = `
-              <td><strong>${a.appealId}</strong></td>
-              <td><span style="color:#fbbf24; font-weight:bold;">${a.caseId}</span></td>
-              <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
-              <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
-              <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
-              <td>
-                <div class="action-btns">
-                  <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
-                  <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
-                  <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
-                  <button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>
-                </div>
-              </td>
+                <td><strong>${a.appealId}</strong></td>
+                <td><span style="color:#fbbf24; font-weight:bold;">${a.caseId}</span></td>
+                <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
+                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
+                <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
+                        <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
+                        <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
+                        <button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>
+                    </div>
+                </td>
             `;
             appTbody.appendChild(trA);
         });
@@ -1152,81 +1159,95 @@ function renderAdmin() {
 function transferToVerdictPanel(id, accusedDiscordId) {
     document.getElementById("caseId").value = id;
     document.getElementById("accusedId").value = accusedDiscordId;
-    
     const found = globalIncidents.find(r => r.id === id);
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
         document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank">${found.evidence}</a>` : "-";
-        document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session})\n\nOpis zdarzenia:\n"${found.details}"\n\nWerdykt sędziowski:\n`;
-    } else {
-        document.getElementById("verdictDetails").value = "";
+        document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
     }
-    
-    document.getElementById("responseForm").scrollIntoView({ behavior: 'smooth' });
 }
 
-function transferAppealToVerdict(caseId, appellantDiscordId, appealId, appealEvidenceUrl) {
-    document.getElementById("caseId").value = `Apelacja: ${appealId} (Sprawa: ${caseId})`;
-    document.getElementById("accusedId").value = appellantDiscordId;
-    
-    const found = globalIncidents.find(r => r.id === caseId);
-    if (found) {
-        document.getElementById("verdictPreviewDesc").textContent = `[OPIS INCYDENTU]:\n${found.details}`;
-    } else {
-        document.getElementById("verdictPreviewDesc").textContent = `[OPIS]: Nie znaleziono oryginalnego zgłoszenia.`;
-    }
-    
-    document.getElementById("verdictPreviewEvidence").innerHTML = appealEvidenceUrl 
-        ? `<a href="${appealEvidenceUrl}" target="_blank">${appealEvidenceUrl}</a>` 
-        : "Brak nowych dowodów.";
-    
+function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence) {
+    document.getElementById("caseId").value = `${caseId} (${appealId})`;
+    document.getElementById("accusedId").value = driverDiscordId;
+    const foundCase = globalIncidents.find(r => r.id === caseId);
     const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
-    const reasonText = foundAppeal ? foundAppeal.reason : "Brak opisu";
-    
-    document.getElementById("verdictDetails").value = `W nawiązaniu do apelacji ${appealId} dla sprawy ${caseId}.\n\nArgumentacja kierowcy:\n"${reasonText}"\n\nDecyzja sędziów:\n`;
-    
-    document.getElementById("responseForm").scrollIntoView({ behavior: 'smooth' });
+
+    if (foundCase && foundAppeal) {
+        document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
+        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${foundCase.evidence ? `<a href="${foundCase.evidence}" target="_blank">Link</a>` : 'Brak'}<br>Nowy dowód: ${newEvidence ? `<a href="${newEvidence}" target="_blank">Link</a>` : 'Brak'}`;
+        document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
+    }
 }
 
 function toggleSelectAll(master) {
-    document.querySelectorAll(".report-checkbox").forEach(cb => cb.checked = master.checked);
-    updateBulkBarVisibility();
+    document.querySelectorAll(".admin-row-cb").forEach(cb => cb.checked = master.checked);
+    updateBulkActionsBar();
 }
 
-function updateBulkBarVisibility() {
-    const checkedBoxes = document.querySelectorAll(".report-checkbox:checked");
+function updateBulkActionsBar() {
+    const selected = document.querySelectorAll(".admin-row-cb:checked");
     const bar = document.getElementById("bulkBar");
-    if (checkedBoxes.length > 0) {
+    if (selected.length > 0) {
         bar.style.display = "flex";
-        document.getElementById("bulkSelectedCount").textContent = `Wybrano: ${checkedBoxes.length} zgłoszeń`;
+        document.getElementById("bulkSelectedCount").textContent = `Wybrano: ${selected.length} zgłoszeń`;
     } else {
         bar.style.display = "none";
+        document.getElementById("selectAllCheckboxes").checked = false;
     }
 }
 
 async function bulkStatusUpdate(newStatus) {
+    const selected = document.querySelectorAll(".admin-row-cb:checked");
+    if (selected.length === 0) return;
+    let reason = "";
+    if (newStatus === "Odrzucone") {
+        reason = prompt(langData[currentLang].promptReject) || "";
+    }
     const updates = {};
-    document.querySelectorAll(".report-checkbox:checked").forEach(cb => {
-        const id = cb.getAttribute("data-id"); updates[`incidents/${id}/status`] = newStatus;
-    });
-    if (Object.keys(updates).length > 0) {
-        await database.ref().update(updates); alert(`Zaktualizowano status.`);
+    for (const cb of selected) {
+        const id = cb.getAttribute("data-id");
+        updates[`incidents/${id}/status`] = newStatus;
+        if (reason) updates[`incidents/${id}/notes`] = `Odrzucono masowo: ${reason}`;
+    }
+    await database.ref().update(updates);
+    document.getElementById("selectAllCheckboxes").checked = false;
+    updateBulkActionsBar();
+    alert(`Zaktualizowano status ${selected.length} zgłoszeń.`);
+}
+
+async function bulkDelete() {
+    const selected = document.querySelectorAll(".admin-row-cb:checked");
+    if (selected.length === 0) return;
+    if (confirm(langData[currentLang].confirmDelete)) {
+        const updates = {};
+        for (const cb of selected) {
+            const id = cb.getAttribute("data-id");
+            updates[`incidents/${id}`] = null;
+        }
+        await database.ref().update(updates);
+        document.getElementById("selectAllCheckboxes").checked = false;
+        updateBulkActionsBar();
+        alert(`Usunięto ${selected.length} zgłoszeń.`);
     }
 }
 
 async function updateStatus(id, newStatus) {
-    const item = globalIncidents.find(r => r.id === id); if (!item) return;
+    const item = globalIncidents.find(r => r.id === id);
+    if (!item) return;
     let reason = "";
     if (newStatus === "Odrzucone") {
         reason = prompt(langData[currentLang].promptReject);
-        if (reason === null) return; if (reason.trim() !== "") item.notes = `[Odrzucono]: ${reason}`;
+        if (reason === null) return; 
     }
-    const updates = {}; updates[`incidents/${id}/status`] = newStatus;
-    if(item.notes) updates[`incidents/${id}/notes`] = item.notes;
+    const updates = {};
+    updates[`incidents/${id}/status`] = newStatus;
+    if (reason) updates[`incidents/${id}/notes`] = reason;
     await database.ref().update(updates);
 
     const embed = {
-        title: langData[currentLang].dcDecisionTitle, color: newStatus === "Przyjęte" ? 65280 : 16711680,
+        title: langData[currentLang].dcDecisionTitle,
+        color: newStatus === "Przyjęte" ? 65280 : 16711680,
         description: `${langData[currentLang].dcMsgDecision} **${newStatus === "Przyjęte" ? "PRZYJĘTE" : "ODRZUCONE"}**.` + (reason ? `\n\n**Uzasadnienie:** ${reason}` : ""),
         fields: [{ name: "🆔 ID Zgłoszenia", value: `\`${item.id}\``, inline: true }, { name: "👤 Kierowca", value: `<@${item.discordId}>`, inline: true }],
         timestamp: new Date().toISOString()
@@ -1237,154 +1258,130 @@ async function updateStatus(id, newStatus) {
 }
 
 async function deleteReport(id) { if (confirm(langData[currentLang].confirmDelete)) await database.ref("incidents/" + id).remove(); }
-
 async function deleteAppeal(appealId) { if (confirm(langData[currentLang].confirmDelete)) await database.ref("appeals/" + appealId).remove(); }
 
 async function acceptAppeal(appealId, caseId, discordId) {
-    const updates = {}; 
-    updates[`appeals/${appealId}/status`] = "Zmieniony"; 
-    updates[`incidents/${caseId}/notes`] = `[Apelacja pomyślna]: Zmiana werdyktu.`;
+    const updates = {};
+    updates[`appeals/${appealId}/status`] = "Zmieniony";
     await database.ref().update(updates);
 
     const isPl = (currentLang === 'pl');
     const embed = {
-        title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", 
-        color: 10540247, 
-        description: isPl 
-            ? `Decyzja sędziowska dla zgłoszenia **${caseId}** została zmieniona w wyniku apelacji **${appealId}**.` 
-            : `The stewards' decision for report **${caseId}** has been modified following appeal **${appealId}**.`,
+        title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", color: 10540247,
+        description: isPl ? `Decyzja sędziowska została zmieniona w wyniku apelacji **${appealId}** dla sprawy **${caseId}**.` : `The decision has been modified following appeal **${appealId}** for case **${caseId}**.`,
         fields: [
-          { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
-          { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
-          { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false }
-        ],
-        timestamp: new Date().toISOString()
+            { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+            { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false }
+        ], timestamp: new Date().toISOString()
     };
-
-    try {
-        await fetch(DECISION_WEBHOOK, { 
-            method: "POST", 
-            headers: { "Content-Type": "application/json" }, 
-            body: JSON.stringify({ embeds: [embed] }) 
-        });
-    } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
-
-    alert(`Apelacja ${appealId} zmieniona.`);
+    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) }); } catch(e) { console.error(e); }
+    alert(`Apelacja ${appealId} rozpatrzona pomyślnie.`);
 }
 
 async function rejectAppeal(appealId, caseId, discordId) {
-    const reason = prompt("Uzasadnienie odrzucenia:"); 
-    if (reason === null) return;
-    
-    const updates = {}; 
-    updates[`appeals/${appealId}/status`] = "Podtrzymany"; 
-    updates[`incidents/${caseId}/notes`] = `[Apelacja odrzucona]: Podtrzymano decyzję. Powód: ${reason}`;
+    const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
+    const updates = {};
+    updates[`appeals/${appealId}/status`] = "Podtrzymany";
     await database.ref().update(updates);
 
     const isPl = (currentLang === 'pl');
     const embed = {
-        title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL REJECTED", 
-        color: 6579307, 
-        description: isPl 
-            ? `Apelacja **${appealId}** dla zgłoszenia **${caseId}** została odrzucona. Pierwotny werdykt sędziów został podtrzymany.` 
-            : `Appeal **${appealId}** for report **${caseId}** has been rejected. The original stewards' verdict stands.`,
+        title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL DISMISSED", color: 10040084,
         fields: [
-          { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
-          { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
-          { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
-          { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
-          { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
-        ],
-        timestamp: new Date().toISOString()
+            { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+            { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
+            { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
+            { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
+        ], timestamp: new Date().toISOString()
     };
-
-    try {
-        await fetch(DECISION_WEBHOOK, { 
-            method: "POST", 
-            headers: { "Content-Type": "application/json" }, 
-            body: JSON.stringify({ embeds: [embed] }) 
-        });
-    } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
-
+    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) }); } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
     alert(`Apelacja ${appealId} odrzucona.`);
 }
 
 function openDescModal(id) {
-    currentlyEditedReportId = id; const item = globalIncidents.find(r => r.id === id); if (!item) return;
+    currentlyEditedReportId = id;
+    const item = globalIncidents.find(r => r.id === id);
+    if (!item) return;
     document.getElementById("descModalTitle").textContent = `Sprawa ${item.id}`;
     document.getElementById("descModalBody").textContent = item.details;
     document.getElementById("modalNotesField").value = item.notes || "";
     document.getElementById("descModal").style.display = "flex";
 }
-function closeDescModal() { document.getElementById("descModal").style.display = "none"; currentlyEditedReportId = null; }
+
+function closeDescModal() {
+    document.getElementById("descModal").style.display = "none";
+    currentlyEditedReportId = null;
+}
+
 async function saveModalNotes() {
     if (!currentlyEditedReportId) return;
     await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(document.getElementById("modalNotesField").value);
     alert("Zapisano."); closeDescModal();
 }
 
-// --- LIVE CHAT SEND MESSAGE (FROM STEWARDS PANEL) ---
 async function sendChatMessage() {
+    const selectedCaseId = document.getElementById("chatCaseSelect")?.value || "";
     const msgInput = document.getElementById("chatMsg");
     const text = msgInput.value.trim();
     if (!text) return;
 
     const newMsgRef = database.ref("chat").push();
     await newMsgRef.set({
-        nick: "Steward",
+        nick: document.getElementById("chatNick").value || "Steward",
         text: text,
         role: "steward",
-        timestamp: new Date().toLocaleTimeString()
+        caseId: selectedCaseId || "Ogólny",
+        userDiscordId: "admin",
+        timestamp: firebase.database.ServerValue.TIMESTAMP
     });
     msgInput.value = "";
 }
 
-// --- LIVE CHAT SEND MESSAGE (FROM AUTHENTICATED PLAYER PANEL) ---
-async function sendPlayerChatMessage() {
-    const msgInput = document.getElementById("playerChatMsg");
-    const text = msgInput.value.trim();
-    if (!text) return;
-
-    // Próba automatycznego odszukania nicku gracza z bazy na bazie zalogowanego Discord ID
-    const associatedReport = globalIncidents.find(r => r.discordId === authorizedHistoryDiscordId);
-    const playerNick = associatedReport ? associatedReport.nick : "Kierowca";
-
-    const newMsgRef = database.ref("chat").push();
-    await newMsgRef.set({
-        nick: playerNick,
-        text: text,
-        role: "player",
-        timestamp: new Date().toLocaleTimeString()
-    });
-    msgInput.value = "";
+async function clearChat() {
+    if (!isAdminAuthenticated) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do wyczyszczenia czatu!" : "Unauthorized to clear chat!");
+        return;
+    }
+    const confirmMsg = currentLang === 'pl' ? "Czy na pewno chcesz całkowicie wyczyścić historię czatu?" : "Are you sure you want to completely clear the chat history?";
+    if (confirm(confirmMsg)) {
+        try {
+            await database.ref("chat").remove();
+            alert(currentLang === 'pl' ? "Czat został pomyślnie wyczyszczony." : "Chat has been successfully cleared.");
+        } catch (error) {
+            console.error("Błąd podczas czyszczenia czatu:", error);
+        }
+    }
 }
 
-// --- VERDICT RESPONSE FORM ---
 document.getElementById("responseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const statusEl = document.getElementById("status"); const t = langData[currentLang];
+    const t = langData[currentLang];
+    const statusEl = document.getElementById("status");
     statusEl.textContent = t.statusSending; statusEl.className = "status-msg";
 
-    const caseIdFieldVal = document.getElementById("caseId").value.trim();
-    const targetDiscordPingId = document.getElementById("accusedId").value.trim();
+    const caseIdInput = document.getElementById("caseId").value.trim();
+    const accusedId = document.getElementById("accusedId").value.trim();
     const decision = document.getElementById("decision").value;
     const timePenalty = document.getElementById("timePenalty").value || "brak";
     const pointsPenalty = document.getElementById("pointsPenalty").value || "0 pkt";
     const verdictDetails = document.getElementById("verdictDetails").value;
     const judge = document.getElementById("judge").value;
-    
-    let originalCaseId = caseIdFieldVal; 
-    let appealEvidenceUrl = "";
-    
-    if (caseIdFieldVal.startsWith("Apelacja:")) {
-        const matchCase = caseIdFieldVal.match(/Sprawa:\s*(FIA-\d+)/);
-        const matchApp = caseIdFieldVal.match(/Apelacja:\s*(APP-\d+)/);
-        if (matchCase) originalCaseId = matchCase[1];
-        if (matchApp) {
-            const foundApp = globalAppeals.find(a => a.appealId === matchApp[1]);
-            if (foundApp) {
-                appealEvidenceUrl = foundApp.evidence || "";
-                await database.ref("appeals/" + matchApp[1] + "/status").set(decision.includes("Zmiana") ? "Zmieniony" : "Podtrzymany");
+
+    let originalCaseId = caseIdInput;
+    const matchApp = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
+    if (matchApp) {
+        originalCaseId = matchApp[1];
+        const appId = matchApp[2];
+        await database.ref("appeals/" + appId + "/status").set(decision.includes("Zmiana") ? "Zmieniony" : "Podtrzymany");
+    } else {
+        const singleAppMatch = caseIdInput.match(/APP-\d+/i);
+        if (singleAppMatch) {
+            const foundAp = globalAppeals.find(a => a.appealId === singleAppMatch[0]);
+            if (foundAp) {
+                originalCaseId = foundAp.caseId;
+                await database.ref("appeals/" + foundAp.appealId + "/status").set(decision.includes("Zmiana") ? "Zmieniony" : "Podtrzymany");
             }
         }
     }
@@ -1395,18 +1392,19 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
     }
 
-    const mainEvidence = (mainReport && mainReport.evidence) ? `[Link do nagrania](${mainReport.evidence})` : "Brak";
+    const mainEvidence = (mainReport && mainReport.evidence) ? mainReport.evidence : "Brak";
+
     const embed = {
         title: t.embedTitle, color: 3447003,
         fields: [
-          { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
-          { name: t.fieldWinner, value: `<@${targetDiscordPingId}>`, inline: true },
-          { name: t.fieldEvidence, value: mainEvidence, inline: false },
-          { name: t.fieldDecision, value: `**${decision}**`, inline: false },
-          { name: t.fieldTime, value: timePenalty, inline: true },
-          { name: t.fieldPoints, value: pointsPenalty, inline: true },
-          { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\` \`\`\``, inline: false },
-          { name: t.fieldJudge, value: judge, inline: false }
+            { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
+            { name: t.fieldWinner, value: `<@${accusedId}>`, inline: true },
+            { name: t.fieldEvidence, value: mainEvidence, inline: false },
+            { name: t.fieldDecision, value: `**${decision}**`, inline: false },
+            { name: t.fieldTime, value: timePenalty, inline: true },
+            { name: t.fieldPoints, value: pointsPenalty, inline: true },
+            { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\``, inline: false },
+            { name: t.fieldJudge, value: judge, inline: false }
         ],
         timestamp: new Date().toISOString()
     };
@@ -1422,7 +1420,7 @@ function exportDatabase() {
     const fullData = { incidents: globalIncidents, appeals: globalAppeals, exportDate: new Date().toLocaleString() };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
     const downloadAnchor = document.createElement('a'); downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `FIA_SYSTEM_DB_EXPORT_${new Date().toISOString().slice(0,10)}.txt`);
+    downloadAnchor.setAttribute("download", `FIA_SYSTEM_DB_EXPORT_${new Date().toISOString().slice(0,10)}.json`);
     document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
 }
 </script>
