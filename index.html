@@ -862,11 +862,7 @@ document.getElementById("complaintForm").addEventListener("submit", async (e) =>
         fields: [
           { name: "🆔 ID Zgłoszenia", value: `\`${id}\``, inline: true },
           { name: t.dcLabelReporter, value: `${nick} (<@${discordId}>)`, inline: true },
-          { name: t.dcLabelAgainst, value: `${accusedNick} (<@${accusedDiscordId}>)`, inline: true },
-          { name: t.dcLabelSession, value: `📍 ${track} / 🏁 ${session}`, inline: false },
-          { name: "🗂️ Kategoria błędu", value: category, inline: true },
-          { name: "🎬 Dowód wideo", value: evidence.trim() !== "" ? `[Link do nagrania](${evidence})` : "Brak dowodu", inline: true },
-          { name: "📝 Opis incydentu", value: `\`\`\`text\n${details}\n\`\`\``, inline: false }
+          { name: t.dcLabelAgainst, value: `${accusedNick} (<@${accusedDiscordId}>)`, inline: true }
         ],
         timestamp: new Date().toISOString()
     };
@@ -920,7 +916,6 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
     appDb.push(newAppeal);
     saveAppealsDatabase(appDb);
 
-    // Embed Discorda dla nowej apelacji - USUNIĘTO rubryki Powód/Argumenty oraz Nowe dowody
     const embed = {
         title: t.dcAppealTitle || "⚖️ NOWA APELACJA OD WERDYKTU",
         color: 15105572,
@@ -1191,21 +1186,6 @@ function bulkStatusUpdate(newStatus) {
     }
 }
 
-function bulkDelete() {
-    if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz usunąć zaznaczone zgłoszenia?" : "Are you sure you want to delete selected reports?")) {
-        let db = getDatabase();
-        let count = 0;
-        document.querySelectorAll(".report-checkbox:checked").forEach(cb => {
-            const id = cb.getAttribute("data-id");
-            db = db.filter(r => r.id !== id);
-            count++;
-        });
-        saveDatabase(db);
-        alert(`Usunięto ${count} zgłoszeń.`);
-        renderAdmin();
-    }
-}
-
 // --- SINGLE ACTIONS ---
 async function updateStatus(id, newStatus) {
     const db = getDatabase();
@@ -1441,12 +1421,17 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         saveDatabase(db);
     }
 
+    const mainEvidence = (mainReport && mainReport.evidence && mainReport.evidence.trim() !== "") 
+        ? `[Link do nagrania](${mainReport.evidence})` 
+        : (currentLang === 'pl' ? "Brak dowodu" : "No evidence");
+
     const embed = {
         title: String(t.embedTitle || "⚖️ Oficjalny Werdykt Sędziowski"),
         color: 3447003, 
         fields: [
           { name: String(t.fieldCase || "ID sprawy"), value: `\`${originalCaseId}\``, inline: true },
           { name: String(t.fieldWinner || "Kierowca"), value: `<@${targetDiscordPingId}>`, inline: true },
+          { name: String(t.fieldEvidence || "🎬 Materiał Dowodowy"), value: mainEvidence, inline: false },
           { name: String(t.fieldDecision || "Decyzja"), value: `**${decision}**`, inline: false },
           { name: String(t.fieldTime || "Kara czasowa"), value: timePenalty, inline: true },
           { name: String(t.fieldPoints || "Punkty karne"), value: pointsPenalty, inline: true },
