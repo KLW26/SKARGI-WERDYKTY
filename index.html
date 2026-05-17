@@ -31,7 +31,7 @@
       padding: 24px 28px;
       border-radius: 16px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-      width: 1400px;
+      width: 1450px;
       max-width: 95vw;
       position: relative;
       z-index: 2;
@@ -55,7 +55,8 @@
     }
 
     h1 { margin: 0 0 4px; font-size: 22px; color: #fff; }
-    .section-title { font-size: 16px; margin: 0 0 8px; color: #fff; }
+    .section-title { font-size: 18px; margin: 0 0 8px; color: #fff; border-left: 4px solid #3b82f6; padding-left: 8px; }
+    .section-title.appeal-title { border-left-color: #eab308; }
     .subtitle { margin: 0 0 16px; font-size: 13px; color: #9ca3af; }
 
     /* ====== FORM ELEMENTS ====== */
@@ -96,6 +97,7 @@
     .btn-secondary { background: #4b5563; }
     .btn-danger { background: #b91c1c; }
     .btn-success { background: #10b981; }
+    .btn-warning { background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; }
 
     /* ====== PANEL LAYOUT ====== */
     .menu { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -104,21 +106,37 @@
     .section.active { display: block; }
 
     /* ====== ADMIN: STATS & FILTERS ====== */
-    .admin-stats {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 14px;
+    .stats-container-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
     }
-    .stat-box {
-      flex: 1;
+    .stats-group-box {
       background: #111827;
       border: 1px solid #374151;
-      border-radius: 10px;
-      padding: 10px 14px;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .stats-group-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    .admin-stats { display: flex; gap: 8px; }
+    .stat-box {
+      flex: 1;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 8px 10px;
       text-align: center;
     }
-    .stat-box span { display: block; font-size: 11px; color: #9ca3af; text-transform: uppercase; }
-    .stat-box strong { font-size: 18px; color: #fff; }
+    .stat-box span { display: block; font-size: 11px; color: #9ca3af; }
+    .stat-box strong { font-size: 16px; color: #fff; }
 
     .admin-controls {
       display: flex;
@@ -144,23 +162,33 @@
     .bulk-actions-bar .btns { display: flex; gap: 8px; }
     .bulk-actions-bar button { margin: 0; padding: 6px 14px; font-size: 12px; border-radius: 8px; }
 
-    /* ====== TABLE WITH PROPORTIONAL COLUMNS ====== */
-    .table-wrapper { border: 1px solid #374151; border-radius: 10px; margin-top: 10px; overflow: hidden; }
+    /* ====== TABLES ====== */
+    .table-wrapper { border: 1px solid #374151; border-radius: 10px; margin-top: 10px; margin-bottom: 24px; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
     th, td { border: 1px solid #374151; padding: 10px 10px; text-align: left; vertical-align: top; }
     th { background: #111827; color: #fff; }
     tr:nth-child(even) { background: #111827; }
     tr:nth-child(odd) { background: #1f2937; }
 
-    th:nth-child(1), td:nth-child(1) { width: 4%; text-align: center; } /* Checkbox */
-    th:nth-child(2), td:nth-child(2) { width: 7%; }   /* ID */
-    th:nth-child(3), td:nth-child(3) { width: 11%; }  /* Zgłaszający */
-    th:nth-child(4), td:nth-child(4) { width: 14%; }  /* Tor / Kategoria */
-    th:nth-child(5), td:nth-child(5) { width: 10%; }  /* Sesja */
-    th:nth-child(6), td:nth-child(6) { width: 11%; }  /* Oskarżony (Nick/ID) */
-    th:nth-child(7), td:nth-child(7) { width: 22%; }  /* Opis zdarzenia */
-    th:nth-child(8), td:nth-child(8) { width: 8%; }   /* Dowody */
-    th:nth-child(9), td:nth-child(9) { width: 13%; }  /* Status i Akcje */
+    /* Szerokości kolumn tabeli zgłoszeń */
+    .col-cb { width: 4%; text-align: center; }
+    .col-id { width: 7%; }
+    .col-rep { width: 12%; }
+    .col-track { width: 15%; }
+    .col-sess { width: 10%; }
+    .col-acc { width: 13%; }
+    .col-desc { width: 21%; }
+    .col-ev { width: 8%; }
+    .col-stat { width: 10%; }
+
+    /* Szerokości kolumn tabeli apelacji */
+    .col-ap-id { width: 8%; }
+    .col-ap-case { width: 10%; }
+    .col-ap-driver { width: 14%; }
+    .col-ap-reason { width: 25%; }
+    .col-ap-ev { width: 10%; }
+    .col-ap-status { width: 11%; }
+    .col-ap-actions { width: 22%; }
 
     .cell-wrap { 
       word-break: break-word; 
@@ -182,6 +210,7 @@
       white-space: nowrap;
     }
     .evidence-link:hover { text-decoration: underline; }
+    
     .action-btns { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
     .action-btns button { margin: 0; padding: 4px 8px; font-size: 11px; border-radius: 6px; }
 
@@ -225,6 +254,21 @@
     .status-msg { margin-top: 10px; font-size: 12px; min-height: 16px; }
     .status-msg.ok { color: #4ade80; }
     .status-msg.err { color: #f97373; }
+
+    /* ====== LINK PREVIEW LINK STYLES ====== */
+    .btn-open-link {
+      display: inline-block;
+      background: #2563eb;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-decoration: none;
+      font-weight: bold;
+      margin-top: 6px;
+      transition: background 0.2s;
+    }
+    .btn-open-link:hover { background: #1d4ed8; }
   </style>
 </head>
 
@@ -271,6 +315,7 @@
 
     <div class="menu">
       <button onclick="showSection('formSection')" data-key="navNew">Nowe Zgłoszenie</button>
+      <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
       <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Twoja Historia</button>
       <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
     </div>
@@ -303,6 +348,21 @@
       </form>
     </div>
 
+    <div id="appealSection" class="section">
+      <h2 class="section-title appeal-title" data-key="appealSecTitle">Formularz Apelacyjny</h2>
+      <p class="subtitle" data-key="appealSubtitle">Nie zgadzasz się z decyzją sędziów? Odwołaj się, podając precyzyjne argumenty lub nowe dowody.</p>
+      <form id="appealForm">
+        <div class="row">
+          <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
+          <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
+          <div class="field"><label data-key="labelDiscord">Twoje Discord ID</label><input id="appealDiscordId" type="text" required /></div>
+        </div>
+        <div class="field"><label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label><textarea id="appealReason" required placeholder="Wpisz szczegółowe argumenty..."></textarea></div>
+        <div class="field"><label data-key="labelAppealEvidence">Nowe lub dodatkowe dowody (Link)</label><input id="appealEvidence" type="text" placeholder="https://..."></div>
+        <button type="submit" data-key="btnSubmitAppeal" style="background: linear-gradient(135deg, #eab308, #ca8a04); color:#000;">Wyślij Apelację</button>
+      </form>
+    </div>
+
     <div id="historySection" class="section">
       <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
       <div id="historyList"></div>
@@ -324,16 +384,30 @@
         <h2 class="section-title" data-key="adminSecTitle">Zarządzanie Zgłoszeniami</h2>
         <div style="display: flex; gap: 6px;">
           <button style="background: #0284c7; font-size:12px; padding: 5px 12px;" onclick="exportDatabase()">EKSPORTUJ BAZĘ (.txt)</button>
-          <button style="background: #10b981; font-size:12px; padding: 5px 12px;" onclick="showSection('chatSection')" data-key="btnOpenChat">Otwórz Czat</button>
-          <button class="btn-danger" style="padding: 5px 12px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">RESETUJ ID</button>
+          <button style="background: #10b981; font-size:12px; padding: 5px 12px;" onclick="showSection('chatSection')" data-key="btnOpenChat">Otwórz Czat</button> <button class="btn-danger" style="padding: 5px 12px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">RESETUJ ID</button>
         </div>
       </div>
 
-      <div class="admin-stats">
-        <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
-        <div class="stat-box"><span id="lblStatPending" style="color:#fbbf24;">Oczekujące</span><strong id="statPending">0</strong></div>
-        <div class="stat-box"><span id="lblStatAccepted" style="color:#10b981;">Przyjęte</span><strong id="statAccepted">0</strong></div>
-        <div class="stat-box"><span id="lblStatRejected" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
+      <div class="stats-container-grid">
+        <div class="stats-group-box">
+          <div class="stats-group-title">📊 Incydenty główne</div>
+          <div class="admin-stats">
+            <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
+            <div class="stat-box"><span id="lblStatPending" style="color:#fbbf24;">Oczekujące</span><strong id="statPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAccepted" style="color:#10b981;">Przyjęte</span><strong id="statAccepted">0</strong></div>
+            <div class="stat-box"><span id="lblStatRejected" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
+          </div>
+        </div>
+
+        <div class="stats-group-box" style="border-color: #eab308;">
+          <div class="stats-group-title" style="color: #fef08a;">⚖️ Statystyki Odwołań (Apelacji)</div>
+          <div class="admin-stats">
+            <div class="stat-box"><span id="lblStatAppAll">Złożone</span><strong id="statAppAll">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppPending" style="color:#fbbf24;">Nowe</span><strong id="statAppPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppChanged" style="color:#a855f7;">Zmienione</span><strong id="statAppChanged">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppMaintained" style="color:#64748b;">Podtrzymane</span><strong id="statAppMaintained">0</strong></div>
+          </div>
+        </div>
       </div>
 
       <div class="admin-controls">
@@ -371,18 +445,36 @@
         <table>
           <thead>
             <tr>
-              <th><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
-              <th>ID</th>
-              <th data-key="thReporter">Zgłaszający</th>
-              <th>Tor / Kategoria</th>
-              <th data-key="labelSession">Rodzaj Sesji</th>
-              <th data-key="thAccused">Oskarżony (Nick / ID)</th>
-              <th data-key="labelDesc">Opis zdarzenia</th>
-              <th data-key="labelEvidence">Dowody</th>
-              <th data-key="thStatus">Status / Akcje</th>
+              <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
+              <th class="col-id">ID</th>
+              <th class="col-rep" data-key="thReporter">Zgłaszający</th>
+              <th class="col-track">Tor / Kategoria</th>
+              <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
+              <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
+              <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
+              <th class="col-ev" data-key="labelEvidence">Dowody</th>
+              <th class="col-stat" data-key="thStatus">Status / Akcje</th>
             </tr>
           </thead>
           <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+
+      <h2 class="section-title appeal-title" style="margin-top: 32px; font-size:17px;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
+      <div class="table-wrapper" style="border-color: #ca8a04;">
+        <table>
+          <thead>
+            <tr style="background: #1e1b4b;">
+              <th class="col-ap-id">ID Apelacji</th>
+              <th class="col-ap-case">ID Zgłoszenia</th>
+              <th class="col-ap-driver">Apelujący kierowca</th>
+              <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
+              <th class="col-ap-ev">Nowe Dowody</th>
+              <th class="col-ap-status">Status Apelacji</th>
+              <th class="col-ap-actions">Decyzja Sędziowska</th>
+            </tr>
+          </thead>
+          <tbody id="adminAppealsTableBody"></tbody>
         </table>
       </div>
 
@@ -395,8 +487,8 @@
             <div id="verdictPreviewDesc" style="background: #0f172a; padding: 10px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; color: #cbd5e1; border: 1px solid #334155; max-height: 120px; overflow-y: auto;">-</div>
           </div>
           <div class="field" style="margin-bottom: 0;">
-            <label style="color: #9ca3af; font-weight: bold;" data-key="lblPreviewEvidence">Podgląd: Dowód</label>
-            <div id="verdictPreviewEvidence" style="background: #0f172a; padding: 10px; border-radius: 8px; font-size: 13px; color: #cbd5e1; border: 1px solid #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+            <label style="color: #9ca3af; font-weight: bold;" id="lblPreviewEvidence" data-key="lblPreviewEvidence">Link do dowodu</label>
+            <div id="verdictPreviewEvidence" style="background: #0f172a; padding: 12px; border-radius: 8px; font-size: 13px; color: #cbd5e1; border: 1px solid #334155;">-</div>
           </div>
         </div>
 
@@ -420,6 +512,8 @@
               <option value="Naruszenie – ostrzeżenie" data-key="opt2">Naruszenie – ostrzeżenie</option>
               <option value="Naruszenie – kara czasowa" data-key="opt3">Naruszenie – kara czasowa</option>
               <option value="Naruszenie – dyskwalifikacja" data-key="opt4">Naruszenie – dyskwalifikacja</option>
+              <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
+              <option value="Apelacja odrzucona – Werdykt podtrzymany" data-key="optAppealMaintained">Apelacja odrzucona – Werdykt podtrzymany</option>
             </select>
           </div>
   
@@ -453,7 +547,7 @@
   </div>
 
 <script>
-// --- KONFIGURACJA ---
+// --- CONFIGURATION ---
 const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const CHAT_WEBHOOK = "https://discord.com/api/webhooks/1503802447322152960/I1yBJxH5YxkgDMfmXJCpGTX0G-N0wSoLplHjh2NFEN9-YqOIirthTwJKMg-tBTe3MHM5";
@@ -463,7 +557,10 @@ const ROLE_STEWARD_ID = "1443302932811616346";
 const ROLE_HEAD_STEWARD_ID = "1463610534309007380"; 
 
 const DB_NAME = "FIA_DATABASE_FINAL";
+const APPEALS_DB_NAME = "FIA_APPEALS_DATABASE";
 const COUNTER_NAME = "FIA_ID_COUNTER";
+const APPEAL_COUNTER_NAME = "FIA_APPEAL_COUNTER";
+
 let isAdminAuthenticated = false;
 let currentLang = 'pl';
 let currentlyEditedReportId = null;
@@ -472,7 +569,7 @@ const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
         mainTitle: "System Zgłoszeń FIA", mainSubtitle: "Zarządzanie incydentami wyścigowymi",
-        navNew: "Nowe Zgłoszenie", navHistory: "Twoja Historia", navAdmin: "Panel Administracyjny",
+        navNew: "Nowe Zgłoszenie", navHistory: "Twoja Historia", navAdmin: "Panel Administracyjny", navAppeal: "Złóż Apelację",
         secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
         labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
         labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
@@ -481,7 +578,7 @@ const langData = {
         adminSecTitle: "Zarządzanie Zgłoszeniami", btnOpenChat: "Otwórz Czat", btnResetId: "RESETUJ ID",
         thReporter: "Zgłaszający", thTrack: "Tor / Sesja", thAccused: "Oskarżony (Nick / ID)", thStatus: "Status", thActions: "Akcje",
         btnAccept: "Przyjmij", btnReject: "Odrzuć", btnDelete: "Usuń",
-        statusPending: "Oczekuje", statusAccepted: "Przyjęte", statusRejected: "Odrzucone",
+        statusPending: "Oczekuje", statusAccepted: "Przyjęte", statusRejected: "Odrzucone", statusAppeal: "W apelacji",
         promptReject: "Podaj powód odrzucenia:", alertSent: "Zgłoszono!", confirmDelete: "Usunąć?", confirmReset: "Zresetować licznik?",
         optChooseTrack: "Wybierz tor...", optChooseCat: "Wybierz przewinienie...",
         sessions: ["Wyścig Główny", "Sprint", "Kwalifikacje", "Trening"],
@@ -500,13 +597,15 @@ const langData = {
         opt2: "Naruszenie – ostrzeżenie",
         opt3: "Naruszenie – kara czasowa",
         opt4: "Naruszenie – dyskwalifikacja",
+        optAppealChanged: "Apelacja rozpatrzona – Zmiana werdyktu",
+        optAppealMaintained: "Apelacja odrzucona – Werdykt podtrzymany",
         timeLabel: "Kara czasowa",
         pointsLabel: "Punkty karne",
         detailsLabel: "Uzasadnienie",
         judgeLabel: "Sędzia prowadzący",
         sendBtn: "Wyślij decyzję",
         statusSending: "Wysyłanie...",
-        statusOk: "Decozycja wysłana.",
+        statusOk: "Decyzja wysłana.",
         statusErr: "Nie udało się wysłać decyzji.",
         embedTitle: "⚖️ Odpowiedź Zespołu Sędziowskiego",
         fieldCase: "ID sprawy",
@@ -516,14 +615,25 @@ const langData = {
         fieldPoints: "Punkty karne",
         fieldDetails: "Uzasadnienie",
         fieldJudge: "Sędzia prowadzący",
+        fieldEvidence: "🎬 Materiał Dowodowy",
         contentMsg: "Opublikowano decyzję dla: ",
         lblPreviewDesc: "Podgląd: Opis zdarzenia",
-        lblPreviewEvidence: "Podgląd: Dowód"
+        lblPreviewEvidence: "Link do dowodu",
+        
+        appealSecTitle: "Formularz Apelacyjny",
+        appealSubtitle: "Nie zgadzasz się z decyzją sędziów? Odwołaj się, podając precyzyjne argumenty lub nowe dowody.",
+        labelAppealCaseId: "ID Sprawy / Zgłoszenia (np. FIA-0001)",
+        labelAppealReason: "Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)",
+        labelAppealEvidence: "Nowe lub dodatkowe dowody (Link)",
+        btnSubmitAppeal: "Wyślij Apelację",
+        alertAppealSent: "Apelacja została wysłana pomyślnie!",
+        alertCaseNotFound: "Nie znaleziono zgłoszenia o podanym ID w systemie.",
+        dcAppealTitle: "⚖️ NOWA APELACJA OD WERDYKTU"
     },
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
         mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
-        navNew: "New Report", navHistory: "Your History", navAdmin: "Admin Panel",
+        navNew: "New Report", navHistory: "Your History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
         secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
         labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
         labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
@@ -532,7 +642,7 @@ const langData = {
         adminSecTitle: "Report Management", btnOpenChat: "Open Chat", btnResetId: "RESET ID",
         thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
         btnAccept: "Accept", btnReject: "Reject", btnDelete: "Delete",
-        statusPending: "Pending", statusAccepted: "Accepted", statusRejected: "Rejected",
+        statusPending: "Pending", statusAccepted: "Accepted", statusRejected: "Rejected", statusAppeal: "In Appeal",
         promptReject: "Enter rejection reason:", alertSent: "Report sent!", confirmDelete: "Delete?", confirmReset: "Reset ID counter?",
         optChooseTrack: "Choose track...", optChooseCat: "Choose violation...",
         sessions: ["Main Race", "Sprint", "Qualifying", "Practice"],
@@ -551,6 +661,8 @@ const langData = {
         opt2: "Violation – warning",
         opt3: "Violation – time penalty",
         opt4: "Violation – disqualification",
+        optAppealChanged: "Appeal resolved – Verdict changed",
+        optAppealMaintained: "Appeal rejected – Verdict maintained",
         timeLabel: "Time penalty",
         pointsLabel: "Penalty points",
         detailsLabel: "Reasoning",
@@ -567,9 +679,19 @@ const langData = {
         fieldPoints: "Penalty Points",
         fieldDetails: "Reasoning",
         fieldJudge: "Lead Steward",
-        contentMsg: "Decision published for: "	,
+        fieldEvidence: "🎬 Evidence Material",
+        contentMsg: "Decision published for: ",
         lblPreviewDesc: "Preview: Incident Description",
-        lblPreviewEvidence: "Preview: Evidence"
+        lblPreviewEvidence: "Evidence Link",
+        appealSecTitle: "Appeal Form",
+        appealSubtitle: "Disagree with the stewards' decision? Appeal by providing clear arguments or new evidence.",
+        labelAppealCaseId: "Case / Report ID (e.g. FIA-0001)",
+        labelAppealReason: "Appeal reasoning (why the penalty is unfair / defense)",
+        labelAppealEvidence: "New or additional evidence (Link)",
+        btnSubmitAppeal: "Submit Appeal",
+        alertAppealSent: "Appeal submitted successfully!",
+        alertCaseNotFound: "Report with the specified ID was not found in the system.",
+        dcAppealTitle: "⚖️ NEW VERDICT APPEAL"
     }
 };
 
@@ -581,12 +703,22 @@ const categoriesStructure = {
     },
     en: {
         "Racing Incidents": ["Brake check", "Causing a collision", "Pushing off track", "Aggressive divebomb", "Disrespecting overlap", "Dangerous re-entry", "Dangerous line change", "Blocking in qualifying"],
-        "Procedures & VSC/SC": ["Increasing delta under VSC/SC", "Dangerous driving on restart", "Attempting to trigger SC", "Crossing pit entry/exit line"],
-        "Unsporting Behavior": ["Illegal 'Reset to track' use", "Deliberate crash", "Retiring on track", "AI Driving", "Starting session without host consent", "No-show (absence)"]
+        "Procedures & VSC/SC": ["VSC/SC Delta", "Restart procedure", "Causing SC", "Pit line violation"],
+        "Unsporting Behavior": ["Reset to track", "Intentional crash", "Retirement", "AI driving", "Unapproved start", "Absence"]
     }
 };
 
-const tracks = ["Bahrain (Sakhir)", "Saudi Arabia (Jeddah)", "Australia (Melbourne)", "Japan (Suzuka)", "China (Shanghai)", "USA (Miami)", "Italy (Imola)", "Monaco (Monte Carlo)", "Canada (Montreal)", "Spain (Barcelona)", "Austria (Spielberg)", "Great Britain (Silverstone)", "Hungary (Budapest)", "Belgium (Spa)", "Netherlands (Zandvoort)", "Italy (Monza)", "Azerbaijan (Baku)", "Singapore (Marina Bay)", "USA (Austin)", "Mexico (Mexico City)", "Brazil (Interlagos)", "USA (Las Vegas)", "Qatar (Lusail)", "UAE (Abu Dhabi)"];
+const tracks = [
+    "Bahrajn (Sakhir)", "Arabia Saudyjska (Jeddah)", "Australia (Melbourne)", "Japonia (Suzuka)", "Chiny (Szanghaj)", "USA (Miami)",
+    "Imola (Emilia-Romagna)", "Monako (Monte Carlo)", "Kanada (Montreal)", "Hiszpania (Barcelona)", "Austria (Spielberg)",
+    "Wielka Brytania (Silverstone)", "Węgry (Budapeszt)", "Belgia (Spa-Francorchamps)", "Holandia (Zandvoort)", "Włochy (Monza)",
+    "Azerbejdżan (Baku)", "Singapur (Marina Bay)", "USA (Austin)", "Meksyk (Hermanos Rodriguez)", "Brazylia (Interlagos)",
+    "USA (Las Vegas)", "Katar (Lusail)", "Abu Zabi (Yas Marina)"
+];
+
+window.addEventListener("DOMContentLoaded", () => {
+    updateUI();
+});
 
 function toggleLang() {
     currentLang = currentLang === 'pl' ? 'en' : 'pl';
@@ -608,7 +740,8 @@ function updateUI() {
     sType.innerHTML = "";
     langData[currentLang].sessions.forEach(s => {
         let opt = document.createElement("option");
-        opt.value = s; opt.text = s;
+        opt.value = s;
+        opt.text = s;
         sType.add(opt);
     });
 
@@ -616,7 +749,8 @@ function updateUI() {
     trackSelect.innerHTML = `<option value="">${langData[currentLang].optChooseTrack}</option>`;
     tracks.forEach(t => {
         let opt = document.createElement("option");
-        opt.value = t; opt.text = t;
+        opt.value = t;
+        opt.text = t;
         trackSelect.add(opt);
     });
 
@@ -627,7 +761,8 @@ function updateUI() {
         optGroup.label = group;
         items.forEach(item => {
             let opt = document.createElement("option");
-            opt.value = item; opt.text = item;
+            opt.value = item;
+            opt.text = item;
             optGroup.appendChild(opt);
         });
         catSelect.appendChild(optGroup);
@@ -637,7 +772,8 @@ function updateUI() {
     trackFilter.innerHTML = `<option value="ALL">${currentLang === 'pl' ? 'Wszystkie tory' : 'All tracks'}</option>`;
     tracks.forEach(t => {
         let opt = document.createElement("option");
-        opt.value = t; opt.text = t;
+        opt.value = t;
+        opt.text = t;
         trackFilter.add(opt);
     });
 
@@ -645,468 +781,691 @@ function updateUI() {
     document.getElementById("lblStatPending").textContent = currentLang === 'pl' ? "Oczekujące" : "Pending";
     document.getElementById("lblStatAccepted").textContent = currentLang === 'pl' ? "Przyjęte" : "Accepted";
     document.getElementById("lblStatRejected").textContent = currentLang === 'pl' ? "Odrzucone" : "Rejected";
-    document.getElementById("adminSearch").placeholder = currentLang === 'pl' ? "Szukaj po nicku, oskarżonym, torze..." : "Search by nick, accused, track...";
-    document.getElementById("lblModalNotes").textContent = currentLang === 'pl' ? "Uzasadnienie sędziowskie / Notatki:" : "Steward justification / Notes:";
-    document.getElementById("modalNotesField").placeholder = currentLang === 'pl' ? "Wpisz oficjalne uzasadnienie kary, uwagi lub notatki robocze..." : "Enter official penalty reasons, remarks or workflow notes...";
 
-    const fStatus = document.getElementById("adminFilterStatus");
-    fStatus.options[0].text = currentLang === 'pl' ? "Status: Wszystkie" : "Status: All";
-    fStatus.options[1].text = currentLang === 'pl' ? "Oczekujące" : "Pending";
-    fStatus.options[2].text = currentLang === 'pl' ? "Przyjęte" : "Accepted";
-    fStatus.options[3].text = currentLang === 'pl' ? "Odrzucone" : "Rejected";
-
-    document.getElementById("caseId").placeholder = currentLang === 'pl' ? "np. #2024-118" : "e.g. #2024-118";
-    document.getElementById("accusedId").placeholder = currentLang === 'pl' ? "np. 123456789012345678" : "e.g. 123456789012345678";
-    document.getElementById("timePenalty").placeholder = currentLang === 'pl' ? "np. +5s / brak" : "e.g. +5s / none";
-    document.getElementById("pointsPenalty").placeholder = currentLang === 'pl' ? "np. 2 pkt" : "e.g. 2 pts";
-    document.getElementById("verdictDetails").placeholder = currentLang === 'pl' ? "Opisz decyzję..." : "Describe decision...";
-    document.getElementById("judge").placeholder = currentLang === 'pl' ? "np. A. Nowak" : "e.g. A. Smith";
-
-    if (isAdminAuthenticated) renderAdmin();
-}
-
-function getHistory() { return JSON.parse(localStorage.getItem(DB_NAME) || "[]"); }
-function saveHistory(h) { localStorage.setItem(DB_NAME, JSON.stringify(h)); }
-
-function getNextId() {
-    let current = parseInt(localStorage.getItem(COUNTER_NAME) || 0) + 1;
-    localStorage.setItem(COUNTER_NAME, current);
-    return "FIA-" + String(current).padStart(4, '0');
-}
-
-function openAdminLogin() {
-    if (isAdminAuthenticated) showSection('adminSection');
-    else document.getElementById("adminLoginModal").style.display = "flex";
-}
-function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; }
-function checkAdminAuth() {
-    if (document.getElementById("adminPass").value === "KLW26/27") {
-        isAdminAuthenticated = true; closeAdminLogin(); showSection('adminSection');
-    } else { document.getElementById("loginStatus").textContent = currentLang === 'pl' ? "Błędne hasło." : "Invalid password."; }
+    renderHistory();
+    if (isAdminAuthenticated) {
+        renderAdmin();
+    }
 }
 
 function showSection(id) {
-    if ((id === 'adminSection' || id === 'chatSection') && !isAdminAuthenticated) { openAdminLogin(); return; }
-    document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-    document.getElementById(id).classList.add("active");
-    if (id === 'historySection') renderHistory();
-    if (id === 'adminSection') renderAdmin();
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
 }
 
-function openDescModal(id, text, notes) {
-    currentlyEditedReportId = id;
-    document.getElementById("descModalTitle").textContent = (currentLang === 'pl' ? "Zgłoszenie " : "Report ") + id;
-    document.getElementById("descModalBody").textContent = text;
-    document.getElementById("modalNotesField").value = notes || "";
-    document.getElementById("descModal").style.display = "flex";
+function getDatabase() {
+    return JSON.parse(localStorage.getItem(DB_NAME)) || [];
 }
-function closeDescModal() { 
-    document.getElementById("descModal").style.display = "none"; 
-    currentlyEditedReportId = null;
+function saveDatabase(db) {
+    localStorage.setItem(DB_NAME, JSON.stringify(db));
 }
-
-function saveModalNotes() {
-    if (!currentlyEditedReportId) return;
-    const notesValue = document.getElementById("modalNotesField").value;
-    let h = getHistory();
-    let idx = h.findIndex(x => x.id === currentlyEditedReportId);
-    if (idx !== -1) {
-        h[idx].notes = notesValue;
-        saveHistory(h);
-        renderAdmin();
-        alert(currentLang === 'pl' ? "Notatki sędziowskie zostały zapisane!" : "Steward notes successfully saved!");
-        closeDescModal();
-    }
+function getAppealsDatabase() {
+    return JSON.parse(localStorage.getItem(APPEALS_DB_NAME)) || [];
+}
+function saveAppealsDatabase(db) {
+    localStorage.setItem(APPEALS_DB_NAME, JSON.stringify(db));
 }
 
-function sendChatMessage() {
-    const nick = document.getElementById("chatNick").value || "Steward";
-    const msg = document.getElementById("chatMsg").value;
-    if (!msg) return;
-
-    const chatBox = document.getElementById("chatBox");
-    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    chatBox.innerHTML += `<div class="msg msg-steward"><span class="msg-meta">${nick} • ${time}</span>${msg}</div>`;
-    chatBox.scrollTop = chatBox.scrollHeight;
-
-    fetch(CHAT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: nick, content: msg })
-    });
-    document.getElementById("chatMsg").value = "";
+function getNextID() {
+    let current = parseInt(localStorage.getItem(COUNTER_NAME)) || 0;
+    current++;
+    localStorage.setItem(COUNTER_NAME, current);
+    return `FIA-${String(current).padStart(4, '0')}`;
 }
 
-function calculateAdminStats(allReports) {
-    let pending = 0, accepted = 0, rejected = 0;
-    allReports.forEach(r => {
-        if (r.status === "Przyjęte") accepted++;
-        else if (r.status === "Odrzucone") rejected++;
-        else pending++;
-    });
-    document.getElementById("statAll").textContent = allReports.length;
-    document.getElementById("statPending").textContent = pending;
-    document.getElementById("statAccepted").textContent = accepted;
-    document.getElementById("statRejected").textContent = rejected;
+function getNextAppealID() {
+    let current = parseInt(localStorage.getItem(APPEAL_COUNTER_NAME)) || 0;
+    current++;
+    localStorage.setItem(APPEAL_COUNTER_NAME, current);
+    return `APP-${String(current).padStart(4, '0')}`;
 }
 
-function findMainCategoryGroup(subCategory) {
-    for (const lang of ['pl', 'en']) {
-        for (const [mainGroup, list] of Object.entries(categoriesStructure[lang])) {
-            if (list.includes(subCategory)) return mainGroup;
-        }
-    }
-    return "";
-}
-
-function transferToVerdict(caseId, accusedId, detailsText, evidenceText) {
-    document.getElementById("caseId").value = caseId;
-    document.getElementById("accusedId").value = accusedId;
-    
-    // Uzupelnianie sekcji podgladu
-    document.getElementById("verdictPreviewDesc").textContent = detailsText || "-";
-    
-    const previewEvidence = document.getElementById("verdictPreviewEvidence");
-    if (evidenceText && evidenceText.startsWith("http")) {
-        previewEvidence.innerHTML = `<a href="${evidenceText}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: bold;">${evidenceText} 🔗</a>`;
-    } else {
-        previewEvidence.textContent = evidenceText || "-";
-    }
-
-    document.getElementById("caseId").scrollIntoView({ behavior: 'smooth' });
-    
-    const panel = document.querySelector(".verdict-panel");
-    panel.style.borderColor = "#3b82f6";
-    setTimeout(() => { panel.style.borderColor = "#374151"; }, 1500);
-}
-
-function renderAdmin() {
-    const tbody = document.getElementById("adminTableBody");
-    tbody.innerHTML = "";
-    
-    const allReports = getHistory();
-    calculateAdminStats(allReports);
-
-    const searchVal = document.getElementById("adminSearch").value.toLowerCase();
-    const filterStatus = document.getElementById("adminFilterStatus").value;
-    const filterTrack = document.getElementById("adminFilterTrack").value;
-    const filterCat = document.getElementById("adminFilterCategory").value;
-
-    allReports.forEach(item => {
-        const matchesStatus = (filterStatus === "ALL" || item.status === filterStatus);
-        const matchesTrack = (filterTrack === "ALL" || item.track === filterTrack);
-        
-        let matchesCat = true;
-        if (filterCat !== "ALL") {
-            const mappedGroup = findMainCategoryGroup(item.category);
-            if (filterCat === "Incydenty Wyścigowe") matchesCat = (mappedGroup === "Incydenty Wyścigowe" || mappedGroup === "Racing Incidents");
-            else if (filterCat === "Procedury i VSC/SC") matchesCat = (mappedGroup === "Procedury i VSC/SC" || mappedGroup === "Procedures & VSC/SC");
-            else if (filterCat === "Niesportowe") matchesCat = (mappedGroup === "Niesportowe" || mappedGroup === "Unsporting Behavior");
-        }
-
-        const matchesSearch = (
-            item.nick.toLowerCase().includes(searchVal) || 
-            (item.accusedNick && item.accusedNick.toLowerCase().includes(searchVal)) || 
-            item.accusedDiscordId.toLowerCase().includes(searchVal) || 
-            item.track.toLowerCase().includes(searchVal) ||
-            item.id.toLowerCase().includes(searchVal)
-        );
-
-        if (!matchesStatus || !matchesTrack || !matchesCat || !matchesSearch) return;
-
-        const statusText = item.status === "Przyjęte" ? langData[currentLang].statusAccepted : (item.status === "Odrzucone" ? langData[currentLang].statusRejected : langData[currentLang].statusPending);
-        const statusColor = item.status === "Przyjęte" ? "#10b981" : (item.status === "Odrzucone" ? "#ef4444" : "#fbbf24");
-        
-        let reason = item.rejectionReason ? `<br><small style="color:#f87171; word-break: break-all;">❌ ${item.rejectionReason}</small>` : "";
-        if (item.notes) {
-            reason += `<br><small style="color:#60a5fa; word-break: break-all;">📝 Notatka: ${item.notes}</small>`;
-        }
-        
-        const evidenceContent = item.evidence ? `<a class="evidence-link" href="${item.evidence}" target="_blank">${langData[currentLang].evidenceBtn}</a>` : langData[currentLang].evidenceNone;
-
-        const safeDetails = item.details.replace(/['"`\\]/g, '\\$&');
-        const safeNotes = (item.notes || "").replace(/['"`\\]/g, '\\$&');
-        const accusedDisplay = item.accusedNick ? `${item.accusedNick}<br><span style="color:#9ca3af; font-size:10px;">ID: ${item.accusedDiscordId}</span>` : item.accusedDiscordId;
-
-        tbody.innerHTML += `<tr>
-            <td style="text-align:center;"><input type="checkbox" class="report-checkbox" value="${item.id}" onclick="onCheckboxSelect()"></td>
-            <td><strong>${item.id}</strong></td>
-            <td><div class="cell-wrap">${item.nick}</div></td>
-            <td><div class="cell-wrap"><strong>${item.track}</strong><br><span style="color:#9ca3af; font-size:11px;">${item.category || ''}</span></div></td>
-            <td><div class="cell-wrap">${item.sessionType}</div></td>
-            <td><div class="cell-wrap">${accusedDisplay}</div></td>
-            <td>
-                <div class="cell-wrap">${item.details}</div>
-                <button class="btn-view" onclick="openDescModal('${item.id}', '${safeDetails}', '${safeNotes}')">${currentLang === 'pl' ? 'Pokaż pełny opis / edytuj' : 'View full text / edit'}</button>
-            </td>
-            <td>${evidenceContent}</td>
-            <td>
-                <span style="color:${statusColor}; font-weight: bold;">${statusText}</span>${reason}
-                <div class="action-btns">
-                    <button class="btn-success" onclick="updateStatus('${item.id}', 'Przyjęte')">${langData[currentLang].btnAccept}</button>
-                    <button class="btn-danger" onclick="updateStatus('${item.id}', 'Odrzucone')">${langData[currentLang].btnReject}</button>
-                    <button class="btn-verdict-transfer" onclick="transferToVerdict('${item.id}', '${item.accusedDiscordId}', '${safeDetails}', '${item.evidence || ''}')">${currentLang === 'pl' ? '⚖️ Do werdyktu' : '⚖️ To Verdict'}</button>
-                    <button class="btn-secondary" style="background:#4b5563;" onclick="deleteItem('${item.id}')">${langData[currentLang].btnDelete}</button>
-                </div>
-            </td>
-        </tr>`;
-    });
-
-    document.getElementById("selectAllCheckboxes").checked = false;
-    onCheckboxSelect();
-}
-
-function toggleSelectAll(master) {
-    document.querySelectorAll(".report-checkbox").forEach(cb => cb.checked = master.checked);
-    onCheckboxSelect();
-}
-
-function onCheckboxSelect() {
-    const selected = document.querySelectorAll(".report-checkbox:checked");
-    const bulkBar = document.getElementById("bulkBar");
-    const countLabel = document.getElementById("bulkSelectedCount");
-    
-    if (selected.length > 0) {
-        bulkBar.style.display = "flex";
-        countLabel.textContent = currentLang === 'pl' ? `Wybrano: ${selected.length} zgłoszeń` : `Selected: ${selected.length} reports`;
-    } else {
-        bulkBar.style.display = "none";
-    }
-}
-
-async function bulkStatusUpdate(newStatus) {
-    const selected = document.querySelectorAll(".report-checkbox:checked");
-    if (selected.length === 0) return;
-
-    let reason = "";
-    if (newStatus === 'Odrzucone') {
-        reason = prompt(langData[currentLang].promptReject);
-        if (reason === null) return;
-    }
-
-    let h = getHistory();
-    for (let cb of selected) {
-        let id = cb.value;
-        let idx = h.findIndex(x => x.id === id);
-        if (idx !== -1) {
-            h[idx].status = newStatus;
-            h[idx].rejectionReason = reason;
-
-            const translatedStatus = newStatus === "Przyjęte" ? langData[currentLang].statusAccepted : langData[currentLang].statusRejected;
-            const color = newStatus === "Przyjęte" ? 656897 : 15679532;
-
-            const embed = {
-                title: `${langData[currentLang].dcDecisionTitle}: ${id}`,
-                description: `${langData[currentLang].dcMsgDecision}: **${translatedStatus.toUpperCase()}** (Akcja masowa sędziów)`,
-                color: color,
-                fields: [
-                    { name: langData[currentLang].dcLabelSession, value: `${h[idx].track} / ${h[idx].sessionType}`, inline: true },
-                    { name: langData[currentLang].dcLabelAccused, value: h[idx].accusedNick || h[idx].accusedDiscordId, inline: true }
-                ],
-                footer: { text: "FIA System Bulk Decision" },
-                timestamp: new Date().toISOString()
-            };
-            if (reason) embed.fields.push({ name: langData[currentLang].dcLabelReason, value: reason, inline: false });
-
-            try {
-                await fetch(DECISION_WEBHOOK, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ 
-                        content: `<@${h[idx].discordId}>`, 
-                        embeds: [embed],
-                        allowed_mentions: { parse: [] }
-                    })
-                });
-            } catch (e) { console.error(e); }
-        }
-    }
-
-    saveHistory(h);
-    renderAdmin();
-}
-
-function bulkDelete() {
-    const selected = document.querySelectorAll(".report-checkbox:checked");
-    if (selected.length === 0) return;
-    
-    if (confirm(currentLang === 'pl' ? `Czy na pewno chcesz usunąć te ${selected.length} zgłoszenia?` : `Are you sure you want to delete these ${selected.length} reports?`)) {
-        let idsToDelete = Array.from(selected).map(cb => cb.value);
-        let filtered = getHistory().filter(x => !idsToDelete.includes(x.id));
-        saveHistory(filtered);
+function resetIDCounter() {
+    if (confirm(langData[currentLang].confirmReset)) {
+        localStorage.setItem(COUNTER_NAME, 0);
+        localStorage.setItem(APPEAL_COUNTER_NAME, 0);
+        alert("Licznik ID został zresetowany.");
         renderAdmin();
     }
 }
 
-function exportDatabase() {
-    const data = getHistory();
-    if (data.length === 0) {
-        alert(currentLang === 'pl' ? "Brak danych do eksportu." : "No data available to export.");
-        return;
-    }
-    
-    let fileContent = "==================================================\n";
-    fileContent += "        FIA INCIDENTS DATABASE EXPORT             \n";
-    fileContent += `        Wygenerowano: ${new Date().toLocaleString()} \n`;
-    fileContent += "==================================================\n\n";
-
-    data.forEach(item => {
-        fileContent += `[ID]: ${item.id}\n`;
-        fileContent += `[Status]: ${item.status}\n`;
-        fileContent += `[Zgłaszający]: ${item.nick} (Discord: ${item.discordId})\n`;
-        fileContent += `[Oskarżony Nick]: ${item.accusedNick || 'Brak'}\n`;
-        fileContent += `[Oskarżony Discord ID]: ${item.accusedDiscordId}\n`;
-        fileContent += `[Tor & Przewinienie]: ${item.track} | ${item.category || 'Brak'}\n`;
-        fileContent += `[Sesja]: ${item.sessionType}\n`;
-        fileContent += `[Opis zdarzenia]:\n${item.details}\n`;
-        fileContent += `[Dowody]: ${item.evidence || 'Brak'}\n`;
-        if (item.rejectionReason) fileContent += `[Powód odrzucenia]: ${item.rejectionReason}\n`;
-        if (item.notes) fileContent += `[Notatki sędziowskie]: ${item.notes}\n`;
-        fileContent += "--------------------------------------------------\n\n";
-    });
-
-    const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `FIA_Database_Export_${new Date().toISOString().slice(0,10)}.txt`;
-    link.click();
-}
-
-function renderHistory() {
-    const list = document.getElementById("historyList");
-    list.innerHTML = "";
-    getHistory().forEach(item => {
-        const statusText = item.status === "Przyjęte" ? langData[currentLang].statusAccepted : (item.status === "Odrzucone" ? langData[currentLang].statusRejected : langData[currentLang].statusPending);
-        const color = item.status === "Przyjęte" ? "#10b981" : (item.status === "Odrzucone" ? "#ef4444" : "#fbbf24");
-        list.innerHTML += `<div class="history-item"><strong>${item.id}</strong> | ${item.track} | Status: <span style="color:${color}">${statusText}</span></div>`;
-    });
-}
-
-async function updateStatus(id, newStatus) {
-    let reason = "";
-    if (newStatus === 'Odrzucone') {
-        reason = prompt(langData[currentLang].promptReject);
-        if (reason === null) return;
-    }
-    
-    let h = getHistory();
-    let idx = h.findIndex(x => x.id === id);
-    if (idx !== -1) {
-        h[idx].status = newStatus;
-        h[idx].rejectionReason = reason;
-        saveHistory(h); 
-        renderAdmin();
-
-        const translatedStatus = newStatus === "Przyjęte" ? langData[currentLang].statusAccepted : langData[currentLang].statusRejected;
-        const color = newStatus === "Przyjęte" ? 656897 : 15679532;
-
-        const embed = {
-            title: `${langData[currentLang].dcDecisionTitle}: ${id}`,
-            description: `${langData[currentLang].dcMsgDecision}: **${translatedStatus.toUpperCase()}**`,
-            color: color,
-            fields: [
-                { name: langData[currentLang].dcLabelSession, value: `${h[idx].track} / ${h[idx].sessionType}`, inline: true },
-                { name: langData[currentLang].dcLabelAccused, value: h[idx].accusedNick || h[idx].accusedDiscordId, inline: true }
-            ],
-            footer: { text: "FIA System Decision" },
-            timestamp: new Date().toISOString()
-        };
-
-        if (reason) {
-            embed.fields.push({ name: langData[currentLang].dcLabelReason, value: reason, inline: false });
-        }
-
-        try {
-            await fetch(DECISION_WEBHOOK, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    content: `<@${h[idx].discordId}>`, 
-                    embeds: [embed],
-                    allowed_mentions: { parse: [] }
-                })
-            });
-        } catch (error) { console.error(error); }
-    }
-}
-
-function deleteItem(id) { if(confirm(langData[currentLang].confirmDelete)) { saveHistory(getHistory().filter(x => x.id !== id)); renderAdmin(); } }
-function resetIDCounter() { if(confirm(langData[currentLang].confirmReset)) { localStorage.removeItem(COUNTER_NAME); renderAdmin(); } }
-
+// --- SUBMIT COMPLAINT ---
 document.getElementById("complaintForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const data = {
-        id: getNextId(),
-        nick: document.getElementById("nick").value,
-        discordId: document.getElementById("discordId").value,
-        category: document.getElementById("category").value,
-        track: document.getElementById("track").value,
-        sessionType: document.getElementById("sessionType").value,
-        accusedNick: document.getElementById("accusedNick").value,
-        accusedDiscordId: document.getElementById("accusedDiscordId").value,
-        details: document.getElementById("details").value,
-        evidence: document.getElementById("evidence").value,
-        status: "Oczekuje",
+    const t = langData[currentLang];
+    
+    const id = getNextID();
+    const nick = document.getElementById("nick").value;
+    const discordId = document.getElementById("discordId").value;
+    const category = document.getElementById("category").value;
+    const track = document.getElementById("track").value;
+    const session = document.getElementById("sessionType").value;
+    const accusedNick = document.getElementById("accusedNick").value;
+    const accusedDiscordId = document.getElementById("accusedDiscordId").value;
+    const details = document.getElementById("details").value;
+    const evidence = document.getElementById("evidence").value;
+
+    const newReport = {
+        id, nick, discordId, category, track, session,
+        accusedNick, accusedDiscordId, details, evidence,
+        status: "Oczekuje", timestamp: new Date().toLocaleString(),
         notes: ""
     };
-    saveHistory([data, ...getHistory()]);
+
+    const db = getDatabase();
+    db.push(newReport);
+    saveDatabase(db);
 
     const embed = {
-        title: `${langData[currentLang].dcReportTitle}: ${data.id}`,
-        color: 16498468,
+        title: t.dcReportTitle,
+        color: 16711680,
         fields: [
-            { name: langData[currentLang].dcLabelReporter, value: data.nick, inline: true },
-            { name: langData[currentLang].dcLabelAgainst, value: data.accusedNick, inline: true },
-            { name: langData[currentLang].dcLabelTrack, value: data.track, inline: true }
+          { name: "🆔 ID Zgłoszenia", value: `\`${id}\``, inline: true },
+          { name: t.dcLabelReporter, value: `${nick} (<@${discordId}>)`, inline: true },
+          { name: t.dcLabelAgainst, value: `${accusedNick} (<@${accusedDiscordId}>)`, inline: true },
+          { name: t.dcLabelSession, value: `📍 ${track} / 🏁 ${session}`, inline: false },
+          { name: "🗂️ Kategoria błędu", value: category, inline: true },
+          { name: "🎬 Dowód wideo", value: evidence.trim() !== "" ? `[Link do nagrania](${evidence})` : "Brak dowodu", inline: true },
+          { name: "📝 Opis incydentu", value: `\`\`\`text\n${details}\n\`\`\``, inline: false }
         ],
         timestamp: new Date().toISOString()
     };
 
     try {
         await fetch(NEW_REPORT_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                content: `<@&${ROLE_STEWARD_ID}> <@&${ROLE_HEAD_STEWARD_ID}>`,
-                embeds: [embed] 
-            })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: `Dodano nowe zgłoszenie od <@${discordId}>`, embeds: [embed] })
         });
-    } catch (error) { console.error(error); }
+    } catch(err) { console.error("Webhook error", err); }
 
-    alert(langData[currentLang].alertSent); e.target.reset(); showSection('historySection');
+    alert(t.alertSent);
+    e.target.reset();
+    renderHistory();
 });
 
-// HANDLER DLA FORMULARZA WERDYKTÓW
-document.getElementById("responseForm").addEventListener("submit", async (e) => {
+// --- SUBMIT APPEAL ---
+document.getElementById("appealForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const t = langData[currentLang];
-    const statusEl = document.getElementById("status");
-    statusEl.textContent = t.statusSending;
-    statusEl.className = "status-msg";
 
-    const caseId = document.getElementById("caseId").value.trim();
-    const accusedId = document.getElementById("accusedId").value.trim();
-    const decision = document.getElementById("decision").value;
-    const timePenalty = document.getElementById("timePenalty").value.trim() || (currentLang === 'pl' ? "Brak" : "None");
-    const pointsPenalty = document.getElementById("pointsPenalty").value.trim() || "0";
-    const details = document.getElementById("verdictDetails").value.trim();
-    const judge = document.getElementById("judge").value.trim();
+    const caseId = document.getElementById("appealCaseId").value.trim();
+    const nick = document.getElementById("appealNick").value;
+    const discordId = document.getElementById("appealDiscordId").value;
+    const appealReason = document.getElementById("appealReason").value;
+    const appealEvidenceUrl = document.getElementById("appealEvidence").value;
 
+    const db = getDatabase();
+    const reportIndex = db.findIndex(r => r.id === caseId);
+
+    if (reportIndex === -1) {
+        alert(t.alertCaseNotFound);
+        return;
+    }
+
+    db[reportIndex].status = "W apelacji";
+    saveDatabase(db);
+
+    const appDb = getAppealsDatabase();
+    const appealId = getNextAppealID();
+    const newAppeal = {
+        appealId,
+        caseId,
+        nick,
+        discordId,
+        reason: appealReason,
+        evidence: appealEvidenceUrl,
+        status: "Nowa"
+    };
+    appDb.push(newAppeal);
+    saveAppealsDatabase(appDb);
+
+    // Embed Discorda dla nowej apelacji - USUNIĘTO rubryki Powód/Argumenty oraz Nowe dowody
     const embed = {
-        title: t.embedTitle,
-        color: 0x00aaff,
+        title: t.dcAppealTitle || "⚖️ NOWA APELACJA OD WERDYKTU",
+        color: 15105572,
         fields: [
-          { name: t.fieldCase, value: caseId, inline: true },
-          { name: t.fieldWinner, value: `<@${accusedId}>`, inline: true },
-          { name: t.fieldDecision, value: decision, inline: true },
-          { name: t.fieldTime, value: timePenalty, inline: true },
-          { name: t.fieldPoints, value: pointsPenalty, inline: true },
-          { name: t.fieldDetails, value: details, inline: false },
-          { name: t.fieldJudge, value: judge, inline: false }
+          { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
+          { name: "👤 Apelujący", value: `${nick} (<@${discordId}>)`, inline: true }
         ],
         timestamp: new Date().toISOString()
     };
 
+    try {
+        await fetch(NEW_REPORT_WEBHOOK, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: `🚨 Zarejestrowano nową apelację dla sprawy \`${caseId}\` od <@${discordId}>!`, embeds: [embed] })
+        });
+    } catch(err) { console.error("Webhook error", err); }
+
+    alert(t.alertAppealSent);
+    e.target.reset();
+    showSection("formSection");
+});
+
+// --- HISTORY RENDER ---
+function renderHistory() {
+    const list = document.getElementById("historyList");
+    list.innerHTML = "";
+    const db = getDatabase();
+    const t = langData[currentLang];
+
+    if (db.length === 0) {
+        list.innerHTML = `<p style="font-size:13px; color:#9ca3af;">${currentLang === 'pl' ? 'Brak zgłoszeń w pamięci przeglądarki.' : 'No reports in browser storage.'}</p>`;
+        return;
+    }
+
+    db.forEach(r => {
+        let statusColor = "#fbbf24";
+        if (r.status === "Przyjęte") statusColor = "#10b981";
+        if (r.status === "Odrzucone") statusColor = "#ef4444";
+        if (r.status === "W apelacji") statusColor = "#ca8a04";
+
+        let translatedStatus = r.status;
+        if (r.status === "Oczekuje") translatedStatus = t.statusPending;
+        if (r.status === "Przyjęte") translatedStatus = t.statusAccepted;
+        if (r.status === "Odrzucone") translatedStatus = t.statusRejected;
+        if (r.status === "W apelacji") translatedStatus = t.statusAppeal;
+
+        const div = document.createElement("div");
+        div.className = "history-item";
+        div.innerHTML = `
+          <div style="display:flex; justify-content:between; align-items:center; margin-bottom:6px;">
+            <strong style="color:#fff; font-size:14px;">${r.id}</strong>
+            <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:999px;">${translatedStatus}</span>
+          </div>
+          <p style="margin:2px 0; font-size:12px; color:#9ca3af;"><strong>${t.dcLabelTrack}:</strong> ${r.track} (${r.session}) | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
+          <p style="margin:4px 0; font-size:12px; background:#1f2937; padding:6px; border-radius:6px; color:#cbd5e1; border:1px solid #374151;">${r.details}</p>
+          ${r.notes ? `<p style="margin:4px 0; font-size:12px; color:#f87171;"><strong>Uzasadnienie sędziowskie:</strong> ${r.notes}</p>` : ""}
+        `;
+        list.appendChild(div);
+    });
+}
+
+// --- ADMIN AUTH ---
+function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; }
+function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; }
+function checkAdminAuth() {
+    const p = document.getElementById("adminPass").value;
+    if (p === "steward2025" || p === "headsteward2025") {
+        isAdminAuthenticated = true;
+        document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
+        closeAdminLogin();
+        showSection("adminSection");
+        renderAdmin();
+    } else {
+        document.getElementById("loginStatus").textContent = currentLang === 'pl' ? "Błędne hasło!" : "Wrong password!";
+    }
+}
+
+// --- ADMIN RENDER ---
+function renderAdmin() {
+    const tbody = document.getElementById("adminTableBody");
+    tbody.innerHTML = "";
+    const db = getDatabase();
+    const t = langData[currentLang];
+
+    const searchQuery = document.getElementById("adminSearch").value.toLowerCase();
+    const filterStatus = document.getElementById("adminFilterStatus").value;
+    const filterTrack = document.getElementById("adminFilterTrack").value;
+    const filterCategory = document.getElementById("adminFilterCategory").value;
+
+    let cAll = 0, cPending = 0, cAccepted = 0, cRejected = 0;
+    db.forEach(r => {
+        cAll++;
+        if (r.status === "Oczekuje") cPending++;
+        if (r.status === "Przyjęte") cAccepted++;
+        if (r.status === "Odrzucone") cRejected++;
+    });
+    document.getElementById("statAll").textContent = cAll;
+    document.getElementById("statPending").textContent = cPending;
+    document.getElementById("statAccepted").textContent = cAccepted;
+    document.getElementById("statRejected").textContent = cRejected;
+
+    const appDb = getAppealsDatabase();
+    let cAppAll = 0, cAppPending = 0, cAppChanged = 0, cAppMaintained = 0;
+    appDb.forEach(a => {
+        cAppAll++;
+        if (a.status === "Nowa") cAppPending++;
+        if (a.status === "Zmieniony") cAppChanged++;
+        if (a.status === "Podtrzymany") cAppMaintained++;
+    });
+    document.getElementById("statAppAll").textContent = cAppAll;
+    document.getElementById("statAppPending").textContent = cAppPending;
+    document.getElementById("statAppChanged").textContent = cAppChanged;
+    document.getElementById("statAppMaintained").textContent = cAppMaintained;
+
+    db.forEach(r => {
+        const matchesSearch = r.nick.toLowerCase().includes(searchQuery) ||
+                              r.accusedNick.toLowerCase().includes(searchQuery) ||
+                              r.track.toLowerCase().includes(searchQuery) ||
+                              r.id.toLowerCase().includes(searchQuery);
+        const matchesStatus = (filterStatus === "ALL") || (r.status === filterStatus);
+        const matchesTrack = (filterTrack === "ALL") || (r.track === filterTrack);
+        const matchesCategory = (filterCategory === "ALL") || (r.category === filterCategory);
+
+        if (matchesSearch && matchesStatus && matchesTrack && matchesCategory) {
+            const tr = document.createElement("tr");
+            
+            let badgeBg = "#fbbf24";
+            if (r.status === "Przyjęte") badgeBg = "#10b981";
+            if (r.status === "Odrzucone") badgeBg = "#ef4444";
+            if (r.status === "W apelacji") badgeBg = "#ca8a04";
+
+            let trStatusText = r.status;
+            if (r.status === "Oczekuje") trStatusText = t.statusPending;
+            if (r.status === "Przyjęte") trStatusText = t.statusAccepted;
+            if (r.status === "Odrzucone") trStatusText = t.statusRejected;
+            if (r.status === "W apelacji") trStatusText = t.statusAppeal;
+
+            tr.innerHTML = `
+              <td class="col-cb" style="text-align:center;"><input type="checkbox" class="report-checkbox" data-id="${r.id}" onclick="updateBulkBarVisibility()"></td>
+              <td class="col-id"><strong>${r.id}</strong><br><span style="font-size:9px;color:#9ca3af;">${r.timestamp.split(',')[0]}</span></td>
+              <td class="col-rep"><div class="cell-wrap"><strong>${r.nick}</strong><br><span style="font-size:10px;color:#9ca3af;">ID: ${r.discordId}</span></div></td>
+              <td class="col-track"><div class="cell-wrap">🏁 ${r.track}<br><span style="font-size:10px;color:#60a5fa;">${r.category}</span></div></td>
+              <td class="col-sess"><div class="cell-wrap">${r.session}</div></td>
+              <td class="col-acc"><div class="cell-wrap"><strong>${r.accusedNick}</strong><br><span style="font-size:10px;color:#9ca3af;">ID: ${r.accusedDiscordId}</span></div></td>
+              <td class="col-desc">
+                <div class="cell-wrap">${r.details}</div>
+                <button class="btn-view" onclick="openDescModal('${r.id}')">Pokaż / Notatki</button>
+              </td>
+              <td class="col-ev">
+                ${r.evidence ? `<a class="evidence-link" href="${r.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span style="color:#6b7280;">${t.evidenceNone}</span>`}
+              </td>
+              <td class="col-stat">
+                <span style="display:block; text-align:center; background:${badgeBg}; color:#000; font-weight:bold; padding:2px; border-radius:4px; margin-bottom:4px; font-size:10px;">${trStatusText}</span>
+                <div class="action-btns">
+                  <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
+                  <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
+                  <button class="btn-verdict-transfer" style="color:white;" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
+                  <button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>
+                </div>
+              </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    });
+
+    const appTbody = document.getElementById("adminAppealsTableBody");
+    appTbody.innerHTML = "";
+    
+    if (appDb.length === 0) {
+        appTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#9ca3af; padding:12px;">Brak złożonych odwołań.</td></tr>`;
+    } else {
+        appDb.forEach(a => {
+            let appBadgeColor = "#fbbf24";
+            if (a.status === "Zmieniony") appBadgeColor = "#a855f7";
+            if (a.status === "Podtrzymany") appBadgeColor = "#64748b";
+
+            const trA = document.createElement("tr");
+            trA.innerHTML = `
+              <td><strong>${a.appealId}</strong></td>
+              <td><span style="color:#fbbf24; font-weight:bold;">${a.caseId}</span></td>
+              <td><strong>${a.nick}</strong><br><span style="font-size:10px; color:#9ca3af;">ID: ${a.discordId}</span></td>
+              <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
+              <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span style="color:#6b7280;">Brak</span>`}</td>
+              <td><span style="background:${appBadgeColor}; color:#fff; font-weight:bold; padding:2px 6px; border-radius:4px; font-size:11px;">${a.status}</span></td>
+              <td>
+                <div class="action-btns">
+                  <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
+                  <button class="btn-success" style="font-size:10px; padding:4px;" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij Apelację</button>
+                  <button class="btn-danger" style="font-size:10px; padding:4px;" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć Apelację</button>
+                  <button style="background:#4b5563; font-size:10px; padding:2px;" onclick="deleteAppeal('${a.appealId}')">Usuń z bazy</button>
+                </div>
+              </td>
+            `;
+            appTbody.appendChild(trA);
+        });
+    }
+
+    document.getElementById("selectAllCheckboxes").checked = false;
+    updateBulkBarVisibility();
+}
+
+function transferToVerdictPanel(id, accusedDiscordId) {
+    document.getElementById("caseId").value = id;
+    document.getElementById("accusedId").value = accusedDiscordId;
+    
+    const db = getDatabase();
+    const found = db.find(r => r.id === id);
+    if (found) {
+        document.getElementById("verdictPreviewDesc").textContent = found.details;
+        document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank" style="color:#60a5fa; font-weight:bold;">${found.evidence}</a>` : "-";
+    }
+    
+    document.getElementById("responseForm").scrollIntoView({ behavior: 'smooth' });
+}
+
+function transferAppealToVerdict(caseId, appellantDiscordId, appealId, appealEvidenceUrl) {
+    document.getElementById("caseId").value = `Apelacja: ${appealId} (Sprawa: ${caseId})`;
+    document.getElementById("accusedId").value = appellantDiscordId;
+    
+    const db = getDatabase();
+    const found = db.find(r => r.id === caseId);
+    if (found) {
+        document.getElementById("verdictPreviewDesc").textContent = `[GŁÓWNY OPIS INCYDENTU]:\n${found.details}`;
+    }
+    
+    if (appealEvidenceUrl.trim() !== "") {
+        document.getElementById("verdictPreviewEvidence").innerHTML = `<a href="${appealEvidenceUrl}" target="_blank" style="color:#eab308; font-weight:bold;">Nowy dowód z apelacji: ${appealEvidenceUrl}</a>`;
+    } else {
+        document.getElementById("verdictPreviewEvidence").textContent = "Brak nowych dowodów w apelacji.";
+    }
+    
+    document.getElementById("responseForm").scrollIntoView({ behavior: 'smooth' });
+}
+
+// --- BULK SELECTION ---
+function toggleSelectAll(master) {
+    document.querySelectorAll(".report-checkbox").forEach(cb => cb.checked = master.checked);
+    updateBulkBarVisibility();
+}
+
+function updateBulkBarVisibility() {
+    const checkedBoxes = document.querySelectorAll(".report-checkbox:checked");
+    const bar = document.getElementById("bulkBar");
+    if (checkedBoxes.length > 0) {
+        bar.style.display = "flex";
+        document.getElementById("bulkSelectedCount").textContent = currentLang === 'pl' ? `Wybrano: ${checkedBoxes.length} zgłoszeń` : `Selected: ${checkedBoxes.length} reports`;
+    } else {
+        bar.style.display = "none";
+    }
+}
+
+function bulkStatusUpdate(newStatus) {
+    const db = getDatabase();
+    let count = 0;
+    document.querySelectorAll(".report-checkbox:checked").forEach(cb => {
+        const id = cb.getAttribute("data-id");
+        const found = db.find(r => r.id === id);
+        if (found) {
+            found.status = newStatus;
+            count++;
+        }
+    });
+    if (count > 0) {
+        saveDatabase(db);
+        alert(`Zaktualizowano status ${count} zgłoszeń na: ${newStatus}`);
+        renderAdmin();
+    }
+}
+
+function bulkDelete() {
+    if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz usunąć zaznaczone zgłoszenia?" : "Are you sure you want to delete selected reports?")) {
+        let db = getDatabase();
+        let count = 0;
+        document.querySelectorAll(".report-checkbox:checked").forEach(cb => {
+            const id = cb.getAttribute("data-id");
+            db = db.filter(r => r.id !== id);
+            count++;
+        });
+        saveDatabase(db);
+        alert(`Usunięto ${count} zgłoszeń.`);
+        renderAdmin();
+    }
+}
+
+// --- SINGLE ACTIONS ---
+async function updateStatus(id, newStatus) {
+    const db = getDatabase();
+    const item = db.find(r => r.id === id);
+    if (!item) return;
+
+    let reason = "";
+    if (newStatus === "Odrzucone") {
+        reason = prompt(langData[currentLang].promptReject);
+        if (reason === null) return; 
+        if (reason.trim() !== "") {
+            item.notes = `[Powód odrzucenia]: ${reason}`;
+        }
+    }
+
+    item.status = newStatus;
+    saveDatabase(db);
+
+    const embed = {
+        title: langData[currentLang].dcDecisionTitle,
+        color: newStatus === "Przyjęte" ? 65280 : 16711680,
+        description: `${langData[currentLang].dcMsgDecision} **${newStatus === "Przyjęte" ? "PRZYJĘTE" : "ODRZUCONE"}**.` + (reason ? `\n\n**Uzasadnienie sędziowskie:** ${reason}` : ""),
+        fields: [
+            { name: "🆔 ID Zgłoszenia", value: `\`${item.id}\``, inline: true },
+            { name: "👤 Kierowca", value: `<@${item.discordId}>`, inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fetch(DECISION_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: `Zmiana statusu zgłoszenia dla <@${item.discordId}>`, embeds: [embed] })
+        });
+    } catch(e) { console.error(e); }
+
+    renderAdmin();
+}
+
+function deleteReport(id) {
+    if (confirm(langData[currentLang].confirmDelete)) {
+        let db = getDatabase();
+        db = db.filter(r => r.id !== id);
+        saveDatabase(db);
+        renderAdmin();
+    }
+}
+
+function deleteAppeal(appId) {
+    if (confirm("Czy na pewno chcesz usunąć tę apelację z bazy panelu?")) {
+        let appDb = getAppealsDatabase();
+        appDb = appDb.filter(a => a.appealId !== appId);
+        saveAppealsDatabase(appDb);
+        renderAdmin();
+    }
+}
+
+// --- SZYBKIE AKCJE DLA APELACJI ---
+
+// Przyjęcie Apelacji (Zmiana werdyktu)
+async function acceptAppeal(appealId, caseId, discordId) {
+    const appDb = getAppealsDatabase();
+    const appeal = appDb.find(a => a.appealId === appealId);
+    if (!appeal) return;
+
+    appeal.status = "Zmieniony";
+    saveAppealsDatabase(appDb);
+
+    // Aktualizacja statusu w głównej bazie zgłoszeń
+    const db = getDatabase();
+    const mainReport = db.find(r => r.id === caseId);
+    if (mainReport) {
+        mainReport.status = "Przyjęte";
+        mainReport.notes = `[Apelacja rozpatrzona pomyślnie]: Status zmieniony przez panel sędziowski.`;
+        saveDatabase(db);
+    }
+
+    // Wysłanie powiadomienia na Discord (Webhook Decyzji)
+    const embed = {
+        title: "📢 STATUS APELACJI – PRZYJĘTA",
+        color: 65280, // Zielony
+        description: `Apelacja o ID **${appealId}** (dotycząca sprawy \`${caseId}\`) została **PRZYJĘTA**.\nWerdykt sędziowski ulegnie zmianie/weryfikacji.`,
+        fields: [
+            { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
+            { name: "👤 Kierowca", value: `<@${discordId}>`, inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fetch(DECISION_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: `Zmiana statusu apelacji dla <@${discordId}>`, embeds: [embed] })
+        });
+    } catch(e) { console.error(e); }
+
+    alert(`Apelacja ${appealId} została przyjęta.`);
+    renderAdmin();
+}
+
+// Odrzucenie Apelacji (Podtrzymanie werdyktu)
+async function rejectAppeal(appealId, caseId, discordId) {
+    const appDb = getAppealsDatabase();
+    const appeal = appDb.find(a => a.appealId === appealId);
+    if (!appeal) return;
+
+    const reason = prompt("Podaj uzasadnienie odrzucenia apelacji:");
+    if (reason === null) return; // anulowano wpisywanie
+
+    appeal.status = "Podtrzymany";
+    saveAppealsDatabase(appDb);
+
+    // Aktualizacja statusu w głównej bazie zgłoszeń
+    const db = getDatabase();
+    const mainReport = db.find(r => r.id === caseId);
+    if (mainReport) {
+        mainReport.status = "Odrzucone";
+        if (reason.trim() !== "") {
+            mainReport.notes = `[Apelacja odrzucona]: Pierwotny werdykt podtrzymany. Powód: ${reason}`;
+        }
+        saveDatabase(db);
+    }
+
+    // Wysłanie powiadomienia na Discord (Webhook Decyzji)
+    const embed = {
+        title: "📢 STATUS APELACJI – ODRZUCONA",
+        color: 16711680, // Czerwony
+        description: `Apelacja o ID **${appealId}** (dotycząca sprawy \`${caseId}\`) została **ODRZUCONA**. Pierwotna decyzja sędziów zostaje podtrzymana.` + (reason ? `\n\n**Uzasadnienie:** ${reason}` : ""),
+        fields: [
+            { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
+            { name: "👤 Kierowca", value: `<@${discordId}>`, inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fetch(DECISION_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: `Zmiana statusu apelacji dla <@${discordId}>`, embeds: [embed] })
+        });
+    } catch(e) { console.error(e); }
+
+    alert(`Apelacja ${appealId} została odrzucona.`);
+    renderAdmin();
+}
+
+// --- DESC MODAL & NOTES ---
+function openDescModal(id) {
+    currentlyEditedReportId = id;
+    const db = getDatabase();
+    const item = db.find(r => r.id === id);
+    if (!item) return;
+
+    document.getElementById("descModalTitle").textContent = `Notatki i opis dla sprawy ${item.id}`;
+    document.getElementById("descModalBody").textContent = item.details;
+    document.getElementById("modalNotesField").value = item.notes || "";
+    document.getElementById("descModal").style.display = "flex";
+}
+function closeDescModal() {
+    document.getElementById("descModal").style.display = "none";
+    currentlyEditedReportId = null;
+}
+function saveModalNotes() {
+    if (!currentlyEditedReportId) return;
+    const db = getDatabase();
+    const item = db.find(r => r.id === currentlyEditedReportId);
+    if (item) {
+        item.notes = document.getElementById("modalNotesField").value;
+        saveDatabase(db);
+        alert("Notatki / uzasadnienie zostały zapisane w bazie.");
+        closeDescModal();
+        renderAdmin();
+    }
+}
+
+// --- VERDICT RESPONSE FORM ---
+document.getElementById("responseForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById("status");
+    const t = langData[currentLang];
+
+    statusEl.textContent = t.statusSending;
+    statusEl.className = "status-msg";
+
+    const accusedIdField = document.getElementById("caseId").value.trim();
+    const targetDiscordPingId = document.getElementById("accusedId").value.trim();
+    const decision = document.getElementById("decision").value;
+    const timePenalty = document.getElementById("timePenalty").value || "brak";
+    const pointsPenalty = document.getElementById("pointsPenalty").value || "0 pkt";
+    const verdictDetails = document.getElementById("verdictDetails").value;
+    const judge = document.getElementById("judge").value;
+    
+    let originalCaseId = accusedIdField;
+    let appealEvidenceUrl = "";
+    
+    if (accusedIdField.startsWith("Apelacja:")) {
+        const matchCase = accusedIdField.match(/Sprawa:\s*(FIA-\d+)/);
+        const matchApp = accusedIdField.match(/Apelacja:\s*(APP-\d+)/);
+        if (matchCase) originalCaseId = matchCase[1];
+        
+        if (matchApp) {
+            const appDb = getAppealsDatabase();
+            const foundApp = appDb.find(a => a.appealId === matchApp[1]);
+            if (foundApp) {
+                appealEvidenceUrl = foundApp.evidence || "";
+                
+                if (decision.includes("Zmiana")) {
+                    foundApp.status = "Zmieniony";
+                } else if (decision.includes("podtrzymany") || decision.includes("odrzucona")) {
+                    foundApp.status = "Podtrzymany";
+                } else {
+                    foundApp.status = "Rozpatrzona";
+                }
+                saveAppealsDatabase(appDb);
+            }
+        }
+    }
+
+    const db = getDatabase();
+    const mainReport = db.find(r => r.id === originalCaseId);
+    if (mainReport) {
+        if (decision.includes("Apelacja rozpatrzona – Zmiana werdyktu")) {
+            mainReport.status = "Przyjęte";
+        } else if (decision.includes("Apelacja odrzucona – Werdykt podtrzymany")) {
+            mainReport.status = "Odrzucone";
+        } else {
+            mainReport.status = "Przyjęte";
+        }
+        mainReport.notes = `[Oficjalny werdykt]: ${decision} | ${timePenalty} | ${pointsPenalty}\nUzasadnienie: ${verdictDetails} (Sędzia: ${judge})`;
+        saveDatabase(db);
+    }
+
+    const embed = {
+        title: String(t.embedTitle || "⚖️ Oficjalny Werdykt Sędziowski"),
+        color: 3447003, 
+        fields: [
+          { name: String(t.fieldCase || "ID sprawy"), value: `\`${originalCaseId}\``, inline: true },
+          { name: String(t.fieldWinner || "Kierowca"), value: `<@${targetDiscordPingId}>`, inline: true },
+          { name: String(t.fieldDecision || "Decyzja"), value: `**${decision}**`, inline: false },
+          { name: String(t.fieldTime || "Kara czasowa"), value: timePenalty, inline: true },
+          { name: String(t.fieldPoints || "Punkty karne"), value: pointsPenalty, inline: true },
+          { name: String(t.fieldDetails || "Uzasadnienie"), value: `\`\`\`text\n${verdictDetails}\n\`\`\``, inline: false },
+          { name: String(t.fieldJudge || "Sędzia"), value: String(judge), inline: false }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    if (accusedIdField.startsWith("Apelacja:")) {
+        embed.fields.push({
+            name: currentLang === 'pl' ? "🔗 Dodatkowe Dowody (Z Apelacji)" : "🔗 Additional Evidence (From Appeal)",
+            value: appealEvidenceUrl.trim() !== "" ? appealEvidenceUrl : (currentLang === 'pl' ? "Brak nowych dowodów" : "No new evidence"),
+            inline: false
+        });
+    }
+
     const payload = {
-        content: `${t.contentMsg}<@${accusedId}>`,
+        content: `Modyfikacja statusu sprawy dla: <@${targetDiscordPingId}>`,
         username: "Zespół Sędziowski",
         avatar_url: "https://i.imgur.com/4M34hi2.png",
         embeds: [embed]
@@ -1122,17 +1481,35 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         statusEl.textContent = t.statusOk;
         statusEl.className = "status-msg ok";
         
-        // Czyszczenie formularza oraz podglądu po udanym wysłaniu
         e.target.reset();
         document.getElementById("verdictPreviewDesc").textContent = "-";
-        document.getElementById("verdictPreviewEvidence").textContent = "-";
+        document.getElementById("verdictPreviewEvidence").innerHTML = "-";
+        
+        renderAdmin();
     } catch (err) {
         statusEl.textContent = t.statusErr;
         statusEl.className = "status-msg err";
     }
 });
 
-updateUI();
+// --- DATABASE EXPORT ---
+function exportDatabase() {
+    const db = getDatabase();
+    const appDb = getAppealsDatabase();
+    const fullData = {
+        incidents: db,
+        appeals: appDb,
+        exportDate: new Date().toLocaleString()
+    };
+    
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `FIA_SYSTEM_DB_EXPORT_${new Date().toISOString().slice(0,10)}.txt`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
 </script>
 </body>
 </html>
