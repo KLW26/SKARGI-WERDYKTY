@@ -270,6 +270,9 @@
     }
     .btn-open-link:hover { background: #1d4ed8; }
   </style>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 
 <body>
@@ -316,7 +319,7 @@
     <div class="menu">
       <button onclick="showSection('formSection')" data-key="navNew">Nowe Zgłoszenie</button>
       <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
-      <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Twoja Historia</button>
+      <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
       <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
     </div>
 
@@ -547,7 +550,15 @@
   </div>
 
 <script>
-// --- CONFIGURATION ---
+// --- CONFIGURATION & FIREBASE SETUP ---
+const firebaseConfig = {
+    databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/" 
+};
+
+// Inicjalizacja Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
 const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const CHAT_WEBHOOK = "https://discord.com/api/webhooks/1503802447322152960/I1yBJxH5YxkgDMfmXJCpGTX0G-N0wSoLplHjh2NFEN9-YqOIirthTwJKMg-tBTe3MHM5";
@@ -556,10 +567,8 @@ const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/150381275410307501
 const ROLE_STEWARD_ID = "1443302932811616346";      
 const ROLE_HEAD_STEWARD_ID = "1463610534309007380"; 
 
-const DB_NAME = "FIA_DATABASE_FINAL";
-const APPEALS_DB_NAME = "FIA_APPEALS_DATABASE";
-const COUNTER_NAME = "FIA_ID_COUNTER";
-const APPEAL_COUNTER_NAME = "FIA_APPEAL_COUNTER";
+let globalIncidents = [];
+let globalAppeals = [];
 
 let isAdminAuthenticated = false;
 let currentLang = 'pl';
@@ -569,7 +578,7 @@ const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
         mainTitle: "System Zgłoszeń FIA", mainSubtitle: "Zarządzanie incydentami wyścigowymi",
-        navNew: "Nowe Zgłoszenie", navHistory: "Twoja Historia", navAdmin: "Panel Administracyjny", navAppeal: "Złóż Apelację",
+        navNew: "Nowe Zgłoszenie", navHistory: "Globalna Historia", navAdmin: "Panel Administracyjny", navAppeal: "Złóż Apelację",
         secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
         labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
         labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
@@ -633,7 +642,7 @@ const langData = {
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
         mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
-        navNew: "New Report", navHistory: "Your History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
+        navNew: "New Report", navHistory: "Global History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
         secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
         labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
         labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
@@ -717,6 +726,20 @@ const tracks = [
 ];
 
 window.addEventListener("DOMContentLoaded", () => {
+    // Słuchanie zmian w Firebase w czasie rzeczywistym
+    database.ref("incidents").on("value", (snapshot) => {
+        const data = snapshot.val();
+        globalIncidents = data ? Object.values(data) : [];
+        renderHistory();
+        if (isAdminAuthenticated) renderAdmin();
+    });
+
+    database.ref("appeals").on("value", (snapshot) => {
+        const data = snapshot.val();
+        globalAppeals = data ? Object.values(data) : [];
+        if (isAdminAuthenticated) renderAdmin();
+    });
+
     updateUI();
 });
 
@@ -793,39 +816,21 @@ function showSection(id) {
     document.getElementById(id).classList.add('active');
 }
 
-function getDatabase() {
-    return JSON.parse(localStorage.getItem(DB_NAME)) || [];
-}
-function saveDatabase(db) {
-    localStorage.setItem(DB_NAME, JSON.stringify(db));
-}
-function getAppealsDatabase() {
-    return JSON.parse(localStorage.getItem(APPEALS_DB_NAME)) || [];
-}
-function saveAppealsDatabase(db) {
-    localStorage.setItem(APPEALS_DB_NAME, JSON.stringify(db));
+// Funkcje pomocnicze do obsługi Firebase synchronizowane asynchronicznie
+async function getNextID() {
+    const snapshot = await database.ref("counters/incidents").transaction((current) => (current || 0) + 1);
+    return `FIA-${String(snapshot.snapshot.val()).padStart(4, '0')}`;
 }
 
-function getNextID() {
-    let current = parseInt(localStorage.getItem(COUNTER_NAME)) || 0;
-    current++;
-    localStorage.setItem(COUNTER_NAME, current);
-    return `FIA-${String(current).padStart(4, '0')}`;
-}
-
-function getNextAppealID() {
-    let current = parseInt(localStorage.getItem(APPEAL_COUNTER_NAME)) || 0;
-    current++;
-    localStorage.setItem(APPEAL_COUNTER_NAME, current);
-    return `APP-${String(current).padStart(4, '0')}`;
+async function getNextAppealID() {
+    const snapshot = await database.ref("counters/appeals").transaction((current) => (current || 0) + 1);
+    return `APP-${String(snapshot.snapshot.val()).padStart(4, '0')}`;
 }
 
 function resetIDCounter() {
     if (confirm(langData[currentLang].confirmReset)) {
-        localStorage.setItem(COUNTER_NAME, 0);
-        localStorage.setItem(APPEAL_COUNTER_NAME, 0);
+        database.ref("counters").set({ incidents: 0, appeals: 0 });
         alert("Licznik ID został zresetowany.");
-        renderAdmin();
     }
 }
 
@@ -834,7 +839,7 @@ document.getElementById("complaintForm").addEventListener("submit", async (e) =>
     e.preventDefault();
     const t = langData[currentLang];
     
-    const id = getNextID();
+    const id = await getNextID();
     const nick = document.getElementById("nick").value;
     const discordId = document.getElementById("discordId").value;
     const category = document.getElementById("category").value;
@@ -852,9 +857,7 @@ document.getElementById("complaintForm").addEventListener("submit", async (e) =>
         notes: ""
     };
 
-    const db = getDatabase();
-    db.push(newReport);
-    saveDatabase(db);
+    await database.ref("incidents/" + id).set(newReport);
 
     const embed = {
         title: t.dcReportTitle,
@@ -877,7 +880,6 @@ document.getElementById("complaintForm").addEventListener("submit", async (e) =>
 
     alert(t.alertSent);
     e.target.reset();
-    renderHistory();
 });
 
 // --- SUBMIT APPEAL ---
@@ -891,19 +893,16 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
     const appealReason = document.getElementById("appealReason").value;
     const appealEvidenceUrl = document.getElementById("appealEvidence").value;
 
-    const db = getDatabase();
-    const reportIndex = db.findIndex(r => r.id === caseId);
+    const foundReport = globalIncidents.find(r => r.id === caseId);
 
-    if (reportIndex === -1) {
+    if (!foundReport) {
         alert(t.alertCaseNotFound);
         return;
     }
 
-    db[reportIndex].status = "W apelacji";
-    saveDatabase(db);
+    await database.ref("incidents/" + caseId + "/status").set("W apelacji");
 
-    const appDb = getAppealsDatabase();
-    const appealId = getNextAppealID();
+    const appealId = await getNextAppealID();
     const newAppeal = {
         appealId,
         caseId,
@@ -913,8 +912,8 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
         evidence: appealEvidenceUrl,
         status: "Nowa"
     };
-    appDb.push(newAppeal);
-    saveAppealsDatabase(appDb);
+    
+    await database.ref("appeals/" + appealId).set(newAppeal);
 
     const embed = {
         title: t.dcAppealTitle || "⚖️ NOWA APELACJA OD WERDYKTU",
@@ -943,15 +942,14 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
 function renderHistory() {
     const list = document.getElementById("historyList");
     list.innerHTML = "";
-    const db = getDatabase();
     const t = langData[currentLang];
 
-    if (db.length === 0) {
-        list.innerHTML = `<p style="font-size:13px; color:#9ca3af;">${currentLang === 'pl' ? 'Brak zgłoszeń w pamięci przeglądarki.' : 'No reports in browser storage.'}</p>`;
+    if (globalIncidents.length === 0) {
+        list.innerHTML = `<p style="font-size:13px; color:#9ca3af;">${currentLang === 'pl' ? 'Brak zgłoszeń w bazie danych.' : 'No reports in database.'}</p>`;
         return;
     }
 
-    db.forEach(r => {
+    globalIncidents.forEach(r => {
         let statusColor = "#fbbf24";
         if (r.status === "Przyjęte") statusColor = "#10b981";
         if (r.status === "Odrzucone") statusColor = "#ef4444";
@@ -966,7 +964,7 @@ function renderHistory() {
         const div = document.createElement("div");
         div.className = "history-item";
         div.innerHTML = `
-          <div style="display:flex; justify-content:between; align-items:center; margin-bottom:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
             <strong style="color:#fff; font-size:14px;">${r.id}</strong>
             <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:999px;">${translatedStatus}</span>
           </div>
@@ -998,7 +996,6 @@ function checkAdminAuth() {
 function renderAdmin() {
     const tbody = document.getElementById("adminTableBody");
     tbody.innerHTML = "";
-    const db = getDatabase();
     const t = langData[currentLang];
 
     const searchQuery = document.getElementById("adminSearch").value.toLowerCase();
@@ -1007,7 +1004,7 @@ function renderAdmin() {
     const filterCategory = document.getElementById("adminFilterCategory").value;
 
     let cAll = 0, cPending = 0, cAccepted = 0, cRejected = 0;
-    db.forEach(r => {
+    globalIncidents.forEach(r => {
         cAll++;
         if (r.status === "Oczekuje") cPending++;
         if (r.status === "Przyjęte") cAccepted++;
@@ -1018,9 +1015,8 @@ function renderAdmin() {
     document.getElementById("statAccepted").textContent = cAccepted;
     document.getElementById("statRejected").textContent = cRejected;
 
-    const appDb = getAppealsDatabase();
     let cAppAll = 0, cAppPending = 0, cAppChanged = 0, cAppMaintained = 0;
-    appDb.forEach(a => {
+    globalAppeals.forEach(a => {
         cAppAll++;
         if (a.status === "Nowa") cAppPending++;
         if (a.status === "Zmieniony") cAppChanged++;
@@ -1031,7 +1027,7 @@ function renderAdmin() {
     document.getElementById("statAppChanged").textContent = cAppChanged;
     document.getElementById("statAppMaintained").textContent = cAppMaintained;
 
-    db.forEach(r => {
+    globalIncidents.forEach(r => {
         const matchesSearch = r.nick.toLowerCase().includes(searchQuery) ||
                               r.accusedNick.toLowerCase().includes(searchQuery) ||
                               r.track.toLowerCase().includes(searchQuery) ||
@@ -1085,10 +1081,10 @@ function renderAdmin() {
     const appTbody = document.getElementById("adminAppealsTableBody");
     appTbody.innerHTML = "";
     
-    if (appDb.length === 0) {
+    if (globalAppeals.length === 0) {
         appTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#9ca3af; padding:12px;">Brak złożonych odwołań.</td></tr>`;
     } else {
-        appDb.forEach(a => {
+        globalAppeals.forEach(a => {
             let appBadgeColor = "#fbbf24";
             if (a.status === "Zmieniony") appBadgeColor = "#a855f7";
             if (a.status === "Podtrzymany") appBadgeColor = "#64748b";
@@ -1122,8 +1118,7 @@ function transferToVerdictPanel(id, accusedDiscordId) {
     document.getElementById("caseId").value = id;
     document.getElementById("accusedId").value = accusedDiscordId;
     
-    const db = getDatabase();
-    const found = db.find(r => r.id === id);
+    const found = globalIncidents.find(r => r.id === id);
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
         document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank" style="color:#60a5fa; font-weight:bold;">${found.evidence}</a>` : "-";
@@ -1136,8 +1131,7 @@ function transferAppealToVerdict(caseId, appellantDiscordId, appealId, appealEvi
     document.getElementById("caseId").value = `Apelacja: ${appealId} (Sprawa: ${caseId})`;
     document.getElementById("accusedId").value = appellantDiscordId;
     
-    const db = getDatabase();
-    const found = db.find(r => r.id === caseId);
+    const found = globalIncidents.find(r => r.id === caseId);
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = `[GŁÓWNY OPIS INCYDENTU]:\n${found.details}`;
     }
@@ -1168,28 +1162,22 @@ function updateBulkBarVisibility() {
     }
 }
 
-function bulkStatusUpdate(newStatus) {
-    const db = getDatabase();
-    let count = 0;
+async function bulkStatusUpdate(newStatus) {
+    const updates = {};
     document.querySelectorAll(".report-checkbox:checked").forEach(cb => {
         const id = cb.getAttribute("data-id");
-        const found = db.find(r => r.id === id);
-        if (found) {
-            found.status = newStatus;
-            count++;
-        }
+        updates[`incidents/${id}/status`] = newStatus;
     });
-    if (count > 0) {
-        saveDatabase(db);
-        alert(`Zaktualizowano status ${count} zgłoszeń na: ${newStatus}`);
-        renderAdmin();
+    
+    if (Object.keys(updates).length > 0) {
+        await database.ref().update(updates);
+        alert(`Zaktualizowano status wybranych zgłoszeń.`);
     }
 }
 
 // --- SINGLE ACTIONS ---
 async function updateStatus(id, newStatus) {
-    const db = getDatabase();
-    const item = db.find(r => r.id === id);
+    const item = globalIncidents.find(r => r.id === id);
     if (!item) return;
 
     let reason = "";
@@ -1201,8 +1189,11 @@ async function updateStatus(id, newStatus) {
         }
     }
 
-    item.status = newStatus;
-    saveDatabase(db);
+    const updates = {};
+    updates[`incidents/${id}/status`] = newStatus;
+    if(item.notes) updates[`incidents/${id}/notes`] = item.notes;
+    
+    await database.ref().update(updates);
 
     const embed = {
         title: langData[currentLang].dcDecisionTitle,
@@ -1222,25 +1213,17 @@ async function updateStatus(id, newStatus) {
             body: JSON.stringify({ content: `Zmiana statusu zgłoszenia dla <@${item.discordId}>`, embeds: [embed] })
         });
     } catch(e) { console.error(e); }
-
-    renderAdmin();
 }
 
-function deleteReport(id) {
+async function deleteReport(id) {
     if (confirm(langData[currentLang].confirmDelete)) {
-        let db = getDatabase();
-        db = db.filter(r => r.id !== id);
-        saveDatabase(db);
-        renderAdmin();
+        await database.ref("incidents/" + id).remove();
     }
 }
 
-function deleteAppeal(appId) {
+async function deleteAppeal(appId) {
     if (confirm("Czy na pewno chcesz usunąć tę apelację z bazy panelu?")) {
-        let appDb = getAppealsDatabase();
-        appDb = appDb.filter(a => a.appealId !== appId);
-        saveAppealsDatabase(appDb);
-        renderAdmin();
+        await database.ref("appeals/" + appId).remove();
     }
 }
 
@@ -1248,26 +1231,17 @@ function deleteAppeal(appId) {
 
 // Przyjęcie Apelacji (Zmiana werdyktu)
 async function acceptAppeal(appealId, caseId, discordId) {
-    const appDb = getAppealsDatabase();
-    const appeal = appDb.find(a => a.appealId === appealId);
-    if (!appeal) return;
-
-    appeal.status = "Zmieniony";
-    saveAppealsDatabase(appDb);
-
-    // Aktualizacja statusu w głównej bazie zgłoszeń
-    const db = getDatabase();
-    const mainReport = db.find(r => r.id === caseId);
-    if (mainReport) {
-        mainReport.status = "Przyjęte";
-        mainReport.notes = `[Apelacja rozpatrzona pomyślnie]: Status zmieniony przez panel sędziowski.`;
-        saveDatabase(db);
-    }
+    const updates = {};
+    updates[`appeals/${appealId}/status`] = "Zmieniony";
+    updates[`incidents/${caseId}/status`] = "Przyjęte";
+    updates[`incidents/${caseId}/notes`] = `[Apelacja rozpatrzona pomyślnie]: Status zmieniony przez panel sędziowski.`;
+    
+    await database.ref().update(updates);
 
     // Wysłanie powiadomienia na Discord (Webhook Decyzji)
     const embed = {
         title: "📢 STATUS APELACJI – PRZYJĘTA",
-        color: 65280, // Zielony
+        color: 65280, 
         description: `Apelacja o ID **${appealId}** (dotycząca sprawy \`${caseId}\`) została **PRZYJĘTA**.\nWerdykt sędziowski ulegnie zmianie/weryfikacji.`,
         fields: [
             { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
@@ -1285,36 +1259,24 @@ async function acceptAppeal(appealId, caseId, discordId) {
     } catch(e) { console.error(e); }
 
     alert(`Apelacja ${appealId} została przyjęta.`);
-    renderAdmin();
 }
 
 // Odrzucenie Apelacji (Podtrzymanie werdyktu)
 async function rejectAppeal(appealId, caseId, discordId) {
-    const appDb = getAppealsDatabase();
-    const appeal = appDb.find(a => a.appealId === appealId);
-    if (!appeal) return;
-
     const reason = prompt("Podaj uzasadnienie odrzucenia apelacji:");
-    if (reason === null) return; // anulowano wpisywanie
+    if (reason === null) return; 
 
-    appeal.status = "Podtrzymany";
-    saveAppealsDatabase(appDb);
-
-    // Aktualizacja statusu w głównej bazie zgłoszeń
-    const db = getDatabase();
-    const mainReport = db.find(r => r.id === caseId);
-    if (mainReport) {
-        mainReport.status = "Odrzucone";
-        if (reason.trim() !== "") {
-            mainReport.notes = `[Apelacja odrzucona]: Pierwotny werdykt podtrzymany. Powód: ${reason}`;
-        }
-        saveDatabase(db);
-    }
+    const updates = {};
+    updates[`appeals/${appealId}/status`] = "Podtrzymany";
+    updates[`incidents/${caseId}/status`] = "Odrzucone";
+    updates[`incidents/${caseId}/notes`] = `[Apelacja odrzucona]: Pierwotny werdykt podtrzymany. Powód: ${reason}`;
+    
+    await database.ref().update(updates);
 
     // Wysłanie powiadomienia na Discord (Webhook Decyzji)
     const embed = {
         title: "📢 STATUS APELACJI – ODRZUCONA",
-        color: 16711680, // Czerwony
+        color: 16711680, 
         description: `Apelacja o ID **${appealId}** (dotycząca sprawy \`${caseId}\`) została **ODRZUCONA**. Pierwotna decyzja sędziów zostaje podtrzymana.` + (reason ? `\n\n**Uzasadnienie:** ${reason}` : ""),
         fields: [
             { name: "🆔 ID Sprawy", value: `\`${caseId}\``, inline: true },
@@ -1332,14 +1294,12 @@ async function rejectAppeal(appealId, caseId, discordId) {
     } catch(e) { console.error(e); }
 
     alert(`Apelacja ${appealId} została odrzucona.`);
-    renderAdmin();
 }
 
 // --- DESC MODAL & NOTES ---
 function openDescModal(id) {
     currentlyEditedReportId = id;
-    const db = getDatabase();
-    const item = db.find(r => r.id === id);
+    const item = globalIncidents.find(r => r.id === id);
     if (!item) return;
 
     document.getElementById("descModalTitle").textContent = `Notatki i opis dla sprawy ${item.id}`;
@@ -1351,17 +1311,13 @@ function closeDescModal() {
     document.getElementById("descModal").style.display = "none";
     currentlyEditedReportId = null;
 }
-function saveModalNotes() {
+async function saveModalNotes() {
     if (!currentlyEditedReportId) return;
-    const db = getDatabase();
-    const item = db.find(r => r.id === currentlyEditedReportId);
-    if (item) {
-        item.notes = document.getElementById("modalNotesField").value;
-        saveDatabase(db);
-        alert("Notatki / uzasadnienie zostały zapisane w bazie.");
-        closeDescModal();
-        renderAdmin();
-    }
+    const notesValue = document.getElementById("modalNotesField").value;
+    
+    await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(notesValue);
+    alert("Notatki / uzasadnienie zostały zapisane w bazie.");
+    closeDescModal();
 }
 
 // --- VERDICT RESPONSE FORM ---
@@ -1390,35 +1346,29 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         if (matchCase) originalCaseId = matchCase[1];
         
         if (matchApp) {
-            const appDb = getAppealsDatabase();
-            const foundApp = appDb.find(a => a.appealId === matchApp[1]);
+            const foundApp = globalAppeals.find(a => a.appealId === matchApp[1]);
             if (foundApp) {
                 appealEvidenceUrl = foundApp.evidence || "";
+                let newAppStatus = "Rozpatrzona";
+                if (decision.includes("Zmiana")) newAppStatus = "Zmieniony";
+                if (decision.includes("podtrzymany") || decision.includes("odrzucona")) newAppStatus = "Podtrzymany";
                 
-                if (decision.includes("Zmiana")) {
-                    foundApp.status = "Zmieniony";
-                } else if (decision.includes("podtrzymany") || decision.includes("odrzucona")) {
-                    foundApp.status = "Podtrzymany";
-                } else {
-                    foundApp.status = "Rozpatrzona";
-                }
-                saveAppealsDatabase(appDb);
+                await database.ref("appeals/" + matchApp[1] + "/status").set(newAppStatus);
             }
         }
     }
 
-    const db = getDatabase();
-    const mainReport = db.find(r => r.id === originalCaseId);
+    const mainReport = globalIncidents.find(r => r.id === originalCaseId);
     if (mainReport) {
-        if (decision.includes("Apelacja rozpatrzona – Zmiana werdyktu")) {
-            mainReport.status = "Przyjęte";
-        } else if (decision.includes("Apelacja odrzucona – Werdykt podtrzymany")) {
-            mainReport.status = "Odrzucone";
-        } else {
-            mainReport.status = "Przyjęte";
+        let newReportStatus = "Przyjęte";
+        if (decision.includes("Apelacja odrzucona – Werdykt podtrzymany")) {
+            newReportStatus = "Odrzucone";
         }
-        mainReport.notes = `[Oficjalny werdykt]: ${decision} | ${timePenalty} | ${pointsPenalty}\nUzasadnienie: ${verdictDetails} (Sędzia: ${judge})`;
-        saveDatabase(db);
+        
+        const updates = {};
+        updates[`incidents/${originalCaseId}/status`] = newReportStatus;
+        updates[`incidents/${originalCaseId}/notes`] = `[Oficjalny werdykt]: ${decision} | ${timePenalty} | ${pointsPenalty}\nUzasadnienie: ${verdictDetails} (Sędzia: ${judge})`;
+        await database.ref().update(updates);
     }
 
     const mainEvidence = (mainReport && mainReport.evidence && mainReport.evidence.trim() !== "") 
@@ -1469,8 +1419,6 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         e.target.reset();
         document.getElementById("verdictPreviewDesc").textContent = "-";
         document.getElementById("verdictPreviewEvidence").innerHTML = "-";
-        
-        renderAdmin();
     } catch (err) {
         statusEl.textContent = t.statusErr;
         statusEl.className = "status-msg err";
@@ -1479,11 +1427,9 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 
 // --- DATABASE EXPORT ---
 function exportDatabase() {
-    const db = getDatabase();
-    const appDb = getAppealsDatabase();
     const fullData = {
-        incidents: db,
-        appeals: appDb,
+        incidents: globalIncidents,
+        appeals: globalAppeals,
         exportDate: new Date().toLocaleString()
     };
     
