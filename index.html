@@ -187,9 +187,8 @@
     .col-ap-id { width: 8%; }
     .col-ap-case { width: 10%; }
     .col-ap-driver { width: 14%; }
-    .col-ap-reason { width: 25%; }
+    .col-ap-reason { width: 36%; }
     .col-ap-ev { width: 10%; }
-    .col-ap-status { width: 11%; }
     .col-ap-actions { width: 22%; }
 
     .cell-wrap { 
@@ -220,7 +219,7 @@
     .btn-verdict-transfer { background: linear-gradient(135deg, #a855f7, #6366f1); }
 
     /* ====== LIVE CHAT ====== */
-    #chatBox {
+    #chatBox, #playerChatBox {
       height: 300px;
       background: #111827;
       border-radius: 10px;
@@ -231,8 +230,10 @@
       flex-direction: column;
       gap: 8px;
     }
+    #playerChatBox { height: 220px; }
     .msg { padding: 8px 12px; border-radius: 8px; font-size: 13px; max-width: 80%; line-height: 1.4; }
     .msg-steward { background: #1e3a8a; align-self: flex-start; border-left: 4px solid #3b82f6; }
+    .msg-player { background: #374151; align-self: flex-end; border-right: 4px solid #10b981; }
     .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 2px; display: block; }
 
     /* ====== MODAL VIEW ====== */
@@ -397,16 +398,26 @@
       </div>
 
       <div id="historyList"></div>
+
+      <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
+        <h3 class="section-title" style="font-size: 16px; border-left-color: #10b981;">💬 Czat na Żywo ze Stewardami</h3>
+        <p class="subtitle" style="margin-bottom: 10px;">Tutaj możesz bezpośrednio pisać z sędziami rozpatrującymi zgłoszenia.</p>
+        <div id="playerChatBox"></div>
+        <div class="row">
+          <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
+          <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+        </div>
+      </div>
     </div>
 
     <div id="chatSection" class="section">
-      <h2 class="section-title" data-key="chatTitle">Czat ze Stewardem (Tryb Steward)</h2>
+      <h2 class="section-title" data-key="chatTitle">Czat na Żywo (Panel Sędziowski)</h2>
       <div id="chatBox"></div>
       <div class="row">
-        <input id="chatNick" type="text" placeholder="Nick" style="width: 100px;">
-        <input id="chatMsg" type="text" data-placeholder="chatPlaceholder" placeholder="Napisz wiadomość...">
+        <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
+        <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
         <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
-        <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Wróć do Panelu</button>
+        <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Powrót do panelu</button>
       </div>
     </div>
 
@@ -414,7 +425,7 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <h2 class="section-title" data-key="adminSecTitle">Zarządzanie Zgłoszeniami</h2>
         <div style="display: flex; gap: 6px;">
-          <button style="background: #2563eb; font-size:12px; padding: 5px 12px;" onclick="showSection('chatSection')" data-key="btnOpenChat">OTWÓRZ CZAT</button>
+          <button style="background: #2563eb; font-size:12px; padding: 5px 12px;" onclick="showSection('chatSection')" data-key="btnOpenChat">OTWÓRZ CZAT SĘDZIÓW</button>
           <button style="background: #0284c7; font-size:12px; padding: 5px 12px;" onclick="exportDatabase()">EKSPORTUJ BAZĘ (.txt)</button>
           <button class="btn-danger" style="padding: 5px 12px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">RESETUJ ID</button>
         </div>
@@ -427,7 +438,7 @@
             <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
             <div class="stat-box"><span id="lblStatPending" style="color:#fbbf24;">Oczekujące</span><strong id="statPending">0</strong></div>
             <div class="stat-box"><span id="lblStatAccepted" style="color:#10b981;">Przyjęte</span><strong id="statAccepted">0</strong></div>
-            <div class="stat-box"><span id="lblStatRejected" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
+            <div class="stat-box"><span id="lblStatAgainst" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
           </div>
         </div>
 
@@ -502,7 +513,6 @@
               <th class="col-ap-driver">Apelujący kierowca</th>
               <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
               <th class="col-ap-ev">Nowe Dowody</th>
-              <th class="col-ap-status">Status Apelacji</th>
               <th class="col-ap-actions">Decyzja Sędziowska</th>
             </tr>
           </thead>
@@ -608,7 +618,7 @@ const langData = {
         secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
         labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
         labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
-        btnSubmit: "Prześlij Zgłoszenie", chatTitle: "Czat ze Stewardem (Tryb Steward)", btnOpenChat: "OTWÓRZ CZAT",
+        btnSubmit: "Prześlij Zgłoszenie", chatTitle: "Czat na Żywo", btnOpenChat: "OTWÓRZ CZAT SĘDZIÓW",
         adminSecTitle: "Zarządzanie Zgłoszeniami", btnResetId: "RESETUJ ID",
         thReporter: "Zgłaszający", thTrack: "Tor / Sesja", thAccused: "Oskarżony (Nick / ID)", thStatus: "Status", thActions: "Akcje",
         btnAccept: "Przyjmij", btnReject: "Odrzuć", btnDelete: "Usuń",
@@ -630,7 +640,7 @@ const langData = {
         appealSubtitle: "Odwołaj się od decyzji sędziów.", labelAppealCaseId: "ID Sprawy", labelAppealReason: "Uzasadnienie",
         labelAppealEvidence: "Nowe dowody", btnSubmitAppeal: "Wyślij Apelację", alertAppealSent: "Apelacja wysłana!",
         alertCaseNotFound: "Nie znaleziono zgłoszenia.", dcAppealTitle: "⚖️ NOWA APELACJA",
-        btnSend: "Wyślij", btnBack: "Wróć", chatPlaceholder: "Napisz wiadomość..."
+        btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie..."
     },
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
@@ -639,7 +649,7 @@ const langData = {
         secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
         labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
         labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
-        btnSubmit: "Submit Report", chatTitle: "Chat with Steward", btnOpenChat: "OPEN CHAT",
+        btnSubmit: "Submit Report", chatTitle: "Live Chat", btnOpenChat: "OPEN STEWARDS CHAT",
         adminSecTitle: "Report Management", btnResetId: "RESET ID",
         thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
         btnAccept: "Accept", btnReject: "Reject", btnDelete: "Delete",
@@ -699,6 +709,44 @@ window.addEventListener("DOMContentLoaded", () => {
         globalAppeals = data ? Object.values(data) : [];
         renderHistory(); 
         if (isAdminAuthenticated) renderAdmin();
+    });
+
+    // --- SHARED LIVE CHAT REAMS (FOR ADMINS AND PLAYERS) ---
+    database.ref("chat").on("value", (snapshot) => {
+        const data = snapshot.val();
+        
+        // Render dla panelu admina
+        const adminChatBox = document.getElementById("chatBox");
+        adminChatBox.innerHTML = "";
+        
+        // Render dla panelu aktywnego gracza
+        const playerChatBox = document.getElementById("playerChatBox");
+        playerChatBox.innerHTML = "";
+
+        if (data) {
+            Object.values(data).forEach(m => {
+                // Budowanie bazy HTML dla wiadomości
+                const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
+                const msgClass = isSteward ? "msg msg-steward" : "msg msg-player";
+
+                const messageHtml = `<span class="msg-meta">${m.timestamp || ""} - <strong>${m.nick}</strong>:</span>${m.text}`;
+                
+                // Wstrzyknij do czatu adminów
+                const divAdmin = document.createElement("div");
+                divAdmin.className = msgClass;
+                divAdmin.innerHTML = messageHtml;
+                adminChatBox.appendChild(divAdmin);
+
+                // Wstrzyknij do czatu gracza
+                const divPlayer = document.createElement("div");
+                divPlayer.className = msgClass;
+                divPlayer.innerHTML = messageHtml;
+                playerChatBox.appendChild(divPlayer);
+            });
+            
+            adminChatBox.scrollTop = adminChatBox.scrollHeight;
+            playerChatBox.scrollTop = playerChatBox.scrollHeight;
+        }
     });
 
     updateUI();
@@ -873,11 +921,9 @@ async function requestVerificationPin() {
         return;
     }
 
-    // Generowanie losowego kodu bezpośrednio
     activeVerificationPin = String(Math.floor(1000 + Math.random() * 9000));
     authorizedHistoryDiscordId = dcInput;
 
-    // Synchronizacja z Firebase na wypadek przyszłej weryfikacji bocznej
     try {
         await database.ref("verification_pins/" + dcInput).set({
             pin: activeVerificationPin,
@@ -887,7 +933,6 @@ async function requestVerificationPin() {
         console.error("Błąd zapisu PIN do Firebase:", e);
     }
 
-    // Wyświetlenie kodu PIN bezpośrednio w ramce panelu
     document.getElementById("generatedPinDisplay").textContent = activeVerificationPin;
     document.getElementById("pvRedirectRow").style.display = "block";
     document.getElementById("pinVerificationRow").style.display = "flex";
@@ -911,7 +956,9 @@ function verifyHistoryPin() {
         document.getElementById("pinVerificationRow").style.display = "none";
         document.getElementById("historyDiscordInput").disabled = true;
         
-        // Czyszczenie kodu z bazy po udanej weryfikacji
+        // --- ODBLOKOWANIE CZATU DLA GRACZA PO WPISANIU PINU ---
+        document.getElementById("playerChatBoxContainer").style.display = "block";
+        
         database.ref("verification_pins/" + authorizedHistoryDiscordId).remove();
         
         renderHistory();
@@ -973,7 +1020,7 @@ function renderHistory() {
         div.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
             <strong style="color:#fff; font-size:14px;">${r.id}</strong>
-            <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:999px;">${translatedStatus}</span>
+            <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius999px;">${translatedStatus}</span>
           </div>
           <p style="margin:2px 0; font-size:12px; color:#9ca3af;"><strong>Tor:</strong> ${r.track} (${r.session}) | <strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
           <p style="margin:4px 0; font-size:12px; background:#1f2937; padding:6px; border-radius:6px; color:#cbd5e1; border:1px solid #374151;">${r.details}</p>
@@ -1078,13 +1125,9 @@ function renderAdmin() {
     const appTbody = document.getElementById("adminAppealsTableBody");
     appTbody.innerHTML = "";
     if (globalAppeals.length === 0) {
-        appTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#9ca3af; padding:12px;">Brak złożonych odwołań.</td></tr>`;
+        appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#9ca3af; padding:12px;">Brak złożonych odwołań.</td></tr>`;
     } else {
         globalAppeals.forEach(a => {
-            let appBadgeColor = "#fbbf24";
-            if (a.status === "Zmieniony") appBadgeColor = "#a855f7";
-            if (a.status === "Podtrzymany") appBadgeColor = "#64748b";
-
             const trA = document.createElement("tr");
             trA.innerHTML = `
               <td><strong>${a.appealId}</strong></td>
@@ -1092,7 +1135,6 @@ function renderAdmin() {
               <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
               <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
               <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
-              <td><span style="background:${appBadgeColor}; color:#fff; font-weight:bold; padding:2px 6px; border-radius:4px; font-size:11px;">${a.status}</span></td>
               <td>
                 <div class="action-btns">
                   <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
@@ -1110,20 +1152,39 @@ function renderAdmin() {
 function transferToVerdictPanel(id, accusedDiscordId) {
     document.getElementById("caseId").value = id;
     document.getElementById("accusedId").value = accusedDiscordId;
+    
     const found = globalIncidents.find(r => r.id === id);
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
         document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank">${found.evidence}</a>` : "-";
+        document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session})\n\nOpis zdarzenia:\n"${found.details}"\n\nWerdykt sędziowski:\n`;
+    } else {
+        document.getElementById("verdictDetails").value = "";
     }
+    
     document.getElementById("responseForm").scrollIntoView({ behavior: 'smooth' });
 }
 
 function transferAppealToVerdict(caseId, appellantDiscordId, appealId, appealEvidenceUrl) {
     document.getElementById("caseId").value = `Apelacja: ${appealId} (Sprawa: ${caseId})`;
     document.getElementById("accusedId").value = appellantDiscordId;
+    
     const found = globalIncidents.find(r => r.id === caseId);
-    if (found) document.getElementById("verdictPreviewDesc").textContent = `[OPIS INCYDENTU]:\n${found.details}`;
-    document.getElementById("verdictPreviewEvidence").innerHTML = appealEvidenceUrl ? `<a href="${appealEvidenceUrl}" target="_blank">${appealEvidenceUrl}</a>` : "Brak nowych dowodów.";
+    if (found) {
+        document.getElementById("verdictPreviewDesc").textContent = `[OPIS INCYDENTU]:\n${found.details}`;
+    } else {
+        document.getElementById("verdictPreviewDesc").textContent = `[OPIS]: Nie znaleziono oryginalnego zgłoszenia.`;
+    }
+    
+    document.getElementById("verdictPreviewEvidence").innerHTML = appealEvidenceUrl 
+        ? `<a href="${appealEvidenceUrl}" target="_blank">${appealEvidenceUrl}</a>` 
+        : "Brak nowych dowodów.";
+    
+    const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
+    const reasonText = foundAppeal ? foundAppeal.reason : "Brak opisu";
+    
+    document.getElementById("verdictDetails").value = `W nawiązaniu do apelacji ${appealId} dla sprawy ${caseId}.\n\nArgumentacja kierowcy:\n"${reasonText}"\n\nDecyzja sędziów:\n`;
+    
     document.getElementById("responseForm").scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -1182,13 +1243,12 @@ async function deleteAppeal(appealId) { if (confirm(langData[currentLang].confir
 async function acceptAppeal(appealId, caseId, discordId) {
     const updates = {}; 
     updates[`appeals/${appealId}/status`] = "Zmieniony"; 
-    updates[`incidents/${caseId}/status`] = "Przyjęte";
     updates[`incidents/${caseId}/notes`] = `[Apelacja pomyślna]: Zmiana werdyktu.`;
     await database.ref().update(updates);
 
     const isPl = (currentLang === 'pl');
     const embed = {
-        title: isPl ? "⚖️ APELACJA ROZPATRZONA POMYŚLNIE" : "⚖️ APPEAL APPROVED", 
+        title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", 
         color: 10540247, 
         description: isPl 
             ? `Decyzja sędziowska dla zgłoszenia **${caseId}** została zmieniona w wyniku apelacji **${appealId}**.` 
@@ -1196,8 +1256,7 @@ async function acceptAppeal(appealId, caseId, discordId) {
         fields: [
           { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
           { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
-          { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
-          { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "ZMIENIONY WERDYKT" : "VERDICT CHANGED"}**`, inline: true }
+          { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false }
         ],
         timestamp: new Date().toISOString()
     };
@@ -1219,7 +1278,6 @@ async function rejectAppeal(appealId, caseId, discordId) {
     
     const updates = {}; 
     updates[`appeals/${appealId}/status`] = "Podtrzymany"; 
-    updates[`incidents/${caseId}/status`] = "Odrzucone";
     updates[`incidents/${caseId}/notes`] = `[Apelacja odrzucona]: Podtrzymano decyzję. Powód: ${reason}`;
     await database.ref().update(updates);
 
@@ -1265,13 +1323,49 @@ async function saveModalNotes() {
     alert("Zapisano."); closeDescModal();
 }
 
+// --- LIVE CHAT SEND MESSAGE (FROM STEWARDS PANEL) ---
+async function sendChatMessage() {
+    const msgInput = document.getElementById("chatMsg");
+    const text = msgInput.value.trim();
+    if (!text) return;
+
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set({
+        nick: "Steward",
+        text: text,
+        role: "steward",
+        timestamp: new Date().toLocaleTimeString()
+    });
+    msgInput.value = "";
+}
+
+// --- LIVE CHAT SEND MESSAGE (FROM AUTHENTICATED PLAYER PANEL) ---
+async function sendPlayerChatMessage() {
+    const msgInput = document.getElementById("playerChatMsg");
+    const text = msgInput.value.trim();
+    if (!text) return;
+
+    // Próba automatycznego odszukania nicku gracza z bazy na bazie zalogowanego Discord ID
+    const associatedReport = globalIncidents.find(r => r.discordId === authorizedHistoryDiscordId);
+    const playerNick = associatedReport ? associatedReport.nick : "Kierowca";
+
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set({
+        nick: playerNick,
+        text: text,
+        role: "player",
+        timestamp: new Date().toLocaleTimeString()
+    });
+    msgInput.value = "";
+}
+
 // --- VERDICT RESPONSE FORM ---
 document.getElementById("responseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const statusEl = document.getElementById("status"); const t = langData[currentLang];
     statusEl.textContent = t.statusSending; statusEl.className = "status-msg";
 
-    const accusedIdField = document.getElementById("caseId").value.trim();
+    const caseIdFieldVal = document.getElementById("caseId").value.trim();
     const targetDiscordPingId = document.getElementById("accusedId").value.trim();
     const decision = document.getElementById("decision").value;
     const timePenalty = document.getElementById("timePenalty").value || "brak";
@@ -1279,10 +1373,12 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const verdictDetails = document.getElementById("verdictDetails").value;
     const judge = document.getElementById("judge").value;
     
-    let originalCaseId = accusedIdField; let appealEvidenceUrl = "";
-    if (accusedIdField.startsWith("Apelacja:")) {
-        const matchCase = accusedIdField.match(/Sprawa:\s*(FIA-\d+)/);
-        const matchApp = accusedIdField.match(/Apelacja:\s*(APP-\d+)/);
+    let originalCaseId = caseIdFieldVal; 
+    let appealEvidenceUrl = "";
+    
+    if (caseIdFieldVal.startsWith("Apelacja:")) {
+        const matchCase = caseIdFieldVal.match(/Sprawa:\s*(FIA-\d+)/);
+        const matchApp = caseIdFieldVal.match(/Apelacja:\s*(APP-\d+)/);
         if (matchCase) originalCaseId = matchCase[1];
         if (matchApp) {
             const foundApp = globalAppeals.find(a => a.appealId === matchApp[1]);
@@ -1309,7 +1405,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
           { name: t.fieldDecision, value: `**${decision}**`, inline: false },
           { name: t.fieldTime, value: timePenalty, inline: true },
           { name: t.fieldPoints, value: pointsPenalty, inline: true },
-          { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\ \`\`\``, inline: false },
+          { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\` \`\`\``, inline: false },
           { name: t.fieldJudge, value: judge, inline: false }
         ],
         timestamp: new Date().toISOString()
