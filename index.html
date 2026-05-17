@@ -368,6 +368,11 @@
 
     <div id="historySection" class="section">
       <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
+      <p class="subtitle" style="margin-bottom: 12px;">Wprowadź swoje dane, aby wyświetlić powiązane z Tobą zgłoszenia oraz apelacje.</p>
+      <div class="row" style="margin-bottom: 16px; background: #111827; padding: 12px; border-radius: 10px; border: 1px solid #374151;">
+        <div class="field" style="margin-bottom: 0;"><label>Twój Nick</label><input id="searchHistoryNick" type="text" placeholder="np. Driver44" oninput="renderHistory()"></div>
+        <div class="field" style="margin-bottom: 0;"><label>Twoje Discord ID</label><input id="searchHistoryDiscord" type="text" placeholder="np. 123456789..." oninput="renderHistory()"></div>
+      </div>
       <div id="historyList"></div>
     </div>
 
@@ -737,6 +742,7 @@ window.addEventListener("DOMContentLoaded", () => {
     database.ref("appeals").on("value", (snapshot) => {
         const data = snapshot.val();
         globalAppeals = data ? Object.values(data) : [];
+        renderHistory(); // Odśwież historię przy zmianie w apelacjach
         if (isAdminAuthenticated) renderAdmin();
     });
 
@@ -938,18 +944,39 @@ document.getElementById("appealForm").addEventListener("submit", async (e) => {
     showSection("formSection");
 });
 
-// --- HISTORY RENDER ---
+// --- PRIVACY-FOCUSED HISTORY RENDER ---
 function renderHistory() {
     const list = document.getElementById("historyList");
     list.innerHTML = "";
     const t = langData[currentLang];
 
-    if (globalIncidents.length === 0) {
-        list.innerHTML = `<p style="font-size:13px; color:#9ca3af;">${currentLang === 'pl' ? 'Brak zgłoszeń w bazie danych.' : 'No reports in database.'}</p>`;
+    // Pobranie danych wpisanych przez użytkownika w sekcji Historia
+    const inputNick = document.getElementById("searchHistoryNick").value.trim().toLowerCase();
+    const inputDiscord = document.getElementById("searchHistoryDiscord").value.trim();
+
+    // Jeśli pola wyszukiwania są puste, poproś o podanie danych
+    if (!inputNick && !inputDiscord) {
+        list.innerHTML = `<p style="font-size:13px; color:#9ca3af; text-align:center;">${currentLang === 'pl' ? 'Wpisz swój Nick lub Discord ID powyżej, aby zobaczyć swoje zgłoszenia.' : 'Enter your Nickname or Discord ID above to see your reports.'}</p>`;
         return;
     }
 
-    globalIncidents.forEach(r => {
+    // Filtrowanie incydentów, do których zalogowany użytkownik ma dostęp
+    const filteredIncidents = globalIncidents.filter(r => {
+        const isReporter = (inputNick && r.nick.toLowerCase() === inputNick) || (inputDiscord && r.discordId === inputDiscord);
+        const isAccused = (inputNick && r.accusedNick.toLowerCase() === inputNick) || (inputDiscord && r.accusedDiscordId === inputDiscord);
+        
+        // Sprawdzenie, czy użytkownik złożył apelację do tego zgłoszenia
+        const hasRelatedAppeal = globalAppeals.some(a => a.caseId === r.id && ((inputNick && a.nick.toLowerCase() === inputNick) || (inputDiscord && a.discordId === inputDiscord)));
+
+        return isReporter || isAccused || hasRelatedAppeal;
+    });
+
+    if (filteredIncidents.length === 0) {
+        list.innerHTML = `<p style="font-size:13px; color:#9ca3af;">${currentLang === 'pl' ? 'Nie znaleziono zgłoszeń powiązanych z Twoim kontem.' : 'No reports found associated with your account.'}</p>`;
+        return;
+    }
+
+    filteredIncidents.forEach(r => {
         let statusColor = "#fbbf24";
         if (r.status === "Przyjęte") statusColor = "#10b981";
         if (r.status === "Odrzucone") statusColor = "#ef4444";
@@ -961,6 +988,26 @@ function renderHistory() {
         if (r.status === "Odrzucone") translatedStatus = t.statusRejected;
         if (r.status === "W apelacji") translatedStatus = t.statusAppeal;
 
+        // Szukanie apelacji dla tego konkretnego zgłoszenia, do której użytkownik ma uprawnienia
+        const relatedAppeals = globalAppeals.filter(a => a.caseId === r.id && (
+            (inputNick && (a.nick.toLowerCase() === inputNick || r.nick.toLowerCase() === inputNick || r.accusedNick.toLowerCase() === inputNick)) ||
+            (inputDiscord && (a.discordId === inputDiscord || r.discordId === inputDiscord || r.accusedDiscordId === inputDiscord))
+        ));
+
+        let appealsHtml = "";
+        if (relatedAppeals.length > 0) {
+            appealsHtml = `<div style="margin-top: 8px; border-left: 2px solid #eab308; padding-left: 8px;">
+                <span style="font-size: 11px; color: #eab308; font-weight: bold;">Powiązane apelacje:</span>`;
+            relatedAppeals.forEach(a => {
+                appealsHtml += `
+                    <p style="margin: 2px 0; font-size: 11px; color: #cbd5e1;">
+                        <strong>${a.appealId}</strong> [${a.status}] - Argumenty: ${a.reason}
+                    </p>
+                `;
+            });
+            appealsHtml += `</div>`;
+        }
+
         const div = document.createElement("div");
         div.className = "history-item";
         div.innerHTML = `
@@ -968,9 +1015,10 @@ function renderHistory() {
             <strong style="color:#fff; font-size:14px;">${r.id}</strong>
             <span style="background:${statusColor}; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:999px;">${translatedStatus}</span>
           </div>
-          <p style="margin:2px 0; font-size:12px; color:#9ca3af;"><strong>${t.dcLabelTrack}:</strong> ${r.track} (${r.session}) | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
+          <p style="margin:2px 0; font-size:12px; color:#9ca3af;"><strong>${t.dcLabelTrack}:</strong> ${r.track} (${r.session}) | <strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
           <p style="margin:4px 0; font-size:12px; background:#1f2937; padding:6px; border-radius:6px; color:#cbd5e1; border:1px solid #374151;">${r.details}</p>
           ${r.notes ? `<p style="margin:4px 0; font-size:12px; color:#f87171;"><strong>Uzasadnienie sędziowskie:</strong> ${r.notes}</p>` : ""}
+          ${appealsHtml}
         `;
         list.appendChild(div);
     });
@@ -1381,7 +1429,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         fields: [
           { name: String(t.fieldCase || "ID sprawy"), value: `\`${originalCaseId}\``, inline: true },
           { name: String(t.fieldWinner || "Kierowca"), value: `<@${targetDiscordPingId}>`, inline: true },
-          { name: String(t.fieldEvidence || "🎬 Materiał Dowodowy"), value: mainEvidence, inline: false },
+          { name: String(t.fieldEvidence || "🎬 Materiaal Dowodowy"), value: mainEvidence, inline: false },
           { name: String(t.fieldDecision || "Decyzja"), value: `**${decision}**`, inline: false },
           { name: String(t.fieldTime || "Kara czasowa"), value: timePenalty, inline: true },
           { name: String(t.fieldPoints || "Punkty karne"), value: pointsPenalty, inline: true },
