@@ -1180,17 +1180,74 @@ async function deleteReport(id) { if (confirm(langData[currentLang].confirmDelet
 async function deleteAppeal(appealId) { if (confirm(langData[currentLang].confirmDelete)) await database.ref("appeals/" + appealId).remove(); }
 
 async function acceptAppeal(appealId, caseId, discordId) {
-    const updates = {}; updates[`appeals/${appealId}/status`] = "Zmieniony"; updates[`incidents/${caseId}/status`] = "Przyjęte";
+    const updates = {}; 
+    updates[`appeals/${appealId}/status`] = "Zmieniony"; 
+    updates[`incidents/${caseId}/status`] = "Przyjęte";
     updates[`incidents/${caseId}/notes`] = `[Apelacja pomyślna]: Zmiana werdyktu.`;
     await database.ref().update(updates);
+
+    const isPl = (currentLang === 'pl');
+    const embed = {
+        title: isPl ? "⚖️ APELACJA ROZPATRZONA POMYŚLNIE" : "⚖️ APPEAL APPROVED", 
+        color: 10540247, 
+        description: isPl 
+            ? `Decyzja sędziowska dla zgłoszenia **${caseId}** została zmieniona w wyniku apelacji **${appealId}**.` 
+            : `The stewards' decision for report **${caseId}** has been modified following appeal **${appealId}**.`,
+        fields: [
+          { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+          { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+          { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
+          { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "ZMIENIONY WERDYKT" : "VERDICT CHANGED"}**`, inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fetch(DECISION_WEBHOOK, { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ embeds: [embed] }) 
+        });
+    } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
+
     alert(`Apelacja ${appealId} zmieniona.`);
 }
 
 async function rejectAppeal(appealId, caseId, discordId) {
-    const reason = prompt("Uzasadnienie odrzucenia:"); if (reason === null) return;
-    const updates = {}; updates[`appeals/${appealId}/status`] = "Podtrzymany"; updates[`incidents/${caseId}/status`] = "Odrzucone";
+    const reason = prompt("Uzasadnienie odrzucenia:"); 
+    if (reason === null) return;
+    
+    const updates = {}; 
+    updates[`appeals/${appealId}/status`] = "Podtrzymany"; 
+    updates[`incidents/${caseId}/status`] = "Odrzucone";
     updates[`incidents/${caseId}/notes`] = `[Apelacja odrzucona]: Podtrzymano decyzję. Powód: ${reason}`;
     await database.ref().update(updates);
+
+    const isPl = (currentLang === 'pl');
+    const embed = {
+        title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL REJECTED", 
+        color: 6579307, 
+        description: isPl 
+            ? `Apelacja **${appealId}** dla zgłoszenia **${caseId}** została odrzucona. Pierwotny werdykt sędziów został podtrzymany.` 
+            : `Appeal **${appealId}** for report **${caseId}** has been rejected. The original stewards' verdict stands.`,
+        fields: [
+          { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+          { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+          { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
+          { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
+          { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await fetch(DECISION_WEBHOOK, { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ embeds: [embed] }) 
+        });
+    } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
+
     alert(`Apelacja ${appealId} odrzucona.`);
 }
 
