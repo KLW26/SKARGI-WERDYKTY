@@ -1098,6 +1098,7 @@ function renderAdmin() {
                   <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
                   <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
                   <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
+                  <button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>
                 </div>
               </td>
             `;
@@ -1175,6 +1176,8 @@ async function updateStatus(id, newStatus) {
 }
 
 async function deleteReport(id) { if (confirm(langData[currentLang].confirmDelete)) await database.ref("incidents/" + id).remove(); }
+
+async function deleteAppeal(appealId) { if (confirm(langData[currentLang].confirmDelete)) await database.ref("appeals/" + appealId).remove(); }
 
 async function acceptAppeal(appealId, caseId, discordId) {
     const updates = {}; updates[`appeals/${appealId}/status`] = "Zmieniony"; updates[`incidents/${caseId}/status`] = "Przyjęte";
