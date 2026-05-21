@@ -1,692 +1,1652 @@
-<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>F1 Calendar</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=Playfair+Display:ital,wght@0,700;1,600&family=Rajdhani:wght@600;700&display=swap');
-*{box-sizing:border-box;margin:0;padding:0;}
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Zgłoś Incydent – FIA System</title>
 
-/* ── PANEL ── */
-.ui{font-family:'Barlow Condensed',sans-serif;padding:0 0 20px;}
-.panel{background:#0e0e0e;border:1px solid #1e1e1e;padding:14px 16px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
-.plbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#444;margin-bottom:4px;}
-.pinp,.psel{background:#161616;border:1px solid #252525;color:#bbb;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;height:32px;padding:0 9px;outline:none;border-radius:0;letter-spacing:.04em;}
-.pinp:focus,.psel:focus{border-color:#333;}
-.psel option{background:#161616;}
-.tbtns{display:flex;gap:5px;flex-wrap:wrap;}
-.tbtn{height:28px;padding:0 11px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:1px solid #252525;background:#0e0e0e;color:#444;cursor:pointer;transition:all .15s;white-space:nowrap;}
-.tbtn:hover{color:#aaa;border-color:#333;}
-.tbtn.on{color:#fff;}
+  <style>
+    /* ====== GLOBAL ====== */
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: url("https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?q=80&w=1920") center/cover no-repeat fixed;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      position: relative;
+    }
 
-.lbtn{height:28px;padding:0 11px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border:1px solid #252525;background:#0e0e0e;color:#444;cursor:pointer;transition:all .15s;white-space:nowrap;}
-.lbtn:hover{color:#aaa;border-color:#333;}
-.lbtn.on{color:#fff;border-color:#555;}
+    body::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1;
+    }
 
-/* PRZYCISKI MOTYWÓW */
-.theme-btns{display:flex;gap:6px;flex-wrap:wrap;}
-.theme-btn{height:32px;padding:0 14px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border:2px solid;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:7px;white-space:nowrap;}
-.theme-btn:hover{transform:translateY(-1px);filter:brightness(1.2);}
-.theme-btn.active{box-shadow:0 0 12px currentColor;}
-.theme-dot{width:10px;height:10px;border-radius:50%;}
+    .card {
+      background: #1f2937;
+      padding: 24px 28px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      width: 1450px;
+      max-width: 95vw;
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
 
-/* PRZYCISKI TŁA */
-.bg-btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
-.bg-btn{height:32px;min-width:32px;padding:0 12px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border:2px solid #252525;background:#0e0e0e;color:#666;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;}
-.bg-btn:hover{color:#aaa;border-color:#444;}
-.bg-btn.active{border-color:#00d4e8;color:#00d4e8;box-shadow:0 0 8px rgba(0,212,232,.3);}
-.bg-preview{width:24px;height:24px;border-radius:3px;border:1px solid #333;}
-#bgImageInput{display:none;}
-.bg-upload-btn{position:relative;overflow:hidden;}
-.bg-slider-row{display:flex;gap:8px;align-items:center;flex:1;min-width:200px;}
-.bg-slider{flex:1;height:6px;-webkit-appearance:none;appearance:none;background:#252525;outline:none;border-radius:3px;}
-.bg-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;background:#00d4e8;cursor:pointer;border-radius:50%;box-shadow:0 0 4px rgba(0,212,232,.5);}
-.bg-slider::-moz-range-thumb{width:16px;height:16px;background:#00d4e8;cursor:pointer;border-radius:50%;box-shadow:0 0 4px rgba(0,212,232,.5);border:none;}
-.bg-val{font-size:11px;font-weight:700;color:#666;min-width:32px;text-align:right;}
+    .lang-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #374151;
+      border: 1px solid #4b5563;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #fff;
+      cursor: pointer;
+      z-index: 10;
+    }
 
-.theme-btn.neon{background:#0b0d12;border-color:#00d4e8;color:#00d4e8;}
-.theme-btn.neon .theme-dot{background:#00d4e8;box-shadow:0 0 8px #00d4e8;}
+    h1 { margin: 0 0 4px; font-size: 22px; color: #fff; }
+    .section-title { font-size: 18px; margin: 0 0 8px; color: #fff; border-left: 4px solid #3b82f6; padding-left: 8px; }
+    .section-title.appeal-title { border-left-color: #eab308; }
+    .subtitle { margin: 0 0 16px; font-size: 13px; color: #9ca3af; }
 
-.theme-btn.gold{background:#080600;border-color:#d4af37;color:#d4af37;}
-.theme-btn.gold .theme-dot{background:#d4af37;box-shadow:0 0 8px #d4af37;}
+    /* ====== FORM ELEMENTS ====== */
+    label { display: block; font-size: 13px; margin-bottom: 4px; color: #d1d5db; }
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 10px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+    textarea { resize: vertical; min-height: 100px; }
+    .field { margin-bottom: 12px; }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
 
-.theme-btn.ice{background:#f2f5f9;border-color:#1a3a6b;color:#1a3a6b;}
-.theme-btn.ice .theme-dot{background:#1a3a6b;box-shadow:0 0 6px #1a3a6b;}
+    /* ====== BUTTONS ====== */
+    button, .link-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      margin-top: 4px;
+      white-space: nowrap;
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.1s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    button:hover, .link-btn:hover { opacity: 0.9; }
+    .btn-secondary { background: #4b5563; }
+    .btn-danger { background: #b91c1c; }
+    .btn-success { background: #10b981; }
+    .btn-warning { background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; }
 
-.theme-btn.carbon{background:#111;border-color:#e8000d;color:#e8000d;}
-.theme-btn.carbon .theme-dot{background:#e8000d;box-shadow:0 0 8px #e8000d;}
+    /* ====== PANEL LAYOUT ====== */
+    .menu { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .menu button { margin-top: 0; }
+    .section { display: none; border-top: 1px solid #374151; padding-top: 12px; margin-top: 4px; }
+    .section.active { display: block; }
 
-.theme-btn.emerald{background:#030a05;border-color:#00c850;color:#00c850;}
-.theme-btn.emerald .theme-dot{background:#00c850;box-shadow:0 0 8px #00c850;}
+    /* ====== ADMIN: STATS & FILTERS ====== */
+    .stats-container-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .stats-group-box {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .stats-group-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    .admin-stats { display: flex; gap: 8px; }
+    .stat-box {
+      flex: 1;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-box span { display: block; font-size: 11px; color: #9ca3af; }
+    .stat-box strong { font-size: 16px; color: #fff; }
 
-.add-grid{display:grid;grid-template-columns:58px 32px 1fr 84px 76px 96px 1fr 32px;gap:7px;align-items:end;}
-.abtn{height:32px;width:32px;border:none;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:filter .15s;}
-.abtn:hover{filter:brightness(1.2);}
+    .admin-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-input { flex: 2; min-width: 200px; }
+    .filter-select { flex: 1; min-width: 140px; }
 
-.xrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-.xbtn{height:32px;padding:0 13px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;border:1px solid;background:#0e0e0e;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;}
-.xbtn.p{border-color:rgba(255,107,53,.5);color:#ff6b35;}.xbtn.p:hover{background:rgba(255,107,53,.08);}
-.xbtn.s{border-color:rgba(155,89,182,.5);color:#9b59b6;}.xbtn.s:hover{background:rgba(155,89,182,.08);}
-.xbtn.h{border-color:rgba(0,212,232,.3);color:#00d4e8;}.xbtn.h:hover{background:rgba(0,212,232,.06);}
-#xs{font-size:11px;font-weight:700;letter-spacing:.08em;opacity:0;transition:opacity .3s;}
+    /* Akcje masowe bar */
+    .bulk-actions-bar {
+      background: #1e293b;
+      border: 1px solid #475569;
+      padding: 10px 16px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .bulk-actions-bar .btns { display: flex; gap: 8px; }
+    .bulk-actions-bar button { margin: 0; padding: 6px 14px; font-size: 12px; border-radius: 8px; }
 
-/* ══════════════════════════════
-   CANVAS — wspólny layout i warstwy
-   ══════════════════════════════ */
-.cc{position:relative;overflow:hidden;width:100%;}
+    /* ====== TABLES ====== */
+    .table-wrapper { border: 1px solid #374151; border-radius: 10px; margin-top: 10px; margin-bottom: 24px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    th, td { border: 1px solid #374151; padding: 10px 10px; text-align: left; vertical-align: top; }
+    th { background: #111827; color: #fff; }
+    tr:nth-child(even) { background: #111827; }
+    tr:nth-child(odd) { background: #1f2937; }
 
-#bgLayer {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-size: cover;
-  background-position: center;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 0.15s;
-}
+    .col-cb { width: 4%; text-align: center; }
+    .col-id { width: 7%; }
+    .col-rep { width: 12%; }
+    .col-track { width: 15%; }
+    .col-sess { width: 10%; }
+    .col-acc { width: 13%; }
+    .col-desc { width: 21%; }
+    .col-ev { width: 8%; }
+    .col-stat { width: 10%; }
 
-.c-hline{height:3px;width:100%;}
-.c-hline2{height:2px;width:100%;margin-top:2px;}
+    .col-ap-id { width: 8%; }
+    .col-ap-case { width: 10%; }
+    .col-ap-driver { width: 14%; }
+    .col-ap-reason { width: 36%; }
+    .col-ap-ev { width: 10%; }
+    .col-ap-actions { width: 22%; }
 
-.c-titleblock{text-align:center;position:relative;padding:16px 20px 10px;}
-.c-titleblock::before,.c-titleblock::after{
-  content:'';position:absolute;top:50%;transform:translateY(-50%);
-  width:18%;height:2px;
-}
-.c-titleblock::before{left:16px;}
-.c-titleblock::after{right:16px;}
+    .cell-wrap { 
+      word-break: break-word; 
+      white-space: pre-wrap; 
+      max-height: 65px; 
+      overflow: hidden; 
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+    
+    .evidence-link { 
+      color: #3b82f6; 
+      text-decoration: none; 
+      font-weight: bold; 
+      display: inline-block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .evidence-link:hover { text-decoration: underline; }
+    
+    .action-btns { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+    .action-btns button { margin: 0; padding: 4px 8px; font-size: 11px; border-radius: 6px; }
 
-.c-main{font-size:52px;font-weight:900;letter-spacing:4px;text-transform:uppercase;line-height:1;}
-.c-sub{font-size:14px;font-weight:700;letter-spacing:.35em;text-transform:uppercase;margin-top:4px;}
+    .btn-view { background: #4b5563; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-top: 4px; }
+    .btn-verdict-transfer { background: linear-gradient(135deg, #a855f7, #6366f1); }
 
-.c-hdrow{display:grid;grid-template-columns:96px 52px 1fr 110px 120px 130px 160px 1fr;padding:0 14px;margin:10px 0 4px;}
-.c-hdcell{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;}
+    /* ====== LIVE CHAT ====== */
+    #chatBox, #playerChatBox {
+      height: 300px;
+      background: #111827;
+      border-radius: 10px;
+      padding: 15px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #playerChatBox { height: 220px; }
+    .msg { padding: 8px 12px; border-radius: 8px; font-size: 13px; max-width: 80%; line-height: 1.4; }
+    .msg-steward { background: #1e3a8a; align-self: flex-start; border-left: 4px solid #3b82f6; }
+    .msg-player { background: #374151; align-self: flex-end; border-right: 4px solid #10b981; }
+    .msg-meta { font-size: 10px; color: #9ca3af; margin-bottom: 2px; display: block; }
 
-.c-rows{padding:0 14px;display:flex;flex-direction:column;gap:4px;}
-.c-row{display:grid;grid-template-columns:96px 52px 1fr 110px 120px 130px 160px 1fr;align-items:center;min-height:52px;border:1px solid transparent;transition:all .14s;}
+    /* Sędziowski kontener wiadomości domyślnie schowany */
+    .steward-chat-wrapper {
+      display: none;
+      flex-direction: column;
+    }
 
-.c-cell{padding:5px 8px;font-size:13px;font-weight:600;letter-spacing:.04em;}
-.c-flag{font-size:26px;text-align:center;line-height:1;}
+    /* ====== MODAL VIEW ====== */
+    .login-modal, .desc-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100;
+      display: none; align-items: center; justify-content: center;
+    }
+    .login-box, .desc-box { background: #1f2937; padding: 24px; border-radius: 16px; width: 320px; text-align: center; }
+    .desc-box { width: 550px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
+    .history-item { background: #111827; border: 1px solid #374151; border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+    optgroup { background: #111827; color: #3b82f6; font-style: normal; }
 
-.c-badge{display:inline-flex;align-items:center;justify-content:center;min-width:68px;padding:6px 10px;font-size:14px;font-weight:900;letter-spacing:.06em;border:2px solid;}
-.c-racename{font-size:15px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;}
-.c-datenum{font-size:18px;font-weight:900;letter-spacing:.02em;}
-.c-datemon{font-size:13px;font-weight:700;letter-spacing:.1em;opacity:.7;margin-left:4px;}
-.c-timebox{display:inline-block;padding:5px 14px;font-size:17px;font-weight:900;letter-spacing:.06em;border:2px solid;}
-.c-typetxt{font-size:13px;font-weight:700;letter-spacing:.06em;}
-.c-desctxt{font-size:11px;font-weight:600;letter-spacing:.04em;opacity:.7;}
-.c-winner{font-size:13px;font-weight:700;letter-spacing:.05em;}
-.c-winner.none{opacity:.2;font-style:italic;}
-.c-delbtn{background:none;border:none;cursor:pointer;padding:3px 5px;font-size:13px;opacity:.25;transition:opacity .12s;}
-.c-delbtn:hover{opacity:.8;}
+    /* ====== COMBINED JUDGE RESPONSE PANEL ====== */
+    .verdict-panel {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .status-msg { margin-top: 10px; font-size: 12px; min-height: 16px; }
+    .status-msg.ok { color: #4ade80; }
+    .status-msg.err { color: #f97373; }
+  </style>
 
-.c-foot{display:flex;gap:16px;flex-wrap:wrap;padding:10px 14px 6px;margin-top:4px;}
-.c-legitem{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
-.c-legdot{width:12px;height:12px;border-radius:2px;}
-
-/* ══ MOTYW: neon ══ */
-.t-neon{background:#0b0d12;}
-.t-neon::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(-55deg,transparent,transparent 16px,rgba(255,255,255,.014) 16px,rgba(255,255,255,.014) 18px);z-index:1;}
-.t-neon .c-hline{background:linear-gradient(90deg,transparent,#00d4e8 20%,#00d4e8 80%,transparent);}
-.t-neon .c-hline2{background:linear-gradient(90deg,transparent,rgba(0,212,232,.3) 30%,rgba(0,212,232,.3) 70%,transparent);}
-.t-neon .c-titleblock::before,.t-neon .c-titleblock::after{background:linear-gradient(90deg,transparent,#00d4e8);}
-.t-neon .c-titleblock::after{background:linear-gradient(270deg,transparent,#00d4e8);}
-.t-neon .c-main{color:#fff;font-family:'Barlow Condensed',sans-serif;-webkit-text-stroke:1px rgba(255,255,255,.1);}
-.t-neon .c-sub{color:#00d4e8;font-family:'Barlow Condensed',sans-serif;font-style:italic;}
-.t-neon .c-hdcell{color:#3a4a5a;}
-.t-neon .c-row{background:#111520;border-color:#1a1f2e;}
-.t-neon .c-row:hover{background:#141a28;border-color:#00d4e8;}
-.t-neon .c-row.s-sprint{border-color:#ff6b35;}
-.t-neon .c-row.s-canc{opacity:.4;}
-.t-neon .c-badge{background:#0b1a28;border-color:#00d4e8;color:#00d4e8;}
-.t-neon .c-badge.pre{border-color:#9b59b6;color:#9b59b6;}
-.t-neon .c-badge.canc{border-color:#333;color:#555;}
-.t-neon .c-racename{color:#e8edf5;}
-.t-neon .c-datenum{color:#e8edf5;}
-.t-neon .c-datemon{color:#e8edf5;}
-.t-neon .c-timebox{background:#0b1e28;border-color:#00d4e8;color:#00d4e8;}
-.t-neon .c-typetxt{color:#8090a0;}
-.t-neon .c-typetxt.sprint{color:#ff6b35;}
-.t-neon .c-desctxt{color:#5a6a7a;}
-.t-neon .c-winner{color:#c8d8e8;}
-.t-neon .c-delbtn{color:#00d4e8;}
-.t-neon .c-hdcell{color:#2a3a4a;}
-.t-neon .c-foot{border-top:1px solid #1a1f2e;}
-.t-neon .c-legitem{color:#2a3a4a;}
-
-/* ══ MOTYW: gold ══ */
-.t-gold{background:#080600;}
-.t-gold::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(-55deg,transparent,transparent 20px,rgba(212,175,55,.018) 20px,rgba(212,175,55,.018) 22px);z-index:1;}
-.t-gold .c-hline{background:linear-gradient(90deg,transparent,#d4af37 20%,#f5e17a 50%,#d4af37 80%,transparent);}
-.t-gold .c-hline2{background:linear-gradient(90deg,transparent,rgba(212,175,55,.25) 30%,rgba(212,175,55,.25) 70%,transparent);}
-.t-gold .c-titleblock::before,.t-gold .c-titleblock::after{background:linear-gradient(90deg,transparent,#d4af37);}
-.t-gold .c-titleblock::after{background:linear-gradient(270deg,transparent,#d4af37);}
-.t-gold .c-main{color:#f5e17a;font-family:'Playfair Display',serif;}
-.t-gold .c-sub{color:#8b6914;font-family:'Barlow Condensed',sans-serif;font-style:italic;letter-spacing:.4em;}
-.t-gold .c-hdcell{color:#3a2d00;}
-.t-gold .c-row{background:#0e0a02;border-color:#1e1600;}
-.t-gold .c-row:hover{background:#141000;border-color:#d4af37;}
-.t-gold .c-row.s-sprint{border-color:#c0783a;}
-.t-gold .c-row.s-canc{opacity:.35;}
-.t-gold .c-badge{background:#0e0a02;border-color:#d4af37;color:#d4af37;}
-.t-gold .c-badge.pre{border-color:#8b6914;color:#8b6914;}
-.t-gold .c-badge.canc{border-color:#2a1e00;color:#3a2d00;}
-.t-gold .c-racename{color:#e8d080;}
-.t-gold .c-datenum{color:#c8a830;}
-.t-gold .c-datemon{color:#c8a830;}
-.t-gold .c-timebox{background:#100c00;border-color:#d4af37;color:#d4af37;}
-.t-gold .c-typetxt{color:#5c4a18;}
-.t-gold .c-typetxt.sprint{color:#c0783a;}
-.t-gold .c-desctxt{color:#3a2d00;}
-.t-gold .c-winner{color:#d4af37;}
-.t-gold .c-delbtn{color:#d4af37;}
-.t-gold .c-hdcell{color:#3a2d00;}
-.t-gold .c-foot{border-top:1px solid #1e1600;}
-.t-gold .c-legitem{color:#3a2d00;}
-
-/* ══ MOTYW: ice ══ */
-.t-ice{background:#f2f5f9;}
-.t-ice::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(118deg,transparent,transparent 14px,rgba(26,58,107,.02) 14px,rgba(26,58,107,.02) 16px);z-index:1;}
-.t-ice .c-hline{background:linear-gradient(90deg,transparent,#1a3a6b 20%,#1a3a6b 80%,transparent);}
-.t-ice .c-hline2{background:linear-gradient(90deg,transparent,rgba(26,58,107,.25) 30%,rgba(26,58,107,.25) 70%,transparent);}
-.t-ice .c-titleblock::before,.t-ice .c-titleblock::after{background:linear-gradient(90deg,transparent,#1a3a6b);}
-.t-ice .c-titleblock::after{background:linear-gradient(270deg,transparent,#1a3a6b);}
-.t-ice .c-main{color:#0d1b3e;font-family:'Barlow Condensed',sans-serif;}
-.t-ice .c-sub{color:#1a3a6b;font-family:'Barlow Condensed',sans-serif;font-style:italic;}
-.t-ice .c-hdcell{color:#9aaac0;}
-.t-ice .c-row{background:rgba(255,255,255,.85);border-color:#d8dee8;}
-.t-ice .c-row:hover{background:rgba(255,255,255,.95);border-color:#1a3a6b;}
-.t-ice .c-row.s-sprint{border-color:#c0783a;}
-.t-ice .c-row.s-canc{opacity:.4;}
-.t-ice .c-badge{background:#1a3a6b;border-color:#1a3a6b;color:#fff;}
-.t-ice .c-badge.pre{border-color:#9b59b6;background:#9b59b6;color:#fff;}
-.t-ice .c-badge.canc{border-color:#999;background:#999;color:#ddd;}
-.t-ice .c-racename{color:#0d1b3e;}
-.t-ice .c-datenum{color:#0d1b3e;}
-.t-ice .c-datemon{color:#0d1b3e;}
-.t-ice .c-timebox{background:#1a3a6b;border-color:#1a3a6b;color:#fff;}
-.t-ice .c-typetxt{color:#6080a0;}
-.t-ice .c-typetxt.sprint{color:#c0783a;}
-.t-ice .c-desctxt{color:#8090a8;}
-.t-ice .c-winner{color:#1a3a6b;}
-.t-ice .c-delbtn{color:#1a3a6b;}
-.t-ice .c-hdcell{color:#9aaac0;}
-.t-ice .c-foot{border-top:1px solid #d8dee8;}
-.t-ice .c-legitem{color:#9aaac0;}
-
-/* ══ MOTYW: carbon ══ */
-.t-carbon{background:#111;}
-.t-carbon::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.01) 2px,rgba(255,255,255,.01) 4px),
-             repeating-linear-gradient(90deg,transparent,transparent 2px,rgba(255,255,255,.01) 2px,rgba(255,255,255,.01) 4px);z-index:1;}
-.t-carbon .c-hline{background:linear-gradient(90deg,transparent,#e8000d 20%,#e8000d 80%,transparent);}
-.t-carbon .c-hline2{background:linear-gradient(90deg,transparent,rgba(232,0,13,.3) 30%,rgba(232,0,13,.3) 70%,transparent);}
-.t-carbon .c-titleblock::before,.t-carbon .c-titleblock::after{background:linear-gradient(90deg,transparent,#e8000d);}
-.t-carbon .c-titleblock::after{background:linear-gradient(270deg,transparent,#e8000d);}
-.t-carbon .c-main{color:#fff;font-family:'Rajdhani',sans-serif;letter-spacing:10px;}
-.t-carbon .c-sub{color:#e8000d;font-family:'Barlow Condensed',sans-serif;font-style:normal;}
-.t-carbon .c-hdcell{color:#444;}
-.t-carbon .c-row{background:#181818;border-color:#222;}
-.t-carbon .c-row:hover{background:#1c1c1c;border-color:#e8000d;}
-.t-carbon .c-row.s-sprint{border-color:#ff6b35;}
-.t-carbon .c-row.s-canc{opacity:.35;}
-.t-carbon .c-badge{background:#200002;border-color:#e8000d;color:#e8000d;}
-.t-carbon .c-badge.pre{border-color:#9b59b6;color:#9b59b6;}
-.t-carbon .c-badge.canc{border-color:#333;color:#555;}
-.t-carbon .c-racename{color:#eee;}
-.t-carbon .c-datenum{color:#eee;}
-.t-carbon .c-datemon{color:#eee;}
-.t-carbon .c-timebox{background:#200002;border-color:#e8000d;color:#e8000d;}
-.t-carbon .c-typetxt{color:#888;}
-.t-carbon .c-typetxt.sprint{color:#ff6b35;}
-.t-carbon .c-desctxt{color:#666;}
-.t-carbon .c-winner{color:#ddd;}
-.t-carbon .c-delbtn{color:#e8000d;}
-.t-carbon .c-hdcell{color:#444;}
-.t-carbon .c-foot{border-top:1px solid #222;}
-.t-carbon .c-legitem{color:#444;}
-
-/* ══ MOTYW: emerald ══ */
-.t-emerald{background:#030a05;}
-.t-emerald::before{content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(-45deg,transparent,transparent 18px,rgba(0,200,80,.015) 18px,rgba(0,200,80,.015) 20px);z-index:1;}
-.t-emerald .c-hline{background:linear-gradient(90deg,transparent,#00c850 20%,#00c850 80%,transparent);}
-.t-emerald .c-hline2{background:linear-gradient(90deg,transparent,rgba(0,200,80,.25) 30%,rgba(0,200,80,.25) 70%,transparent);}
-.t-emerald .c-titleblock::before,.t-emerald .c-titleblock::after{background:linear-gradient(90deg,transparent,#00c850);}
-.t-emerald .c-titleblock::after{background:linear-gradient(270deg,transparent,#00c850);}
-.t-emerald .c-main{color:#b7e4c7;font-family:'Playfair Display',serif;}
-.t-emerald .c-sub{color:#00c850;font-family:'Barlow Condensed',sans-serif;font-style:italic;letter-spacing:.4em;}
-.t-emerald .c-hdcell{color:#1a3a20;}
-.t-emerald .c-row{background:#050f08;border-color:#0a1a0f;}
-.t-emerald .c-row:hover{background:#081410;border-color:#00c850;}
-.t-emerald .c-row.s-sprint{border-color:#c0783a;}
-.t-emerald .c-row.s-canc{opacity:.35;}
-.t-emerald .c-badge{background:#051a10;border-color:#00c850;color:#00c850;}
-.t-emerald .c-badge.pre{border-color:#9b59b6;color:#9b59b6;}
-.t-emerald .c-badge.canc{border-color:#1a2a1a;color:#2a3a2a;}
-.t-emerald .c-racename{color:#b7e4c7;}
-.t-emerald .c-datenum{color:#90d4a7;}
-.t-emerald .c-datemon{color:#90d4a7;}
-.t-emerald .c-timebox{background:#051a10;border-color:#00c850;color:#00c850;}
-.t-emerald .c-typetxt{color:#406050;}
-.t-emerald .c-typetxt.sprint{color:#c0783a;}
-.t-emerald .c-desctxt{color:#2a4a3a;}
-.t-emerald .c-winner{color:#00c850;}
-.t-emerald .c-delbtn{color:#00c850;}
-.t-emerald .c-hdcell{color:#1a3a20;}
-.t-emerald .c-foot{border-top:1px solid #0a1a0f;}
-.t-emerald .c-legitem{color:#1a3a20;}
-</style>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
-<body style="margin:0;padding:40px;background:#060606;font-family:sans-serif;">
-<div class="ui" style="max-width:1100px;margin:0 auto;">
 
-<div class="panel">
-  <div style="flex:1;min-width:160px;">
-    <div class="plbl">Tytuł</div>
-    <input id="pTitle" class="pinp" value="SEZON 2" style="width:100%;" oninput="render()">
-  </div>
-  <div style="flex:1;min-width:160px;">
-    <div class="plbl">Podtytuł</div>
-    <input id="pSub" class="pinp" value="2025/26" style="width:100%;" oninput="render()">
-  </div>
-</div>
+<body>
+  <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
 
-<div class="panel">
-  <div style="flex:1;min-width:200px;">
-    <div class="plbl">Wybierz Motyw</div>
-    <div class="theme-btns">
-      <button class="theme-btn neon active" onclick="setTheme('neon')">
-        <span class="theme-dot"></span>NEON
-      </button>
-      <button class="theme-btn gold" onclick="setTheme('gold')">
-        <span class="theme-dot"></span>GOLD
-      </button>
-      <button class="theme-btn ice" onclick="setTheme('ice')">
-        <span class="theme-dot"></span>ICE
-      </button>
-      <button class="theme-btn carbon" onclick="setTheme('carbon')">
-        <span class="theme-dot"></span>CARBON
-      </button>
-      <button class="theme-btn emerald" onclick="setTheme('emerald')">
-        <span class="theme-dot"></span>EMERALD
-      </button>
+  <div id="adminLoginModal" class="login-modal">
+    <div class="login-box">
+      <h1 data-key="adminPanel">Panel FIA</h1>
+      <div class="field">
+        <label data-key="adminPass">Hasło Administracyjne</label>
+        <input id="adminPass" type="password">
+      </div>
+      <button onclick="checkAdminAuth()" data-key="loginBtn">Zaloguj</button> <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
+      <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
     </div>
   </div>
-</div>
 
-<div class="panel">
-  <div style="flex:1;width:100%;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-    <div style="flex:1;min-width:300px;">
-      <div class="plbl">Tło</div>
-      <div class="bg-btns">
-        <button class="bg-btn active" onclick="setBgMode('default')" title="Domyślne tło motywu">
-          <span style="font-size:16px;">🎨</span>
-        </button>
-        <button class="bg-btn" onclick="setBgMode('solid')" title="Jednolity kolor">
-          <div class="bg-preview" style="background:#0a0a0a;"></div>
-        </button>
-        <button class="bg-btn" onclick="setBgMode('gradient')" title="Gradient">
-          <div class="bg-preview" style="background:linear-gradient(135deg,#1a1a2e,#0a0a0a);"></div>
-        </button>
-        <button class="bg-btn bg-upload-btn" onclick="q('#bgImageInput').click()" title="Wgraj obraz">
-          <span style="font-size:14px;">📁</span> OBRAZ
-          <input type="file" id="bgImageInput" accept="image/*" onchange="loadBgImage(event)">
-        </button>
-        <input type="color" id="bgColor" class="pinp" value="#0a0a0a" style="width:60px;height:32px;padding:2px;" onchange="updateBgColor()">
+  <div id="descModal" class="desc-modal">
+    <div class="desc-box">
+      <h2 class="section-title" id="descModalTitle">Opis zgłoszenia</h2>
+      <div id="descModalBody" style="background:#111827; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
+      
+      <div>
+        <label style="font-weight: bold; margin-bottom: 4px;" id="lblModalNotes">Uzasadnienie sędziowskie / Notatki:</label>
+        <textarea id="modalNotesField" placeholder="Wpisz oficjalne uzasadnienie kary, uwagi lub notatki robocze..." style="min-height: 80px;"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button onclick="saveModalNotes()" style="flex:1;">Zapisz Notatki</button>
+        <button class="btn-secondary" onclick="closeDescModal()" style="flex:1;">Zamknij</button>
       </div>
     </div>
-    <div class="bg-slider-row">
-      <div class="plbl" style="margin-bottom:0;white-space:nowrap;">Przezroczystość:</div>
-      <input type="range" id="bgOpacity" class="bg-slider" min="0" max="100" value="100" oninput="updateBgOpacity()">
-      <span class="bg-val" id="bgOpacityVal">100%</span>
+  </div>
+
+  <div class="card">
+    <div class="top-bar">
+      <div>
+        <h1 data-key="mainTitle">System Zgłoszeń FIA</h1>
+        <p class="subtitle" data-key="mainSubtitle">Zarządzanie incydentami wyścigowymi</p>
+      </div>
+    </div>
+
+    <div class="menu">
+      <button onclick="showSection('formSection')" data-key="navNew">Nowe Zgłoszenie</button>
+      <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
+      <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
+      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
+    </div>
+
+    <div id="formSection" class="section active">
+      <h2 class="section-title" data-key="secDetails">Szczegóły Incydentu</h2>
+      <form id="complaintForm">
+        <div class="row">
+          <div class="field"><label data-key="labelNick">Twój Nick</label><input id="nick" type="text" required /></div>
+          <div class="field"><label data-key="labelDiscord">Twoje Discord ID</label><input id="discordId" type="text" required /></div>
+        </div>
+        <div class="row">
+          <div class="field">
+              <label data-key="labelCategory">Kategoria</label>
+              <select id="category" onchange="handleCategoryChange()" required></select>
+          </div>
+          <div class="field">
+              <label data-key="labelTrack">Tor wyścigowy</label>
+              <select id="track" required></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label data-key="labelSession">Rodzaj Sesji</label><select id="sessionType" required></select></div>
+          <div class="field" id="accusedNickField"><label data-key="labelAccusedNick">Nick osoby zgłaszanej</label><input id="accusedNick" type="text" required></div>
+          <div class="field" id="accusedDiscordIdField"><label data-key="labelAccusedDiscord">Discord ID osoby zgłaszanej</label><input id="accusedDiscordId" type="text" required></div>
+        </div>
+        <div class="field"><label data-key="labelDesc">Opis zdarzenia</label><textarea id="details" required></textarea></div>
+        <div class="field"><label data-key="labelEvidence">Dowody (Link)</label><input id="evidence" type="text" placeholder="https://..."></div>
+        <button type="submit" data-key="btnSubmit">Prześlij Zgłoszenie</button>
+      </form>
+    </div>
+
+    <div id="appealSection" class="section">
+      <h2 class="section-title appeal-title" data-key="appealSecTitle">Formularz Apelacyjny</h2>
+      <p class="subtitle" data-key="appealSubtitle">Nie zgadzasz się z decyzją sędziów? Odwołaj się, podając precyzyjne argumenty lub nowe dowody.</p>
+      <form id="appealForm">
+        <div class="row">
+          <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
+          <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
+          <div class="field"><label data-key="labelDiscord">Twoje Discord ID</label><input id="appealDiscordId" type="text" required /></div>
+        </div>
+        <div class="field"><label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label><textarea id="appealReason" required placeholder="Wpisz szczegółowe argumenty..."></textarea></div>
+        <div class="field"><label data-key="labelAppealEvidence">Nowe lub dodatkowe dowody (Link)</label><input id="appealEvidence" type="text" placeholder="https://..."></div>
+        <button type="submit" data-key="btnSubmitAppeal" style="background: linear-gradient(135deg, #eab308, #ca8a04); color:#000;">Wyślij Apelację</button>
+      </form>
+    </div>
+
+    <div id="historySection" class="section">
+      <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
+      <p class="subtitle" style="margin-bottom: 12px;">Bezpieczna autoryzacja panelu: Wygeneruj swój unikalny PIN dostępu bezpośrednio poniżej.</p>
+      
+      <div id="historyAuthBox" style="background: #111827; padding: 16px; border-radius: 10px; border: 1px solid #374151; margin-bottom: 16px;">
+        <div class="row" style="align-items: flex-end;">
+          <div class="field" style="margin-bottom: 0;">
+            <label>Wprowadź swoje Discord ID</label>
+            <input id="historyDiscordInput" type="text" placeholder="np. 44123456789101112">
+          </div>
+          <button type="button" onclick="requestVerificationPin()" style="background: #2563eb; margin-bottom: 0; height: 38px;">Wygeneruj kod dostępu</button>
+        </div>
+        
+        <div id="pvRedirectRow" style="margin-top: 14px; display: none; text-align: center; background: #1e293b; padding: 14px; border-radius: 8px; border: 1px solid #3b82f6;">
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: #cbd5e1;" id="pinInfoLabel">Twój wygenerowany kod PIN autoryzacji to:</p> <div id="generatedPinDisplay" style="font-size: 24px; font-weight: bold; color: #10b981; letter-spacing: 4px; background: #0f172a; display: inline-block; padding: 6px 20px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 4px;">0000</div> <p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af;">Przepisz powyższy kod do pola weryfikacji poniżej.</p>
+        </div>
+
+        <div class="row" id="pinVerificationRow" style="margin-top: 14px; display: none; align-items: flex-end; border-top: 1px dashed #374151; padding-top: 14px;">
+          <div class="field" style="margin-bottom: 0;">
+            <label style="color: #eab308; font-weight: bold;">Wprowadź 4-cyfrowy kod PIN wyświetlony powyżej</label>
+            <input id="historyPinInput" type="text" placeholder="np. 1234" maxlength="4">
+          </div>
+          <button type="button" class="btn-success" onclick="verifyHistoryPin()" style="margin-bottom: 0; height: 38px;">Zatwierdź i wejdź</button>
+        </div>
+        <p id="authBoxStatus" style="font-size: 12px; margin: 8px 0 0 0; color: #9ca3af; min-height: 15px;"></p>
+      </div>
+
+      <div id="historyList"></div>
+
+      <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
+        <h3 class="section-title" style="font-size: 16px; border-left-color: #10b981;">💬 Czat na Żywo ze Stewardami</h3>
+        <p class="subtitle" style="margin-bottom: 10px;">Tutaj możesz bezpośrednio pisać z sędziami rozpatrującymi zgłoszenia.</p>
+        <div id="playerChatBox"></div>
+        <div class="row">
+          <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
+          <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="chatSection" class="section">
+      <h2 class="section-title" data-key="chatTitle">Czat na Żywo (Panel Sędziowski)</h2>
+      
+      <div class="row" style="margin-bottom:15px;">
+        <select id="chatCaseSelect" style="max-width:320px;" onchange="handleStewardChatSelection(this)">
+          <option value="">Wybierz ID zgłoszenia...</option>
+        </select>
+      </div>
+
+      <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
+        <div id="chatBox"></div>
+        <div class="row">
+          <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
+          <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
+          <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
+          <button class="btn-danger" onclick="clearChat()">Wyczyść czat</button>
+          <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Powrót do panelu</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="adminSection" class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h2 class="section-title" data-key="adminSecTitle">Zarządzanie Zgłoszeniami</h2>
+        <div style="display: flex; gap: 6px;">
+          <button style="background: #2563eb; font-size:12px; padding: 5px 12px;" onclick="showSection('chatSection')" data-key="btnOpenChat">OTWÓRZ CZAT SĘDZIÓW</button>
+          <button style="background: #0284c7; font-size:12px; padding: 5px 12px;" onclick="exportDatabase()">EKSPORTUJ BAZĘ (.txt)</button>
+          <button class="btn-danger" style="padding: 5px 12px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">RESETUJ ID</button>
+          <button style="background:#7c3aed; padding: 5px 12px; font-size: 11px; border-radius:999px; font-weight:600; cursor:pointer; color:white; border:none;" onclick="resetAppealIDCounter()">RESETUJ ID APELACJI</button>
+          <button style="background: linear-gradient(135deg,#7f1d1d,#b91c1c); border: 1px solid #ef4444; padding: 5px 14px; font-size: 12px;" onclick="adminLogout()">🔒 WYLOGUJ</button>
+        </div>
+      </div>
+
+      <div class="stats-container-grid">
+        <div class="stats-group-box">
+          <div class="stats-group-title">📊 Incydenty główne</div>
+          <div class="admin-stats">
+            <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
+            <div class="stat-box"><span id="lblStatPending" style="color:#fbbf24;">Oczekujące</span><strong id="statPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAccepted" style="color:#10b981;">Przyjęte</span><strong id="statAccepted">0</strong></div>
+            <div class="stat-box"><span id="lblStatAgainst" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
+          </div>
+        </div>
+
+        <div class="stats-group-box" style="border-color: #eab308;">
+          <div class="stats-group-title" style="color: #fef08a;">⚖️ Statystyki Odwołań (Apelacji)</div>
+          <div class="admin-stats">
+            <div class="stat-box"><span id="lblStatAppAll">Złożone</span><strong id="statAppAll">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppPending" style="color:#fbbf24;">Nowe</span><strong id="statAppPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppChanged" style="color:#a855f7;">Zmienione</span><strong id="statAppChanged">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppMaintained" style="color:#64748b;">Podtrzymane</span><strong id="statAppMaintained">0</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-controls">
+        <input id="adminSearch" type="text" class="search-input" placeholder="Szukaj po nicku, oskarżonym, torze..." oninput="renderAdmin()">
+        
+        <select id="adminFilterStatus" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Status: Wszystkie</option>
+          <option value="Oczekuje">Oczekujące</option>
+          <option value="Przyjęte">Przyjęte</option>
+          <option value="Odrzucone">Odrzucone</option>
+        </select>
+
+        <select id="adminFilterTrack" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wszystkie tory</option>
+        </select>
+
+        <select id="adminFilterCategory" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wszystkie kategorie</option>
+          <option value="Incydenty Wyścigowe">Incydenty Wyścigowe</option>
+          <option value="Procedury i VSC/SC">Procedury i VSC/SC</option>
+          <option value="Niesportowe">Niesportowe</option>
+        </select>
+      </div>
+
+      <div id="bulkBar" class="bulk-actions-bar">
+        <span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: #f1f5f9;">Wybrano: 0 zgłoszeń</span>
+        <div class="btns">
+          <button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
+          <button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
+          <button style="background: #64748b;" onclick="bulkDelete()">Masowo Usuń</button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
+              <th class="col-id">ID</th>
+              <th class="col-rep" data-key="thReporter">Zgłaszający</th>
+              <th class="col-track">Tor / Kategoria</th>
+              <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
+              <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
+              <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
+              <th class="col-ev" data-key="labelEvidence">Dowody</th>
+              <th class="col-stat" data-key="thStatus">Status / Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+
+      <h2 class="section-title appeal-title" style="margin-top: 32px; font-size:17px;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
+      <div class="table-wrapper" style="border-color: #ca8a04;">
+        <table>
+          <thead>
+            <tr style="background: #1e1b4b;">
+              <th class="col-ap-id">ID Apelacji</th>
+              <th class="col-ap-case">ID Zgłoszenia</th>
+              <th class="col-ap-driver">Apelujący kierowca</th>
+              <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
+              <th class="col-ap-ev">Nowe Dowody</th>
+              <th class="col-ap-actions">Decyzja Sędziowska</th>
+            </tr>
+          </thead>
+          <tbody id="adminAppealsTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="verdict-panel">
+        <h2 class="section-title" data-key="verdictMainTitle" style="font-size: 18px; border-bottom: 1px solid #374151; padding-bottom: 6px; margin-bottom: 14px;">Odpowiedź Sędziowska (Wydaj Werdykt)</h2>
+        
+        <div style="background: #1e293b; border: 1px solid #334155; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;">
+          <div class="field" style="margin-bottom: 8px;">
+            <label style="color: #9ca3af; font-weight: bold;" data-key="lblPreviewDesc">Podgląd: Opis zdarzenia</label>
+            <div id="verdictPreviewDesc" style="background: #0f172a; padding: 10px; border-radius: 8px; font-size: 13px; white-space: pre-wrap; color: #cbd5e1; border: 1px solid #334155; max-height: 120px; overflow-y: auto;">-</div>
+          </div>
+          <div class="field" style="margin-bottom: 0;">
+            <label style="color: #9ca3af; font-weight: bold;" id="lblPreviewEvidence" data-key="lblPreviewEvidence">Link do dowodu</label>
+            <div id="verdictPreviewEvidence" style="background: #0f172a; padding: 12px; border-radius: 8px; font-size: 13px; color: #cbd5e1; border: 1px solid #334155;">-</div>
+          </div>
+        </div>
+
+        <form id="responseForm">
+          <div class="row">
+            <div class="field">
+              <label for="caseId" data-key="caseIdLabel">ID sprawy</label>
+              <input id="caseId" type="text" placeholder="np. #2024-118" required />
+            </div>
+            <div class="field">
+              <label for="accusedId" data-key="accusedIdLabel">Discord ID winnego (do pingowania)</label>
+              <input id="accusedId" type="text" placeholder="np. 123456789012345678" required>
+            </div>
+          </div>
+  
+          <div class="field">
+            <label for="decision" data-key="decisionLabel">Decyzja</label>
+            <select id="decision" required onchange="handleDecisionChange()">
+              <option value="" data-key="optDefault">Wybierz...</option>
+              <option value="Brak naruszenia" data-key="opt1">Brak naruszenia</option>
+              <option value="Naruszenie – ostrzeżenie" data-key="opt2">Naruszenie – ostrzeżenie</option>
+              <option value="Naruszenie – kara czasowa" data-key="opt3">Naruszenie – kara czasowa</option>
+              <option value="Naruszenie – dyskwalifikacja" data-key="opt4">Naruszenie – dyskwalifikacja</option>
+              <option value="Anulowanie kary">Anulowanie kary</option>
+              <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
+              <option value="Apelacja odrzucona – Werdykt podtrzymany" data-key="optAppealMaintained">Apelacja odrzucona – Werdykt podtrzymany</option>
+            </select>
+          </div>
+  
+          <div class="row" id="penaltyFields">
+            <div class="field">
+              <label for="timePenalty" data-key="timeLabel">Kara czasowa</label>
+              <input id="timePenalty" type="text" placeholder="np. +5s / brak">
+            </div>
+            <div class="field">
+              <label for="pointsPenalty" data-key="pointsLabel">Punkty karne</label>
+              <input id="pointsPenalty" type="text" placeholder="np. 2 pkt">
+            </div>
+          </div>
+  
+          <div class="field">
+            <label for="verdictDetails" data-key="detailsLabel">Uzasadnienie</label>
+            <textarea id="verdictDetails" placeholder="Opisz decyzję..." required style="min-height:80px; max-height:200px;"></textarea>
+          </div>
+  
+          <div class="field">
+            <label for="judge" data-key="judgeLabel">Sędzia prowadzący</label>
+            <input id="judge" type="text" placeholder="np. A. Nowak" required />
+          </div>
+  
+          <button type="submit" data-key="sendBtn" style="width: 100%; box-shadow: 0 10px 25px rgba(59,130,246,0.4);">Wyślij decyzję</button>
+          <div id="status" class="status-msg"></div>
+        </form>
+      </div>
+
     </div>
   </div>
-</div>
-
-<div class="panel">
-  <div style="flex:1;min-width:180px;">
-    <div class="plbl">Filtry</div>
-    <div class="tbtns">
-      <button class="tbtn on" onclick="toggleType('gp')">Grand Prix</button>
-      <button class="tbtn on" onclick="toggleType('sprint')">Sprint</button>
-      <button class="tbtn" onclick="toggleType('pre')">Pre-Season</button>
-      <button class="tbtn" onclick="toggleType('canc')">Anulowane</button>
-    </div>
-  </div>
-</div>
-
-<div class="panel">
-  <div style="flex:1;width:100%;">
-    <div class="plbl">Dodaj Wyścig</div>
-    <div class="add-grid">
-      <input id="aR" class="pinp" placeholder="R01" style="grid-column:1;">
-      <input id="aF" class="pinp" placeholder="🏁" style="grid-column:2;">
-      <input id="aN" class="pinp" placeholder="NAZWA TORU" style="grid-column:3;">
-      <input id="aD" class="pinp" placeholder="10 MAY" style="grid-column:4;">
-      <input id="aT" class="pinp" placeholder="20:15" style="grid-column:5;">
-      <select id="aY" class="psel" style="grid-column:6;">
-        <option value="grand">GRAND PRIX</option>
-        <option value="sprint">SPRINT</option>
-        <option value="pre">PRE-SEASON</option>
-        <option value="anulowany">ANULOWANY</option>
-      </select>
-      <input id="aW" class="pinp" placeholder="Zwycięzca" style="grid-column:7;">
-      <button class="abtn" style="background:#00c850;color:#000;grid-column:8;" onclick="addRace()">+</button>
-    </div>
-  </div>
-</div>
-
-<div class="panel">
-  <div class="xrow" style="flex:1;">
-    <div class="plbl" style="margin-bottom:0;">Eksport:</div>
-    <button class="xbtn p" onclick="xPNG()">📷 PNG</button>
-    <button class="xbtn s" onclick="xSVG()">📐 SVG</button>
-    <button class="xbtn h" onclick="xHTML()">📄 HTML</button>
-    <select id="xScale" class="psel" style="height:32px;width:80px;">
-      <option value="1">1x</option>
-      <option value="2" selected>2x</option>
-      <option value="3">3x</option>
-      <option value="4">4x</option>
-    </select>
-    <span id="xs" style="color:#00d4e8;margin-left:8px;"></span>
-  </div>
-</div>
-
-<div id="CC" class="cc t-neon">
-  <div id="bgLayer"></div>
-  <div style="position: relative; z-index: 2; width: 100%;">
-    <div class="c-hline"></div>
-    <div class="c-hline2"></div>
-    <div class="c-titleblock">
-      <div class="c-main"></div>
-      <div class="c-sub"></div>
-    </div>
-    <div class="c-hdrow"></div>
-    <div class="c-rows"></div>
-    <div class="c-foot"></div>
-  </div>
-</div>
-
-</div>
 
 <script>
-const q=s=>document.querySelector(s);
-const HDRS=['ROUND','','RACE & FLAG','DATE','TIME','TYPE','POLE','WINNER'];
-const TCOLS={
-  neon:{gp:'#00d4e8',sp:'#ff6b35',ca:'#444'},
-  gold:{gp:'#d4af37',sp:'#c0783a',ca:'#3a2d00'},
-  ice:{gp:'#1a3a6b',sp:'#c0783a',ca:'#999'},
-  carbon:{gp:'#e8000d',sp:'#ff6b35',ca:'#444'},
-  emerald:{gp:'#00c850',sp:'#c0783a',ca:'#2a4a2a'}
+const firebaseConfig = {
+    databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/" 
 };
 
-let T='neon';
-let nid=13;
-let races=[
-  {id:1,r:'PRE',f:'🇶🇦',n:'LOSAIL CIRCUIT',d:'02 MAR',t:'20:15',y:'pre',ds:'POLE: K. KLONOWSKI',w:'JULIAN JACKOWSKI'},
-  {id:2,r:'R01',f:'🇸🇬',n:'SINGAPORE STREET',d:'09 MAR',t:'21:15',y:'grand',ds:'POLE: K. KLONOWSKI',w:'JAN CISZYŃSKI'},
-  {id:3,r:'R02',f:'🇧🇭',n:'BAHRAIN',d:'16 MAR',t:'—',y:'anulowany',ds:'ANULOWANY !!',w:''},
-  {id:4,r:'R03',f:'🇳🇱',n:'ZANDVOORT',d:'23 MAR',t:'18:00',y:'sprint',ds:'POLE: S. KLONOWSKI',w:'HUBERT DUNIKOWSKI'},
-  {id:5,r:'R04',f:'🇲🇽',n:'MEXICO',d:'30 MAR',t:'21:15',y:'grand',ds:'POLE: K. KLONOWSKI',w:'DOMINIK RODZIK'},
-  {id:6,r:'R05',f:'🇲🇨',n:'MONACO',d:'06 APR',t:'18:00',y:'grand',ds:'',w:'MATEUSZ GIEREK'},
-  {id:7,r:'R06',f:'🇧🇪',n:'SPA-FRANCORCHAMPS',d:'13 APR',t:'21:15',y:'sprint',ds:'POLE: D. RODZIK',w:'DOMINIK RODZIK'},
-  {id:8,r:'R07',f:'🇧🇷',n:'INTERLAGOS CIRCUIT',d:'20 APR',t:'18:00',y:'grand',ds:'POLE: K. KLONOWSKI',w:'DOMINIK RODZIK'},
-  {id:9,r:'R08',f:'🇺🇸',n:'MIAMI CIRCUIT',d:'27 MAY',t:'21:15',y:'grand',ds:'',w:'DOMINIK RODZIK'},
-  {id:10,r:'R09',f:'🇸🇦',n:'JEDDAH CIRCUIT',d:'04 MAY',t:'21:15',y:'sprint',ds:'POLE: D. RODZIK',w:'DOMINIK RODZIK'},
-  {id:11,r:'R10',f:'🇭🇺',n:'HUNGARORING',d:'11 MAY',t:'21:15',y:'grand',ds:'SPRINT WEEKEND',w:'JANEK BURZYKOHSKI'},
-  {id:12,r:'R11',f:'🇪🇸',n:'BARCELONA CIRCUIT',d:'18 MAY',t:'21:15',y:'grand',ds:'SPRINT WEEKEND',w:'DOMINIK RODZIK'},
-  {id:13,r:'R12',f:'🇦🇺',n:'MELBOURNE CIRCUIT',d:'25 MAY',t:'18:30',y:'grand',ds:'00:00:01:56:7',w:'DO USTALENIA'}
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
+const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
+
+let globalIncidents = [];
+let globalAppeals = [];
+let isAdminAuthenticated = false;
+let currentLang = 'pl';
+let currentlyEditedReportId = null;
+
+let authorizedHistoryDiscordId = null;
+let activeVerificationPin = null;
+
+const langData = {
+    pl: {
+        adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
+        mainTitle: "System Zgłoszeń FIA", mainSubtitle: "Zarządzanie incydentami wyścigowymi",
+        navNew: "Nowe Zgłoszenie", navHistory: "Globalna Historia", navAdmin: "Panel Administracyjny", navAppeal: "Złóż Apelację",
+        secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
+        labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
+        labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
+        btnSubmit: "Prześlij Zgłoszenie", chatTitle: "Czat na Żywo", btnOpenChat: "OTWÓRZ CZAT SĘDZIÓW",
+        adminSecTitle: "Zarządzanie Zgłoszeniami", btnResetId: "RESETUJ ID",
+        thReporter: "Zgłaszający", thTrack: "Tor / Sesja", thAccused: "Oskarżony (Nick / ID)", thStatus: "Status", thActions: "Akcje",
+        btnAccept: "Przyjmij", btnReject: "Odrzuć", btnDelete: "Usuń",
+        statusPending: "Oczekuje", statusAccepted: "Przyjęte", statusRejected: "Odrzucone", statusAppeal: "W apelacji",
+        promptReject: "Podaj powód odrzucenia:", alertSent: "Zgłoszono!", confirmDelete: "Usunąć?", confirmReset: "Zresetować licznik?",
+        optChooseTrack: "Wybierz tor...", optChooseCat: "Wybierz przewinienie...",
+        sessions: ["Wyścig Główny", "Sprint", "Kwalifikacje", "Trening"],
+        dcReportTitle: "🚩 NOWE ZGŁOSZENIE", dcDecisionTitle: "📢 STATUS ZGŁOSZENIA",
+        dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
+        dcMsgDecision: "Twoje zgłoszenie zostało", evidenceNone: "Brak", evidenceBtn: "Link 🔗",
+        verdictMainTitle: "Odpowiedź Sędziowska (Wydaj Werdykt)", caseIdLabel: "ID sprawy", accusedIdLabel: "Discord ID winnego",
+        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt4: "Dyskwalifikacja",
+        optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
+        timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
+        sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
+        embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Kierowca", fieldEvidence: "🎬 Dowód",
+        fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
+        lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
+        alertCaseNotFound: "Nie znaleziono zgłoszenia.", dcAppealTitle: "⚖️ NOWA APELACJA",
+        btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie..."
+    },
+    en: {
+        adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
+        mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
+        navNew: "New Report", navHistory: "Global History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
+        secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
+        labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
+        labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
+        btnSubmit: "Submit Report", chatTitle: "Live Chat", btnOpenChat: "OPEN STEWARDS CHAT",
+        adminSecTitle: "Report Management", btnResetId: "RESET ID",
+        thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
+        btnAccept: "Accept", btnReject: "Reject", btnDelete: "Delete",
+        statusPending: "Pending", statusAccepted: "Accepted", statusRejected: "Rejected", statusAppeal: "In Appeal",
+        promptReject: "Enter rejection reason:", alertSent: "Report sent!", confirmDelete: "Delete?", confirmReset: "Reset counter?",
+        optChooseTrack: "Choose track...", optChooseCat: "Choose violation...",
+        sessions: ["Main Race", "Sprint", "Qualifying", "Practice"],
+        dcReportTitle: "🚩 NEW REPORT", dcDecisionTitle: "📢 REPORT STATUS",
+        dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
+        dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
+        verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
+        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt4: "Disqualification",
+        optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
+        timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
+        sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
+        embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Driver", fieldEvidence: "🎬 Evidence",
+        fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
+        lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
+        alertCaseNotFound: "Report not found.", dcAppealTitle: "⚖️ NEW APPEAL",
+        btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type chat message..."
+    }
+};
+
+const categoriesStructure = {
+    pl: {
+        "Incydenty Wyścigowe": [
+            "Brake check (nagłe, nieuzasadnione hamowanie)",
+            "Spowodowanie kolizji",
+            "Wypychanie poza tor",
+            "Agresywny divebomb (atak z dużej odległości)",
+            "Nierespektowanie overlapu przez kierowcę będącego z przodu",
+            "Niebezpieczny powrót na tor",
+            "Niebezpieczna zmiana linii jazdy",
+            "Blokowanie w kwalifikacjach"
+        ],
+        "Procedury i VSC/SC": [
+            "Zwiększanie czasu delta podczas VSC/SC",
+            "Niebezpiecznie wolna jazda podczas restartu po SC",
+            "Próba celowego wywołania SC",
+            "Przecięcie linii wjazdu lub zjazdu do alei serwisowej jakimkolwiek kołem"
+        ],
+        "Niesportowe Zachowanie": [
+            "Użycie funkcji „Powrót na tor” (nie dotyczy: a) okr. formujące; b) sytuacji, gdy kierowca nie może samodzielnie kontynuować jazdy, np. z powodu zawieszenia na tarkach; c) w kwalifikacjach zależne od wagi przewinienia)",
+            "Celowe rozbicie bolidu (dotyczy również linii mety na ostatnim okrążeniu)",
+            "Wycofanie się z sesji na torze",
+            "Jazda na SI",
+            "Rozpoczęcie sesji (kwalifikacje jednookrążeniowe, sprint, wyścig) bez zgody hosta",
+            "Niestawienie się na wyścig przez kierowcę podstawowego, który potwierdził udział",
+            "Brak dowodu w postaci video"
+        ],
+        "Odwołanie od Kary": [
+            "Kara nadana przez grę"
+        ]
+    },
+    en: {
+        "Racing Incidents": [
+            "Brake check",
+            "Causing a collision",
+            "Pushing off track",
+            "Aggressive divebomb",
+            "Disrespecting overlap",
+            "Dangerous re-entry",
+            "Dangerous line change",
+            "Blocking in qualifying"
+        ],
+        "Procedures & VSC/SC": [
+            "VSC/SC Delta",
+            "Restart procedure",
+            "Causing SC",
+            "Pit line violation"
+        ],
+        "Unsporting Behavior": [
+            "Reset to track",
+            "Intentional crash",
+            "Retirement",
+            "AI driving",
+            "Unapproved start",
+            "Absence"
+        ],
+        "Penalty Appeal": [
+            "Issued by game"
+        ]
+    }
+};
+
+const tracks = [
+    "Bahrajn (Sakhir)", "Arabia Saudyjska (Dżidda)", "Australia (Melbourne)", "Japonia (Suzuka)",
+    "Chiny (Szanghaj)", "USA (Miami)", "Imola (Emilia-Romania)", "Monako (Monte Carlo)",
+    "Kanada (Montreal)", "Hiszpania (Barcelona)", "Austria (Spielberg)", "Wielka Brytnia (Silverstone)",
+    "Węgry (Budapeszt)", "Belgia (Spa-Francorchamps)", "Holandia (Zandvoort)", "Włochy (Monza)",
+    "Azerbejdżan (Baku)", "Singapur (Marina Bay)", "USA (Austin)", "Meksyk (Hermanos Rodriguez)",
+    "Brazylia (Interlagos)", "USA (Las Vegas)", "Katar (Lusajl)", "Abu Zabi (Yas Marina)",
+    "Portugalia (Portimao)", "Francja (Paul Ricard)"
 ];
 
-const SF={gp:1,sprint:1,pre:0,canc:0};
-let bgMode = 'default';
-let customImgData = '';
+function handleCategoryChange() {
+    const categorySelect = document.getElementById("category");
+    const accusedNickField = document.getElementById("accusedNickField");
+    const accusedDiscordIdField = document.getElementById("accusedDiscordIdField");
+    const accusedNickInput = document.getElementById("accusedNick");
+    const accusedDiscordInput = document.getElementById("accusedDiscordId");
 
-function setTheme(theme){
-  T=theme;
-  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelector(`.theme-btn.${theme}`).classList.add('active');
-  render();
-}
+    if (!categorySelect || !accusedNickField || !accusedDiscordIdField) return;
 
-function toggleType(t){
-  SF[t]=SF[t]?0:1;
-  document.querySelectorAll('.tbtn').forEach(b=>{
-    const tx=b.textContent.toLowerCase();
-    if((tx.includes('grand')&&t==='gp')||(tx.includes('sprint')&&t==='sprint')||
-       (tx.includes('pre')&&t==='pre')||(tx.includes('anul')&&t==='canc')){
-      b.classList.toggle('on');
+    const val = categorySelect.value;
+    if (val === "Kara nadana przez grę" || val === "Issued by game") {
+        accusedNickField.style.display = "none";
+        accusedDiscordIdField.style.display = "none";
+        accusedNickInput.removeAttribute("required");
+        accusedDiscordInput.removeAttribute("required");
+        accusedNickInput.value = "GRA";
+        accusedDiscordInput.value = "000000000000000000";
+    } else {
+        accusedNickField.style.display = "block";
+        accusedDiscordIdField.style.display = "block";
+        accusedNickInput.setAttribute("required", "required");
+        accusedDiscordInput.setAttribute("required", "required");
+        if (accusedNickInput.value === "GRA") accusedNickInput.value = "";
+        if (accusedDiscordInput.value === "000000000000000000") accusedDiscordInput.value = "";
     }
-  });
-  render();
 }
 
-/* ── OBSŁUGA TŁA I SUWAKA ── */
-function setBgMode(mode) {
-  bgMode = mode;
-  document.querySelectorAll('.bg-btn').forEach((b, idx) => {
-    b.classList.remove('active');
-  });
-  if (mode === 'default') document.querySelectorAll('.bg-btn')[0].classList.add('active');
-  if (mode === 'solid') document.querySelectorAll('.bg-btn')[1].classList.add('active');
-  if (mode === 'gradient') document.querySelectorAll('.bg-btn')[2].classList.add('active');
-  if (mode === 'image') document.querySelectorAll('.bg-btn')[3].classList.add('active');
-  applyBackground();
-}
+function initFormDropdowns() {
+    const trackSelect = document.getElementById("track");
+    const categorySelect = document.getElementById("category");
+    const sessionSelect = document.getElementById("sessionType");
 
-function updateBgColor() {
-  setBgMode('solid');
-}
-
-function updateBgOpacity() {
-  const val = q('#bgOpacity').value;
-  q('#bgOpacityVal').textContent = val + '%';
-  q('#bgLayer').style.opacity = val / 100;
-}
-
-function loadBgImage(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    customImgData = e.target.result;
-    setBgMode('image');
-  };
-  reader.readAsDataURL(file);
-}
-
-function applyBackground() {
-  const bgLayer = q('#bgLayer');
-  bgLayer.style.backgroundImage = 'none';
-  bgLayer.style.backgroundColor = 'transparent';
-  
-  if (bgMode === 'default') {
-    bgLayer.style.backgroundColor = 'transparent';
-  } else if (bgMode === 'solid') {
-    bgLayer.style.backgroundColor = q('#bgColor').value;
-  } else if (bgMode === 'gradient') {
-    bgLayer.style.backgroundImage = 'linear-gradient(135deg, #1a1a2e, #0a0a0a)';
-  } else if (bgMode === 'image') {
-    if (customImgData) {
-      bgLayer.style.backgroundImage = `url(${customImgData})`;
+    if (trackSelect) {
+        trackSelect.innerHTML = `<option value="">${langData[currentLang].optChooseTrack}</option>`;
+        tracks.forEach(t => {
+            const opt = document.createElement("option"); opt.value = t; opt.textContent = t; trackSelect.appendChild(opt);
+        });
     }
-  }
-}
 
-function render(){
-  const cc=q('#CC');
-  cc.className=`cc t-${T}`;
-  const tc=TCOLS[T];
-  
-  q('.c-main').textContent=q('#pTitle').value||'SEZON 2';
-  q('.c-sub').textContent=q('#pSub').value||'2025/26';
-  
-  let hh='';
-  HDRS.forEach(h=>hh+=`<div class="c-hdcell">${h}</div>`);
-  q('.c-hdrow').innerHTML=hh;
-  
-  let rr='';
-  races.forEach(race=>{
-    const isC=race.y==='anulowany',isS=race.y==='sprint',isPre=race.r==='PRE';
-    const show=(race.y==='grand'&&SF.gp)||(isS&&SF.sprint)||(isPre&&SF.pre)||(isC&&SF.canc);
-    if(!show)return;
+    if (categorySelect) {
+        categorySelect.innerHTML = `<option value="">${langData[currentLang].optChooseCat}</option>`;
+        const structure = categoriesStructure[currentLang];
+        for (const groupName in structure) {
+            const optGroup = document.createElement("optgroup");
+            optGroup.label = groupName;
+            structure[groupName].forEach(item => {
+                const opt = document.createElement("option"); opt.value = item; opt.textContent = item; optGroup.appendChild(opt);
+            });
+            categorySelect.appendChild(optGroup);
+        }
+    }
+
+    if (sessionSelect) {
+        sessionSelect.innerHTML = "";
+        langData[currentLang].sessions.forEach(s => {
+            const opt = document.createElement("option"); opt.value = s; opt.textContent = s; sessionSelect.appendChild(opt);
+        });
+    }
     
-    const cls=isS?'s-sprint':isC?'s-canc':'';
-    const badgeCls=isPre?'pre':isC?'canc':'';
-    const typeCls=isS?'sprint':'';
-    const winCls=race.w?'':'none';
+    const adminCatSelect = document.getElementById("adminFilterCategory");
+    if (adminCatSelect) {
+        adminCatSelect.innerHTML = `<option value="ALL">${currentLang === 'pl' ? 'Wszystkie kategorie' : 'All categories'}</option>`;
+        for (const groupName in categoriesStructure[currentLang]) {
+            const opt = document.createElement("option"); opt.value = groupName; opt.textContent = groupName; adminCatSelect.appendChild(opt);
+        }
+    }
+}
+
+function initAdminTrackFilter() {
+    const filterTrack = document.getElementById("adminFilterTrack");
+    if (!filterTrack) return;
+    filterTrack.innerHTML = `<option value="ALL">${currentLang === 'pl' ? 'Wszystkie tory' : 'All tracks'}</option>`;
+    tracks.forEach(t => {
+        const opt = document.createElement("option"); opt.value = t; opt.textContent = t; filterTrack.appendChild(opt);
+    });
+}
+
+function toggleLang() {
+    currentLang = currentLang === 'pl' ? 'en' : 'pl';
+    document.documentElement.lang = currentLang;
     
-    rr+=`<div class="c-row ${cls}">
-      <div class="c-cell"><span class="c-badge ${badgeCls}">${race.r}</span></div>
-      <div class="c-cell c-flag">${race.f}</div>
-      <div class="c-cell c-racename">${race.n}</div>
-      <div class="c-cell"><span class="c-datenum">${race.d.split(' ')[0]}</span><span class="c-datemon">${race.d.split(' ').slice(1).join(' ')}</span></div>
-      <div class="c-cell"><span class="c-timebox">${race.t||'—'}</span></div>
-      <div class="c-cell"><span class="c-typetxt ${typeCls}">${isC?'—':isS?'SPRINT':'GRAND PRIX'}</span></div>
-      <div class="c-cell c-desctxt">${race.ds||''}</div>
-      <div class="c-cell" style="display:flex;justify-content:space-between;align-items:center;">
-        <span class="c-winner ${winCls}">${race.w||'—'}</span>
-        <button class="c-delbtn" onclick="del(${race.id})">✕</button>
-      </div>
-    </div>`;
-  });
-  q('.c-rows').innerHTML=rr;
-  
-  q('.c-foot').innerHTML=`
-    <div class="c-legitem"><div class="c-legdot" style="background:${tc.gp}"></div>Grand Prix</div>
-    <div class="c-legitem"><div class="c-legdot" style="background:${tc.sp}"></div>Sprint</div>
-    <div class="c-legitem"><div class="c-legdot" style="background:${tc.ca}"></div>Anulowany</div>`;
+    document.querySelectorAll("[data-key]").forEach(el => {
+        const key = el.getAttribute("data-key");
+        if (langData[currentLang][key]) { el.textContent = langData[currentLang][key]; }
+    });
+
+    const adminPassInput = document.getElementById("adminPass");
+    if (adminPassInput) adminPassInput.placeholder = currentLang === 'pl' ? "Hasło..." : "Password...";
+
+    const searchInput = document.getElementById("adminSearch");
+    if (searchInput) searchInput.placeholder = currentLang === 'pl' ? "Szukaj po nicku, oskarżonym, torze..." : "Search by nickname, accused, track...";
+
+    const filterStatus = document.getElementById("adminFilterStatus");
+    if (filterStatus) {
+        filterStatus.options[0].textContent = currentLang === 'pl' ? "Status: Wszystkie" : "Status: All";
+        filterStatus.options[1].textContent = currentLang === 'pl' ? "Oczekujące" : "Pending";
+        filterStatus.options[2].textContent = currentLang === 'pl' ? "Przyjęte" : "Accepted";
+        filterStatus.options[3].textContent = currentLang === 'pl' ? "Odrzucone" : "Rejected";
+    }
+
+    const decisionSelect = document.getElementById("decision");
+    if (decisionSelect) {
+        decisionSelect.options[0].textContent = langData[currentLang].optDefault;
+        decisionSelect.options[1].textContent = langData[currentLang].opt1;
+        decisionSelect.options[2].textContent = langData[currentLang].opt2;
+        decisionSelect.options[3].textContent = langData[currentLang].opt3;
+        decisionSelect.options[4].textContent = langData[currentLang].opt4;
+        decisionSelect.options[5].textContent = currentLang === 'pl' ? "Apelacja rozpatrzona – Zmiana werdyktu" : "Appeal resolved – Verdict changed";
+        decisionSelect.options[6].textContent = currentLang === 'pl' ? "Apelacja odrzucona – Werdykt podtrzymany" : "Appeal dismissed – Verdict maintained";
+    }
+
+    initFormDropdowns();
+    initAdminTrackFilter();
+    
+    if (isAdminAuthenticated) { renderAdmin(); }
+    if (authorizedHistoryDiscordId) { fetchAndRenderHistory(authorizedHistoryDiscordId); }
 }
 
-function del(id){races=races.filter(r=>r.id!==id);render();}
-
-function addRace(){
-  const rr=q('#aR').value.trim().toUpperCase();
-  const nn=q('#aN').value.trim().toUpperCase();
-  if(!rr||!nn)return;
-  races.push({id:nid++,r:rr,f:q('#aF').value.trim()||'🏁',n:nn,
-    d:q('#aD').value.trim().toUpperCase(),t:q('#aT').value.trim(),
-    y:q('#aY').value,ds:'',w:q('#aW').value.trim().toUpperCase()});
-  ['#aR','#aF','#aN','#aD','#aT','#aW'].forEach(s=>q(s).value='');
-  render();
+function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
 }
 
-function showXS(m){const e=q('#xs');e.textContent=m;e.style.opacity='1';setTimeout(()=>e.style.opacity='0',2500);}
+function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminPass").focus(); }
+function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; document.getElementById("adminPass").value = ""; }
 
-function xPNG(){
-  const scale=+q('#xScale').value;
-  const el=q('#CC');
-  showXS('⏳ Renderuję...');
-  html2canvas(el,{scale,backgroundColor:null,useCORS:true,logging:false,allowTaint:true})
-    .then(c=>{
-      const a=document.createElement('a');
-      a.download=(q('#pTitle').value.trim().replace(/\s+/g,'_')||'kalendarz')+'_'+scale+'x.png';
-      a.href=c.toDataURL('image/png');a.click();
-      showXS('✓ PNG pobrano!');
-    }).catch(()=>showXS('✗ Błąd PNG'));
+function checkAdminAuth() {
+    const pass = document.getElementById("adminPass").value;
+    if (pass === "FIA2024") {
+        isAdminAuthenticated = true;
+        localStorage.setItem("adminAuth", "1");
+        closeAdminLogin();
+        document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
+        showSection("adminSection");
+        renderAdmin();
+    } else {
+        document.getElementById("loginStatus").textContent = currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!";
+    }
 }
 
-function xSVG(){
-  showXS('⏳ Generuję SVG...');
-  const season=q('#pTitle').value.trim();
-  const sub=q('#pSub').value.trim();
-  const cols=[96,52,220,110,120,130,160,200];
-  const W=cols.reduce((a,b)=>a+b,0)+28;
-  const RH=52, hH=130, fH=40;
-  const H=hH+races.length*(RH+4)+fH+20;
-  const tc=TCOLS[T];
-  const BG={neon:'#0b0d12',gold:'#080600',ice:'#f2f5f9',carbon:'#111',emerald:'#030a05'};
-  const ACC={neon:'#00d4e8',gold:'#d4af37',ice:'#1a3a6b',carbon:'#e8000d',emerald:'#00c850'};
-  const TX={neon:'#e8edf5',gold:'#e8d080',ice:'#0d1b3e',carbon:'#eeeeee',emerald:'#b7e4c7'};
-  const bg=bgMode==='solid'?q('#bgColor').value:BG[T],acc=ACC[T],tx=TX[T];
-  const isLight=T==='ice';
+document.getElementById("complaintForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const nick = document.getElementById("nick").value;
+    const discordId = document.getElementById("discordId").value;
+    const category = document.getElementById("category").value;
+    const track = document.getElementById("track").value;
+    const sessionType = document.getElementById("sessionType").value;
+    const accusedNick = document.getElementById("accusedNick").value;
+    const accusedDiscordId = document.getElementById("accusedDiscordId").value;
+    const details = document.getElementById("details").value;
+    const evidence = document.getElementById("evidence").value;
 
-  let s=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">`;
-  s+=`<rect width="${W}" height="${H}" fill="${bg}"/>`;
-  s+=`<rect width="${W}" height="3" fill="${acc}"/>`;
-  s+=`<rect y="5" width="${W}" height="2" fill="${acc}" opacity=".3"/>`;
-  const tf=T==='gold'?'Georgia':T==='emerald'?'Georgia':'Arial';
-  const fi=T==='gold'||T==='emerald'?'italic':'normal';
-  s+=`<text x="${W/2}" y="66" fill="${T==='gold'?'#f5e17a':acc==='#1a3a6b'?'#0d1b3e':'#fff'}" font-family="${tf}" font-style="${fi}" font-size="46" font-weight="900" text-anchor="middle" letter-spacing="5">${season}</text>`;
-  s+=`<text x="${W/2}" y="90" fill="${acc}" font-family="Arial" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="6">${sub}</text>`;
-  s+=`<line x1="${W*.12}" y1="66" x2="${W*.28}" y2="66" stroke="${acc}" stroke-width="2"/>`;
-  s+=`<line x1="${W*.72}" y1="66" x2="${W*.88}" y2="66" stroke="${acc}" stroke-width="2"/>`;
+    const snapshot = await database.ref("incident_counter").get();
+    let counter = snapshot.exists() ? snapshot.val() : 0;
+    counter++;
+    await database.ref("incident_counter").set(counter);
 
-  let cx=14;
-  HDRS.forEach((h,i)=>{
-    if(h) s+=`<text x="${cx+4}" y="${hH-8}" fill="${isLight?'#9aaac0':'#333'}" font-family="Arial" font-size="9" font-weight="700" letter-spacing="1">${h}</text>`;
-    cx+=cols[i];
-  });
-  races.forEach((race,ri)=>{
-    const y=hH+ri*(RH+4);
-    const isC=race.y==='anulowany', isS=race.y==='sprint', isPre=race.r==='PRE';
-    const rowAcc=isC?tc.ca:isS?tc.sp:tc.gp;
-    const rowBg=isLight?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.04)';
-    s+=`<rect x="14" y="${y}" width="${W-28}" height="${RH}" fill="${rowBg}" rx="0"/>`;
-    s+=`<rect x="14" y="${y}" width="3" height="${RH}" fill="${rowAcc}"/>`;
-    cx=14;
-    const bc=isPre?'#9b59b6':isC?'#333':acc;
-    const btx=isLight&&!isPre&&!isC?'#fff':(bc==='#00d4e8'||bc==='#00c850'||bc==='#d4af37')?'#000':'#fff';
-    s+=`<rect x="${cx+5}" y="${y+12}" width="74" height="28" fill="${bc}" rx="0"/>`;
-    s+=`<text x="${cx+42}" y="${y+31}" fill="${btx}" font-family="Arial" font-size="13" font-weight="900" text-anchor="middle" letter-spacing="1">${race.r}</text>`;
-    cx+=cols[0];
-    s+=`<text x="${cx+26}" y="${y+34}" font-size="22" text-anchor="middle">${race.f}</text>`;
-    cx+=cols[1];
-    s+=`<text x="${cx+4}" y="${y+32}" fill="${tx}" font-family="Arial" font-size="14" font-weight="800" letter-spacing="2">${race.n}</text>`;
-    cx+=cols[2];
-    const [dd,...rm]=race.d.split(' ');
-    s+=`<text x="${cx+4}" y="${y+32}" fill="${tx}" font-family="Arial" font-size="17" font-weight="900">${dd}</text>`;
-    s+=`<text x="${cx+32}" y="${y+32}" fill="${tx}" font-family="Arial" font-size="12" font-weight="700" opacity=".7">${rm.join(' ')}</text>`;
-    cx+=cols[3];
-    s+=`<rect x="${cx+2}" y="${y+11}" width="90" height="30" fill="${isLight?acc:'rgba(0,0,0,.3)'}" stroke="${acc}" stroke-width="2" rx="0"/>`;
-    s+=`<text x="${cx+47}" y="${y+31}" fill="${isLight?'#fff':acc}" font-family="Arial" font-size="15" font-weight="900" text-anchor="middle">${race.t||'—'}</text>`;
-    cx+=cols[4];
-    const typeTxt=isC?'—':isS?'SPRINT':'GRAND PRIX';
-    s+=`<text x="${cx+4}" y="${y+32}" fill="${isC?tc.ca:isS?tc.sp:(isLight?'#6080a0':tc.gp)}" font-family="Arial" font-size="12" font-weight="700">${typeTxt}</text>`;
-    cx+=cols[5];
-    s+=`<text x="${cx+4}" y="${y+32}" fill="${isLight?'#8090a8':'#555'}" font-family="Arial" font-size="10" font-weight="600">${race.ds||''}</text>`;
-    cx+=cols[6];
-    s+=`<text x="${cx+4}" y="${y+32}" fill="${race.w?(T==='gold'?'#d4af37':T==='emerald'?'#00c850':tx):'rgba(255,255,255,.1)'}" font-family="Arial" font-size="12" font-weight="700">${race.w||'—'}</text>`;
-  });
-  const ly=hH+races.length*(RH+4)+8;
-  let lx=14;
-  [[tc.gp,'GRAND PRIX'],[tc.sp,'SPRINT'],[tc.ca,'ANULOWANY']].forEach(([c,l])=>{
-    s+=`<rect x="${lx}" y="${ly+6}" width="14" height="14" fill="${c}" rx="2"/>`;
-    s+=`<text x="${lx+20}" y="${ly+17}" fill="${isLight?'#9aaac0':'#333'}" font-family="Arial" font-size="9" font-weight="700" letter-spacing="1">${l}</text>`;
-    lx+=120;
-  });
-  s+=`<rect y="5" x="0" width="${W}" height="2" fill="${acc}" opacity=".3" transform="translate(0,${H-7})"/>`;
-  s+=`<rect y="3" x="0" width="${W}" height="3" fill="${acc}" transform="translate(0,${H-3})"/>`;
-  s+='</svg>';
+    const fiaId = "FIA-" + String(counter).padStart(4, '0');
 
-  const blob=new Blob([s],{type:'image/svg+xml'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.download=(q('#pTitle').value.trim().replace(/\s+/g,'_')||'kalendarz')+'.svg';
-  a.href=url;a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  showXS('✓ SVG pobrano!');
+    const newReport = {
+        fiaId, nick, discordId, category, track, sessionType,
+        accusedNick, accusedDiscordId, details, evidence,
+        status: "Oczekuje", timestamp: Date.now()
+    };
+
+    await database.ref("incidents/" + fiaId).set(newReport);
+    alert(langData[currentLang].alertSent + " ID: " + fiaId);
+    e.target.reset();
+    handleCategoryChange(); // Resetowanie widoczności pól oskarżonego
+
+    const embed = {
+        title: langData.pl.dcReportTitle,
+        color: 15158332,
+        fields: [
+            { name: "🆔 ID Zgłoszenia", value: `**${fiaId}**`, inline: true },
+            { name: "📍 Tor i Sesja", value: `${track} (${sessionType})`, inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "<@&1443302932811616346> <@&1463610534309007380>", embeds: [embed] }) }).catch(()=>{});
+});
+
+document.getElementById("appealForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const caseId = document.getElementById("appealCaseId").value.trim().toUpperCase();
+    const nick = document.getElementById("appealNick").value;
+    const discordId = document.getElementById("appealDiscordId").value;
+    const reason = document.getElementById("appealReason").value;
+    const evidence = document.getElementById("appealEvidence").value;
+
+    const reportSnap = await database.ref("incidents/" + caseId).get();
+    if (!reportSnap.exists()) { alert(langData[currentLang].alertCaseNotFound); return; }
+
+    const appealSnap = await database.ref("appeal_counter").get();
+    let appealCounter = appealSnap.exists() ? appealSnap.val() : 0;
+    appealCounter++;
+    await database.ref("appeal_counter").set(appealCounter);
+    const appealId = "APP-" + String(appealCounter).padStart(4, "0");
+    const newAppeal = { appealId, caseId, nick, discordId, reason, evidence, status: "Nowa", timestamp: Date.now() };
+
+    await database.ref("appeals/" + appealId).set(newAppeal);
+    await database.ref("incidents/" + caseId + "/status").set("W apelacji");
+
+    alert(langData[currentLang].alertAppealSent + " ID: " + appealId);
+    e.target.reset();
+
+    const embed = {
+        title: langData.pl.dcAppealTitle,
+        color: 15313672,
+        fields: [
+            { name: "🆔 ID Apelacji", value: `**${appealId}**`, inline: true },
+            { name: "📁 ID Sprawy Głównej", value: `**${caseId}**`, inline: true },
+            { name: "👤 Apelujący kierowca", value: `${nick} (<@${discordId}>)`, inline: false }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "<@&1443302932811616346> <@&1463610534309007380>", embeds: [embed] }) }).catch(()=>{});
+});
+
+function requestVerificationPin() {
+    const discordId = document.getElementById("historyDiscordInput").value.trim();
+    const statusEl = document.getElementById("authBoxStatus");
+    if (!discordId) { statusEl.textContent = currentLang === 'pl' ? "Wprowadź poprawne Discord ID!" : "Enter valid Discord ID!"; statusEl.style.color = "#f97373"; return; }
+
+    activeVerificationPin = String(Math.floor(1000 + Math.random() * 9000));
+    document.getElementById("generatedPinDisplay").textContent = activeVerificationPin;
+    document.getElementById("pvRedirectRow").style.display = "block";
+    document.getElementById("pinVerificationRow").style.display = "flex";
+
+    statusEl.textContent = currentLang === 'pl' ? "Kod autoryzacji został wygenerowany!" : "Authorization PIN generated!";
+    statusEl.style.color = "#4ade80";
 }
 
-function xHTML(){
-  const el=q('#CC');
-  const styles=Array.from(document.querySelectorAll('style')).map(s=>s.outerHTML).join('\n');
-  const html=`<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;0,900;1,700&family=Playfair+Display:ital,wght@0,700;1,600&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
-${styles}<style>body{margin:0;padding:40px;background:#060606;display:flex;justify-content:center;}
-.cc{max-width:1100px;width:100%;}</style></head><body>${el.outerHTML}</body></html>`;
-  const blob=new Blob([html],{type:'text/html'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.download=(q('#pTitle').value.trim().replace(/\s+/g,'_')||'kalendarz')+'.html';
-  a.href=url;a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-  showXS('✓ HTML pobrano!');
+function verifyHistoryPin() {
+    const enteredPin = document.getElementById("historyPinInput").value.trim();
+    const discordId = document.getElementById("historyDiscordInput").value.trim();
+    const statusEl = document.getElementById("authBoxStatus");
+
+    if (activeVerificationPin && enteredPin === activeVerificationPin) {
+        authorizedHistoryDiscordId = discordId;
+        statusEl.textContent = currentLang === 'pl' ? "Autoryzacja udana! Ładowanie danych..." : "Authorization successful! Loading...";
+        statusEl.style.color = "#4ade80";
+        
+        document.getElementById("historyAuthBox").style.borderColor = "#10b981";
+        document.getElementById("pvRedirectRow").style.display = "none";
+        document.getElementById("pinVerificationRow").style.display = "none";
+        document.getElementById("playerChatBoxContainer").style.display = "block";
+
+        database.ref("incidents").on("value", snapshot => {
+            globalIncidents = [];
+            snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
+            if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        });
+
+        updatePlayerChatCaseSelectOptions(discordId);
+    } else {
+        statusEl.textContent = currentLang === 'pl' ? "Niepoprawny kod PIN! Spróbuj ponownie." : "Invalid PIN code! Try again.";
+        statusEl.style.color = "#f97373";
+    }
 }
 
-render();
-applyBackground();
+function fetchAndRenderHistory(discordId) {
+    const container = document.getElementById("historyList");
+    container.innerHTML = "";
+
+    const userReports = globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId);
+
+    if (userReports.length === 0) {
+        container.innerHTML = `<p style='font-size:13px; color:#9ca3af; text-align:center;'>${currentLang === 'pl' ? 'Brak zgłoszeń powiązanych z Twoim kontem Discord.' : 'No reports linked to your Discord account.'}</p>`;
+        return;
+    }
+
+    userReports.sort((a,b) => b.timestamp - a.timestamp);
+
+    userReports.forEach(r => {
+        const div = document.createElement("div");
+        div.className = "history-item";
+        
+        let statusBadgeColor = "#fbbf24";
+        if (r.status === "Przyjęte") statusBadgeColor = "#10b981";
+        if (r.status === "Odrzucone") statusBadgeColor = "#ef4444";
+        if (r.status === "W apelacji") statusBadgeColor = "#eab308";
+
+        const isReporter = r.discordId === discordId;
+        const roleLabel = isReporter 
+            ? (currentLang === 'pl' ? "Zgłosiłeś(aś)" : "Reported by you") 
+            : (currentLang === 'pl' ? "Zgłoszono Ciebie" : "Reported against you");
+        const roleBg = isReporter ? "#1e3a8a" : "#991b1b";
+
+        let decisionBlock = "";
+        if (r.decisionData) {
+            decisionBlock = `
+                <div style="margin-top:10px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #3b82f6;">
+                    <strong style="color:#fff; font-size:12px;">⚖️ ${currentLang === 'pl' ? 'Oficjalny Werdykt Sędziowski' : 'Official Stewards Verdict'}:</strong>
+                    <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
+                        <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${r.decisionData.decision}<br>
+                        <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${r.decisionData.timePenalty || 'brak'}, Punkty: ${r.decisionData.pointsPenalty || '0'}<br>
+                        <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                        <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                    </div>
+                </div>
+            `;
+        }
+
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:bold; color:#fff; font-size:14px;">${r.id}</span>
+                <div style="display:flex; gap:6px;">
+                    <span style="background:${roleBg}; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${roleLabel}</span>
+                    <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${r.status}</span>
+                </div>
+            </div>
+            <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track} | <strong>Sesja:</strong> ${r.sessionType}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Kategoria:</strong> ${r.category}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
+            <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
+                <strong>Opis zdarzenia:</strong> ${r.details}
+            </div>
+            ${r.evidence ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> <a href="${r.evidence}" target="_blank" class="evidence-link">${r.evidence}</a></p>` : ''}
+            ${decisionBlock}
+        `;
+        container.appendChild(div);
+    });
+}
+
+function updatePlayerChatCaseSelectOptions(userDiscordId) {}
+
+function renderAdmin() {
+    const tbody = document.getElementById("adminTableBody");
+    tbody.innerHTML = "";
+    const t = langData[currentLang];
+    const searchQuery = document.getElementById("adminSearch").value.toLowerCase();
+    const filterStatus = document.getElementById("adminFilterStatus").value;
+    const filterTrack = document.getElementById("adminFilterTrack").value;
+    const filterCategory = document.getElementById("adminFilterCategory").value;
+
+    let cAll = 0, cPending = 0, cAccepted = 0, cRejected = 0;
+    globalIncidents.forEach(r => {
+        cAll++;
+        if (r.status === "Oczekuje") cPending++;
+        if (r.status === "Przyjęte") cAccepted++;
+        if (r.status === "Odrzucone") cRejected++;
+    });
+    document.getElementById("statAll").textContent = cAll;
+    document.getElementById("statPending").textContent = cPending;
+    document.getElementById("statAccepted").textContent = cAccepted;
+    document.getElementById("statRejected").textContent = cRejected;
+
+    let cAppAll = 0, cAppPending = 0, cAppChanged = 0, cAppMaintained = 0;
+    globalAppeals.forEach(a => {
+        cAppAll++;
+        if (a.status === "Nowa") cAppPending++;
+        if (a.status === "Zmieniony") cAppChanged++;
+        if (a.status === "Podtrzymany") cAppMaintained++;
+    });
+    document.getElementById("statAppAll").textContent = cAppAll;
+    document.getElementById("statAppPending").textContent = cAppPending;
+    document.getElementById("statAppChanged").textContent = cAppChanged;
+    document.getElementById("statAppMaintained").textContent = cAppMaintained;
+
+    globalIncidents.forEach(r => {
+        const matchesSearch = r.nick.toLowerCase().includes(searchQuery) || (r.accusedNick || "").toLowerCase().includes(searchQuery) || r.track.toLowerCase().includes(searchQuery) || r.id.toLowerCase().includes(searchQuery);
+        const matchesStatus = (filterStatus === "ALL") || (r.status === filterStatus);
+        const matchesTrack = (filterTrack === "ALL") || (r.track === filterTrack);
+        const matchesCategory = (filterCategory === "ALL") || (r.category === filterCategory);
+
+        if (matchesSearch && matchesStatus && matchesTrack && matchesCategory) {
+            const tr = document.createElement("tr");
+            let badgeBg = "#fbbf24";
+            if (r.status === "Przyjęte") badgeBg = "#10b981";
+            if (r.status === "Odrzucone") badgeBg = "#ef4444";
+            if (r.status === "W apelacji") badgeBg = "#ca8a04";
+
+            let trStatusText = r.status;
+            if (r.status === "Oczekuje") trStatusText = t.statusPending;
+            if (r.status === "Przyjęte") trStatusText = t.statusAccepted;
+            if (r.status === "Odrzucone") trStatusText = t.statusRejected;
+            if (r.status === "W apelacji") trStatusText = t.statusAppeal;
+
+            tr.innerHTML = `
+                <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
+                <td><strong style="color:#fff;">${r.id}</strong></td>
+                <td><strong>${r.nick}</strong><br><span style="color:#9ca3af; font-size:10px;">ID: ${r.discordId}</span></td>
+                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:#cbd5e1; font-size:11px;">${r.category}</span></td>
+                <td>${r.session || r.sessionType || ""}</td>
+                <td><strong>${r.accusedNick}</strong><br><span style="color:#9ca3af; font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
+                <td>
+                    <div class="cell-wrap">${r.details}</div>
+                    <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
+                </td>
+                <td>${r.evidence ? `<a class="evidence-link" href="${r.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
+                <td>
+                    <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>
+                    <div class="action-btns">
+                        <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
+                        <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
+                        <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
+                        <button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    });
+
+    const appTbody = document.getElementById("adminAppealsTableBody");
+    appTbody.innerHTML = "";
+    if (globalAppeals.length === 0) {
+        appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#9ca3af; padding:12px;">Brak złożonych odwołań.</td></tr>`;
+    } else {
+        globalAppeals.forEach(a => {
+            const trA = document.createElement("tr");
+            trA.innerHTML = `
+                <td><strong>${a.appealId}</strong></td>
+                <td><span style="color:#fbbf24; font-weight:bold;">${a.caseId}</span></td>
+                <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
+                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
+                <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
+                        <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
+                        <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
+                        <button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>
+                    </div>
+                </td>
+            `;
+            appTbody.appendChild(trA);
+        });
+    }
+
+    updateChatCaseSelect();
+    updateBulkActionsBar();
+}
+
+function openDescModal(id) {
+    currentlyEditedReportId = id;
+    const item = globalIncidents.find(r => r.id === id);
+    if (!item) return;
+    document.getElementById("descModalTitle").textContent = `Sprawa ${item.id}`;
+    document.getElementById("descModalBody").textContent = item.details;
+    document.getElementById("modalNotesField").value = item.notes || "";
+    document.getElementById("descModal").style.display = "flex";
+}
+
+async function saveModalNotes() {
+    if (!currentlyEditedReportId) return;
+    await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(document.getElementById("modalNotesField").value);
+    alert("Zapisano."); closeDescModal();
+}
+
+function closeDescModal() {
+    document.getElementById("descModal").style.display = "none";
+    currentlyEditedReportId = null;
+}
+
+function transferToVerdictPanel(id, accusedDiscordId) {
+    document.getElementById("caseId").value = id;
+    document.getElementById("accusedId").value = accusedDiscordId;
+    const found = globalIncidents.find(r => r.id === id);
+    if (found) {
+        document.getElementById("verdictPreviewDesc").textContent = found.details;
+        document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank">${found.evidence}</a>` : "-";
+        document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session || found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
+    }
+}
+
+function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence) {
+    document.getElementById("caseId").value = `${caseId} (${appealId})`;
+    document.getElementById("accusedId").value = driverDiscordId;
+    const foundCase = globalIncidents.find(r => r.id === caseId);
+    const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
+
+    if (foundCase && foundAppeal) {
+        document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
+        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${foundCase.evidence ? `<a href="${foundCase.evidence}" target="_blank">Link</a>` : 'Brak'}<br>Nowy dowód: ${newEvidence ? `<a href="${newEvidence}" target="_blank">Link</a>` : 'Brak'}`;
+        document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
+    }
+}
+
+async function updateStatus(id, newStatus) {
+    const item = globalIncidents.find(r => r.id === id);
+    if (!item) return;
+    let reason = "";
+    if (newStatus === "Odrzucone") {
+        reason = prompt(langData[currentLang].promptReject);
+        if (reason === null) return; 
+    }
+    const updates = {};
+    updates[`incidents/${id}/status`] = newStatus;
+    if (reason) updates[`incidents/${id}/notes`] = reason;
+    await database.ref().update(updates);
+
+    const embed = {
+        title: langData[currentLang].dcDecisionTitle,
+        color: newStatus === "Przyjęte" ? 65280 : 16711680,
+        description: `${langData[currentLang].dcMsgDecision} **${newStatus === "Przyjęte" ? "PRZYJĘTE" : "ODRZUCONE"}**.` + (reason ? `\n\n**Uzasadnienie:** ${reason}` : ""),
+        fields: [{ name: "🆔 ID Zgłoszenia", value: `\`${item.id}\``, inline: true }, { name: "👤 Kierowca", value: `<@${item.discordId}>`, inline: true }],
+        timestamp: new Date().toISOString()
+    };
+    try {
+        await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) });
+    } catch(e) { console.error(e); }
+}
+
+function transferToVerdictPanel(id, accusedDiscordId) {
+    document.getElementById("caseId").value = id;
+    document.getElementById("accusedId").value = accusedDiscordId || "";
+    const found = globalIncidents.find(r => r.id === id);
+    if (found) {
+        document.getElementById("verdictPreviewDesc").textContent = found.details;
+        document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank" class="evidence-link">${found.evidence}</a>` : "-";
+        document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
+    }
+}
+
+function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence) {
+    document.getElementById("caseId").value = `${caseId} (${appealId})`;
+    document.getElementById("accusedId").value = driverDiscordId;
+    const foundCase = globalIncidents.find(r => r.id === caseId);
+    const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
+    if (foundCase && foundAppeal) {
+        document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
+        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${foundCase.evidence ? `<a href="${foundCase.evidence}" target="_blank">Link</a>` : 'Brak'}<br>Nowy dowód: ${newEvidence ? `<a href="${newEvidence}" target="_blank">Link</a>` : 'Brak'}`;
+        document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
+    }
+}
+
+async function acceptAppeal(appealId, caseId, discordId) {
+    await database.ref("appeals/" + appealId + "/status").set("Zmieniona");
+    const isPl = (currentLang === 'pl');
+    const embed = {
+        title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", color: 10540247,
+        description: isPl ? `Decyzja sędziowska została zmieniona w wyniku apelacji **${appealId}** dla sprawy **${caseId}**.` : `The decision has been modified following appeal **${appealId}** for case **${caseId}**.`,
+        fields: [
+            { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+            { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false }
+        ], timestamp: new Date().toISOString()
+    };
+    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) }); } catch(e) { console.error(e); }
+    alert(`Apelacja ${appealId} rozpatrzona pomyślnie.`);
+}
+
+async function rejectAppeal(appealId, caseId, discordId) {
+    const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
+    await database.ref("appeals/" + appealId + "/status").set("Podtrzymana");
+    const isPl = (currentLang === 'pl');
+    const embed = {
+        title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL DISMISSED", color: 10040084,
+        fields: [
+            { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+            { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
+            { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
+            { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
+        ], timestamp: new Date().toISOString()
+    };
+    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) }); } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
+    alert(`Apelacja ${appealId} odrzucona.`);
+}
+
+async function acceptAppeal(appealId, caseId, discordId) {
+    const updates = {};
+    updates[`appeals/${appealId}/status`] = "Zmieniony";
+    await database.ref().update(updates);
+
+    const isPl = (currentLang === 'pl');
+    const embed = {
+        title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", color: 10540247,
+        description: isPl ? `Decyzja sędziowska została zmieniona w wyniku apelacji **${appealId}** dla sprawy **${caseId}**.` : `The decision has been modified following appeal **${appealId}** for case **${caseId}**.`,
+        fields: [
+            { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+            { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false }
+        ], timestamp: new Date().toISOString()
+    };
+    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) }); } catch(e) { console.error(e); }
+    alert(`Apelacja ${appealId} rozpatrzona pomyślnie.`);
+}
+
+async function rejectAppeal(appealId, caseId, discordId) {
+    const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
+    const updates = {};
+    updates[`appeals/${appealId}/status`] = "Podtrzymany";
+    await database.ref().update(updates);
+
+    const isPl = (currentLang === 'pl');
+    const embed = {
+        title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL DISMISSED", color: 10040084,
+        fields: [
+            { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+            { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `<@${discordId}>`, inline: false },
+            { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
+            { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
+        ], timestamp: new Date().toISOString()
+    };
+    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) }); } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
+    alert(`Apelacja ${appealId} odrzucona.`);
+}
+
+async function deleteReport(id) { if (confirm(langData[currentLang].confirmDelete)) { await database.ref("incidents/" + id).remove(); } }
+async function deleteAppeal(id) { if (confirm("Czy na pewno chcesz usunąć tę apelację z bazy danych?")) { await database.ref("appeals/" + id).remove(); } }
+
+function toggleSelectAll(master) {
+    document.querySelectorAll(".admin-row-cb").forEach(cb => cb.checked = master.checked);
+    updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+    const selected = document.querySelectorAll(".admin-row-cb:checked");
+    const bar = document.getElementById("bulkBar");
+    if (selected.length > 0) {
+        bar.style.display = "flex";
+        document.getElementById("bulkSelectedCount").textContent = `Wybrano: ${selected.length} zgłoszeń`;
+    } else {
+        bar.style.display = "none";
+        const masterCb = document.getElementById("selectAllCheckboxes");
+        if (masterCb) masterCb.checked = false;
+    }
+}
+
+async function bulkStatusUpdate(newStatus) {
+    const selected = document.querySelectorAll(".admin-row-cb:checked");
+    if (selected.length === 0) return;
+    let reason = "";
+    if (newStatus === "Odrzucone") {
+        reason = prompt(langData[currentLang].promptReject) || "";
+    }
+    const updates = {};
+    for (const cb of selected) {
+        const id = cb.getAttribute("data-id");
+        updates[`incidents/${id}/status`] = newStatus;
+        if (reason) updates[`incidents/${id}/notes`] = `Odrzucono masowo: ${reason}`;
+    }
+    await database.ref().update(updates);
+    document.getElementById("selectAllCheckboxes").checked = false;
+    updateBulkActionsBar();
+    alert(`Zaktualizowano status ${selected.length} zgłoszeń.`);
+}
+
+async function bulkDelete() {
+    const selected = document.querySelectorAll(".admin-row-cb:checked");
+    if (selected.length === 0) return;
+    if (confirm(langData[currentLang].confirmDelete)) {
+        const updates = {};
+        for (const cb of selected) {
+            const id = cb.getAttribute("data-id");
+            updates[`incidents/${id}`] = null;
+        }
+        await database.ref().update(updates);
+        document.getElementById("selectAllCheckboxes").checked = false;
+        updateBulkActionsBar();
+        alert(`Usunięto ${selected.length} zgłoszeń.`);
+    }
+}
+
+function adminLogout() {
+    if (confirm("Czy na pewno chcesz się wylogować z panelu administratora?")) {
+        isAdminAuthenticated = false;
+        localStorage.removeItem("adminAuth");
+        document.getElementById("adminMenuBtn").onclick = function() { openAdminLogin(); };
+        document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
+        showSection('formSection');
+    }
+}
+
+function resetIDCounter() {
+    if (confirm(langData[currentLang].confirmReset)) {
+        database.ref("counters").set({ incidents: 0, appeals: 0 });
+        database.ref("incident_counter").set(0);
+        alert("Licznik ID zgłoszeń został zresetowany.");
+    }
+}
+
+function resetAppealIDCounter() {
+    if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz zresetować licznik ID apelacji do 0?" : "Reset appeal ID counter to 0?")) {
+        database.ref("appeal_counter").set(0).then(() => {
+            alert(currentLang === 'pl' ? "Licznik ID apelacji został zresetowany." : "Appeal ID counter has been reset.");
+        }).catch(err => {
+            alert("Błąd: " + err.message);
+        });
+    }
+}
+
+document.getElementById("responseForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const t = langData[currentLang];
+    const statusEl = document.getElementById("status");
+    statusEl.textContent = t.statusSending; statusEl.className = "status-msg";
+
+    const caseIdInput = document.getElementById("caseId").value.trim();
+    const accusedId = document.getElementById("accusedId").value.trim();
+    const decision = document.getElementById("decision").value;
+    const timePenalty = document.getElementById("timePenalty").value || "brak";
+    const pointsPenalty = document.getElementById("pointsPenalty").value || "0 pkt";
+    const verdictDetails = document.getElementById("verdictDetails").value;
+    const judge = document.getElementById("judge").value;
+
+    let originalCaseId = caseIdInput;
+    const matchApp = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
+    if (matchApp) {
+        originalCaseId = matchApp[1];
+        const appId = matchApp[2];
+        await database.ref("appeals/" + appId + "/status").set(decision.includes("Zmiana") ? "Zmieniony" : "Podtrzymany");
+    } else {
+        const singleAppMatch = caseIdInput.match(/APP-\d+/i);
+        if (singleAppMatch) {
+            const foundAp = globalAppeals.find(a => a.appealId === singleAppMatch[0]);
+            if (foundAp) {
+                originalCaseId = foundAp.caseId;
+                await database.ref("appeals/" + foundAp.appealId + "/status").set(decision.includes("Zmiana") ? "Zmieniony" : "Podtrzymany");
+            }
+        }
+    }
+
+    const mainReport = globalIncidents.find(r => r.id === originalCaseId);
+    if (mainReport) {
+        await database.ref("incidents/" + originalCaseId + "/status").set(decision.includes("podtrzymany") ? "Odrzucone" : "Przyjęte");
+        await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
+    }
+
+    const mainEvidence = (mainReport && mainReport.evidence) ? mainReport.evidence : "Brak";
+
+    const embed = {
+        title: t.embedTitle, color: 3447003,
+        fields: [
+            { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
+            { name: t.fieldWinner, value: `<@${accusedId}>`, inline: true },
+            { name: t.fieldEvidence, value: mainEvidence, inline: false },
+            { name: t.fieldDecision, value: `**${decision}**`, inline: false },
+            { name: t.fieldTime, value: timePenalty, inline: true },
+            { name: t.fieldPoints, value: pointsPenalty, inline: true },
+            { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\``, inline: false },
+            { name: t.fieldJudge, value: judge, inline: false }
+        ],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) });
+        if (!res.ok) throw new Error();
+        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
+    } catch (err) { statusEl.textContent = t.statusErr; statusEl.className = "status-msg err"; }
+});
+
+function handleDecisionChange() {
+    const decision = document.getElementById("decision").value;
+    const penaltyFields = document.getElementById("penaltyFields");
+    if (decision === "Anulowanie kary") {
+        penaltyFields.style.display = "none";
+    } else {
+        penaltyFields.style.display = "flex";
+    }
+}
+
+function exportDatabase() {
+    const fullData = { incidents: globalIncidents, appeals: globalAppeals, exportDate: new Date().toLocaleString() };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
+    const downloadAnchor = document.createElement('a'); downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `FIA_SYSTEM_DB_EXPORT_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+}
+
+function updateChatCaseSelect() {
+    const select = document.getElementById("chatCaseSelect");
+    if (!select) return;
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Wybierz ID zgłoszenia...</option>';
+    globalIncidents.forEach(report => {
+        const option = document.createElement("option");
+        option.value = report.id;
+        option.textContent = `${report.id} — ${report.nick} vs ${report.accusedNick}`;
+        select.appendChild(option);
+    });
+    select.value = currentValue;
+}
+
+function handleStewardChatSelection(selectElement) {
+    const chatContentWrapper = document.getElementById("stewardChatContentWrapper");
+    if (selectElement.value !== "") {
+        chatContentWrapper.style.display = "flex";
+    } else {
+        chatContentWrapper.style.display = "none";
+    }
+}
+
+async function sendChatMessage() {
+    const selectedCaseId = document.getElementById("chatCaseSelect")?.value || "";
+    const msgInput = document.getElementById("chatMsg");
+    const text = msgInput.value.trim();
+    if (!text) return;
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set({
+        nick: document.getElementById("chatNick").value || "Steward",
+        text: text,
+        role: "steward",
+        caseId: selectedCaseId || "Ogólny",
+        userDiscordId: "admin",
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    msgInput.value = "";
+}
+
+async function clearChat() {
+    if (!isAdminAuthenticated) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do wyczyszczenia czatu!" : "Unauthorized to clear chat!");
+        return;
+    }
+    if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz całkowicie wyczyścić historię czatu?" : "Are you sure you want to completely clear the chat history?")) {
+        try {
+            await database.ref("chat").remove();
+            alert(currentLang === 'pl' ? "Czat został pomyślnie wyczyszczony." : "Chat has been successfully cleared.");
+        } catch (error) { console.error("Błąd podczas czyszczenia czatu:", error); }
+    }
+}
+
+async function sendPlayerChatMessage() {
+    const msgInput = document.getElementById("playerChatMsg");
+    if (!msgInput) return;
+    const text = msgInput.value.trim();
+    if (!text || !authorizedHistoryDiscordId) return;
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set({
+        nick: document.getElementById("historyDiscordInput").value.trim(),
+        text: text,
+        role: "player",
+        userDiscordId: authorizedHistoryDiscordId,
+        caseId: "Kierowca",
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    msgInput.value = "";
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    // Przywróć sesję admina po przeładowaniu / zmianie karty
+    if (localStorage.getItem("adminAuth") === "1") {
+        isAdminAuthenticated = true;
+        document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
+        showSection("adminSection");
+    }
+
+    database.ref("incidents").on("value", (snapshot) => {
+        globalIncidents = [];
+        snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
+        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        if (isAdminAuthenticated) {
+            renderAdmin();
+            updateChatCaseSelect();
+        }
+    });
+
+    database.ref("appeals").on("value", (snapshot) => {
+        globalAppeals = [];
+        snapshot.forEach(child => { globalAppeals.push({ id: child.key, ...child.val() }); });
+        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        if (isAdminAuthenticated) {
+            renderAdmin();
+            updateChatCaseSelect();
+        }
+    });
+
+    database.ref("chat").on("value", (snapshot) => {
+        const data = snapshot.val();
+        const adminChatBox = document.getElementById("chatBox");
+        adminChatBox.innerHTML = "";
+        const playerChatBox = document.getElementById("playerChatBox");
+        playerChatBox.innerHTML = "";
+
+        if (data) {
+            Object.values(data).forEach(m => {
+                const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
+                const msgClass = isSteward ? "msg msg-steward" : "msg msg-player";
+
+                const wrapper = document.createElement("div");
+                wrapper.className = msgClass;
+
+                const meta = document.createElement("span");
+                meta.className = "msg-meta";
+                meta.textContent = `${m.nick} [${m.caseId || 'Ogólny'}]`;
+
+                const bodyText = document.createTextNode(m.text);
+                wrapper.appendChild(meta);
+                wrapper.appendChild(bodyText);
+
+                if (isAdminAuthenticated) {
+                    adminChatBox.appendChild(wrapper.cloneNode(true));
+                }
+                if (authorizedHistoryDiscordId && (m.userDiscordId === authorizedHistoryDiscordId || isSteward)) {
+                    playerChatBox.appendChild(wrapper.cloneNode(true));
+                }
+            });
+            adminChatBox.scrollTop = adminChatBox.scrollHeight;
+            playerChatBox.scrollTop = playerChatBox.scrollHeight;
+        }
+    });
+
+    initFormDropdowns();
+    initAdminTrackFilter();
+});
 </script>
-</body></html>
+</body>
+</html>
