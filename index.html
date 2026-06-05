@@ -263,6 +263,33 @@
     .status-msg { margin-top: 10px; font-size: 12px; min-height: 16px; }
     .status-msg.ok { color: #4ade80; }
     .status-msg.err { color: #f97373; }
+
+    /* ====== PROGRESS BAR ====== */
+    .progress-container {
+      width: 100%;
+      height: 6px;
+      background: #334155;
+      border-radius: 3px;
+      margin-bottom: 25px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      background: #3b82f6;
+      width: 0%;
+      transition: width 0.4s ease-in-out;
+    }
+
+    /* ====== INPUT VALIDATION ====== */
+    .input-error {
+      border: 1px solid #ef4444 !important;
+    }
+    .error-message {
+      color: #ef4444;
+      font-size: 11px;
+      margin-top: 5px;
+      display: none;
+    }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -319,9 +346,16 @@
     <div id="formSection" class="section active">
       <h2 class="section-title" data-key="secDetails">Szczegóły Incydentu</h2>
       <form id="complaintForm">
+        <div class="progress-container">
+          <div id="progress-bar" style="width: 0%;"></div>
+        </div>
         <div class="row">
           <div class="field"><label data-key="labelNick">Twój Nick</label><input id="nick" type="text" required /></div>
-          <div class="field"><label data-key="labelDiscord">Twoje Discord ID</label><input id="discordId" type="text" required /></div>
+          <div class="field">
+            <label data-key="labelDiscord">Twoje Discord ID</label>
+            <input id="discordId" type="text" required placeholder="np. User#1234">
+            <small style="color: #64748b; font-size: 11px;">Znajdziesz je w ustawieniach konta Discord.</small>
+          </div>
         </div>
         <div class="row">
           <div class="field">
@@ -339,7 +373,11 @@
           <div class="field" id="accusedDiscordIdField"><label data-key="labelAccusedDiscord">Discord ID osoby zgłaszanej</label><input id="accusedDiscordId" type="text" required></div>
         </div>
         <div class="field"><label data-key="labelDesc">Opis zdarzenia</label><textarea id="details" required></textarea></div>
-        <div class="field"><label data-key="labelEvidence">Dowody (Link)</label><input id="evidence" type="text" placeholder="https://..."></div>
+        <div class="field">
+          <label data-key="labelEvidence">Dowody (Link)</label>
+          <input id="evidence" type="text" placeholder="https://...">
+          <span class="error-message" id="evidenceError">Podaj prawidłowy link (np. https://...)</span>
+        </div>
         <button type="submit" data-key="btnSubmit">Prześlij Zgłoszenie</button>
       </form>
     </div>
@@ -735,15 +773,36 @@ const categoriesStructure = {
 };
 
 const tracks = [
-    "Bahrajn (Sakhir)", "Arabia Saudyjska (Dżidda)", "Australia (Melbourne)", "Japonia (Suzuka)",
-    "Chiny (Szanghaj)", "USA (Miami)", "Imola (Emilia-Romania)", "Monako (Monte Carlo)",
-    "Kanada (Montreal)", "Hiszpania (Barcelona)", "Austria (Spielberg)", "Wielka Brytnia (Silverstone)",
-    "Węgry (Budapeszt)", "Belgia (Spa-Francorchamps)", "Holandia (Zandvoort)", "Włochy (Monza)",
-    "Azerbejdżan (Baku)", "Singapur (Marina Bay)", "USA (Austin)", "Meksyk (Hermanos Rodriguez)",
-    "Brazylia (Interlagos)", "USA (Las Vegas)", "Katar (Lusajl)", "Abu Zabi (Yas Marina)",
-    "Portugalia (Portimao)", "Francja (Paul Ricard)"
+  "GP Australii (Melbourne)",
+  "GP Chin (Szanghaj)",
+  "GP Japonii (Suzuka)",
+  "GP Miami",
+  "GP Kanady (Montreal)",
+  "GP Monako (Monte Carlo)",
+  "GP Katalonii (Barcelona)",
+  "GP Austrii (Spielberg)",
+  "GP Wielkiej Brytanii (Silverstone)",
+  "GP Belgii (Spa-Francorchamps)",
+  "GP Węgier (Budapeszt)",
+  "GP Holandii (Zandvoort)",
+  "GP Włoch (Monza)",
+  "GP Hiszpanii (Madryt)",
+  "GP Azerbejdżanu (Baku)",
+  "GP Singapuru (Marina Bay)",
+  "GP USA (Austin)",
+  "GP Meksyku (Hermanos Rodriguez)",
+  "GP São Paulo (Interlagos)",
+  "GP Las Vegas",
+  "GP Kataru (Lusajl)",
+  "GP Abu Zabi (Yas Marina)"
 ];
-
+const trackSelect = document.getElementById('track');
+tracks.forEach(track => {
+  const option = document.createElement('option');
+  option.value = track;
+  option.textContent = track;
+  trackSelect.appendChild(option);
+});
 function handleCategoryChange() {
     const categorySelect = document.getElementById("category");
     const accusedNickField = document.getElementById("accusedNickField");
@@ -1646,6 +1705,39 @@ window.addEventListener("DOMContentLoaded", () => {
 
     initFormDropdowns();
     initAdminTrackFilter();
+
+    // ====== PROGRESS BAR ======
+    const form = document.getElementById('complaintForm');
+    const progressBar = document.getElementById('progress-bar');
+    if (form && progressBar) {
+        const allInputs = form.querySelectorAll('input, select, textarea');
+        function updateProgressBar() {
+            let filled = 0;
+            allInputs.forEach(input => {
+                if (input.value.trim() !== "") filled++;
+            });
+            const percentage = (filled / allInputs.length) * 100;
+            progressBar.style.width = percentage + "%";
+        }
+        form.addEventListener('input', updateProgressBar);
+    }
+
+    // ====== EVIDENCE LINK VALIDATION ======
+    const evidenceInput = document.getElementById('evidence');
+    const evidenceError = document.getElementById('evidenceError');
+    if (evidenceInput) {
+        evidenceInput.addEventListener('input', function() {
+            const value = this.value;
+            const isValid = value.includes('http') || value.includes('youtu');
+            if (value.length > 0 && !isValid) {
+                this.classList.add('input-error');
+                if (evidenceError) evidenceError.style.display = 'block';
+            } else {
+                this.classList.remove('input-error');
+                if (evidenceError) evidenceError.style.display = 'none';
+            }
+        });
+    }
 });
 </script>
 </body>
