@@ -25,6 +25,99 @@
       --accent: var(--red);
       --green: #00c853;
       --blue: #1565c0;
+      --amber-text: #fbbf24;
+      --green-text: #10b981;
+      --red-text: #ef4444;
+      --purple-text: #a855f7;
+    }
+
+    /* === JASNY MOTYW === */
+    html[data-theme="light"] {
+      --bg-void: #f2f3f7;
+      --bg-deep: #ffffff;
+      --bg-panel: #ffffff;
+      --bg-card: #ffffff;
+      --bg-input: #ffffff;
+      --border: rgba(15,23,42,0.12);
+      --border-hot: rgba(225,6,0,0.4);
+      --text: #14161c;
+      --text-dim: #55596b;
+      --text-muted: #9aa0ab;
+      --amber-text: #b45309;
+      --green-text: #047857;
+      --red-text: #b91c1c;
+      --purple-text: #7e22ce;
+    }
+    html[data-theme="light"] h1,
+    html[data-theme="light"] .section-title,
+    html[data-theme="light"] .stat-box strong {
+      color: var(--text);
+    }
+    html[data-theme="light"] .lang-btn:hover,
+    html[data-theme="light"] .theme-btn:hover,
+    html[data-theme="light"] .menu button:hover,
+    html[data-theme="light"] .btn-secondary:hover {
+      color: var(--text);
+    }
+    html[data-theme="light"] .btn-secondary {
+      background: rgba(15,23,42,0.05);
+      color: var(--text-dim);
+      border-color: var(--border);
+    }
+    html[data-theme="light"] .btn-secondary:hover {
+      background: rgba(15,23,42,0.09);
+      border-color: rgba(15,23,42,0.25);
+    }
+    html[data-theme="light"] .btn-view {
+      background: rgba(15,23,42,0.05);
+    }
+    html[data-theme="light"] .progress-container {
+      background: rgba(15,23,42,0.08);
+    }
+    html[data-theme="light"] .top-bar::before {
+      color: rgba(15,23,42,0.04);
+    }
+    html[data-theme="light"] .bulk-actions-bar {
+      background: rgba(225,6,0,0.06);
+      border-color: rgba(225,6,0,0.25);
+    }
+    html[data-theme="light"] tbody tr:hover,
+    html[data-theme="light"] tbody tr:nth-child(even):hover {
+      background: rgba(225,6,0,0.05);
+    }
+    html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+      background: rgba(225,6,0,0.4);
+    }
+    html[data-theme="light"] .badge-pending { color: var(--amber-text); border-color: rgba(180,83,9,0.35); }
+    html[data-theme="light"] .badge-accepted { color: var(--green-text); border-color: rgba(4,120,87,0.35); }
+    html[data-theme="light"] .badge-rejected { color: var(--red-text); border-color: rgba(185,28,28,0.3); }
+    html[data-theme="light"] .badge-appeal { color: var(--purple-text); border-color: rgba(126,34,206,0.3); }
+    html[data-theme="light"] .status-msg.err,
+    html[data-theme="light"] .error-message,
+    html[data-theme="light"] #loginStatus {
+      color: var(--red-text) !important;
+    }
+
+    /* === PRZEŁĄCZNIK MOTYWU === */
+    .theme-btn {
+      position: static;
+      background: transparent;
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      margin-right: 8px;
+    }
+    .theme-btn:hover {
+      border-color: var(--red);
+      color: #fff;
+      background: rgba(225,6,0,0.1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -596,10 +689,10 @@
       padding: 2px 8px;
       border-radius: 2px;
     }
-    .badge-pending { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+    .badge-pending { background: rgba(251,191,36,0.15); color: var(--amber-text); border: 1px solid rgba(251,191,36,0.3); }
     .badge-accepted { background: rgba(0,200,83,0.12); color: #00c853; border: 1px solid rgba(0,200,83,0.3); }
     .badge-rejected { background: rgba(225,6,0,0.12); color: #f97373; border: 1px solid rgba(225,6,0,0.3); }
-    .badge-appeal { background: rgba(168,85,247,0.12); color: #a855f7; border: 1px solid rgba(168,85,247,0.3); }
+    .badge-appeal { background: rgba(168,85,247,0.12); color: var(--purple-text); border: 1px solid rgba(168,85,247,0.3); }
 
     small { color: var(--text-dim); font-size: 11px; letter-spacing: 0.3px; }
   </style>
@@ -624,7 +717,7 @@
   <div id="descModal" class="desc-modal">
     <div class="desc-box">
       <h2 class="section-title" id="descModalTitle">Opis zgłoszenia</h2>
-      <div id="descModalBody" style="background:#111827; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
+      <div id="descModalBody" style="background:#111827; color:#e8eaf0; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
       
       <div>
         <label style="font-weight: bold; margin-bottom: 4px;" id="lblModalNotes">Uzasadnienie sędziowskie / Notatki:</label>
@@ -644,7 +737,10 @@
         <h1><span>FIA</span> System Zgłoszeń</h1>
         <p class="subtitle" data-key="mainSubtitle">Zarządzanie incydentami wyścigowymi</p>
       </div>
-      <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
+      <div style="display:flex; align-items:center;">
+        <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()">☀ / 🌙</button>
+        <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
+      </div>
     </div>
 
     <div class="menu">
@@ -665,7 +761,7 @@
           <div class="field">
             <label data-key="labelDiscord">Twoje Discord ID</label>
             <input id="discordId" type="text" required placeholder="np. User#1234">
-            <small style="color: #64748b; font-size: 11px;">Znajdziesz je w ustawieniach konta Discord.</small>
+            <small style="color: var(--text-dim); font-size: 11px;">Znajdziesz je w ustawieniach konta Discord.</small>
           </div>
         </div>
         <div class="row">
@@ -729,12 +825,12 @@
 
         <div class="row" id="pinVerificationRow" style="margin-top: 14px; display: none; align-items: flex-end; border-top: 1px dashed #374151; padding-top: 14px;">
           <div class="field" style="margin-bottom: 0;">
-            <label style="color: #eab308; font-weight: bold;">Wprowadź 4-cyfrowy kod PIN wyświetlony powyżej</label>
+            <label style="color: var(--amber-text); font-weight: bold;">Wprowadź 4-cyfrowy kod PIN wyświetlony powyżej</label>
             <input id="historyPinInput" type="text" placeholder="np. 1234" maxlength="4">
           </div>
           <button type="button" class="btn-success" onclick="verifyHistoryPin()" style="margin-bottom: 0; height: 38px;">Zatwierdź i wejdź</button>
         </div>
-        <p id="authBoxStatus" style="font-size: 12px; margin: 8px 0 0 0; color: #9ca3af; min-height: 15px;"></p>
+        <p id="authBoxStatus" style="font-size: 12px; margin: 8px 0 0 0; color: var(--text-dim); min-height: 15px;"></p>
       </div>
 
       <div id="historyList"></div>
@@ -788,19 +884,19 @@
           <div class="stats-group-title">📊 Incydenty główne</div>
           <div class="admin-stats">
             <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
-            <div class="stat-box"><span id="lblStatPending" style="color:#fbbf24;">Oczekujące</span><strong id="statPending">0</strong></div>
-            <div class="stat-box"><span id="lblStatAccepted" style="color:#10b981;">Przyjęte</span><strong id="statAccepted">0</strong></div>
-            <div class="stat-box"><span id="lblStatAgainst" style="color:#ef4444;">Odrzucone</span><strong id="statRejected">0</strong></div>
+            <div class="stat-box"><span id="lblStatPending" style="color:var(--amber-text);">Oczekujące</span><strong id="statPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAccepted" style="color:var(--green-text);">Przyjęte</span><strong id="statAccepted">0</strong></div>
+            <div class="stat-box"><span id="lblStatAgainst" style="color:var(--red-text);">Odrzucone</span><strong id="statRejected">0</strong></div>
           </div>
         </div>
 
         <div class="stats-group-box" style="border-color: #eab308;">
-          <div class="stats-group-title" style="color: #fef08a;">⚖️ Statystyki Odwołań (Apelacji)</div>
+          <div class="stats-group-title" style="color: var(--amber-text);">⚖️ Statystyki Odwołań (Apelacji)</div>
           <div class="admin-stats">
             <div class="stat-box"><span id="lblStatAppAll">Złożone</span><strong id="statAppAll">0</strong></div>
-            <div class="stat-box"><span id="lblStatAppPending" style="color:#fbbf24;">Nowe</span><strong id="statAppPending">0</strong></div>
-            <div class="stat-box"><span id="lblStatAppChanged" style="color:#a855f7;">Zmienione</span><strong id="statAppChanged">0</strong></div>
-            <div class="stat-box"><span id="lblStatAppMaintained" style="color:#64748b;">Podtrzymane</span><strong id="statAppMaintained">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppPending" style="color:var(--amber-text);">Nowe</span><strong id="statAppPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppChanged" style="color:var(--purple-text);">Zmienione</span><strong id="statAppChanged">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppMaintained" style="color:var(--text-dim);">Podtrzymane</span><strong id="statAppMaintained">0</strong></div>
           </div>
         </div>
       </div>
@@ -828,7 +924,7 @@
       </div>
 
       <div id="bulkBar" class="bulk-actions-bar">
-        <span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: #f1f5f9;">Wybrano: 0 zgłoszeń</span>
+        <span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: var(--text);">Wybrano: 0 zgłoszeń</span>
         <div class="btns">
           <button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
           <button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
@@ -1198,6 +1294,19 @@ function initAdminTrackFilter() {
     });
 }
 
+function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    const btn = document.getElementById("themeToggleBtn");
+    if (btn) { btn.textContent = theme === "light" ? "🌙 CIEMNY" : "☀ JASNY"; }
+}
+
+function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    const next = current === "light" ? "dark" : "light";
+    localStorage.setItem("siteTheme", next);
+    applyTheme(next);
+}
+
 function toggleLang() {
     currentLang = currentLang === 'pl' ? 'en' : 'pl';
     document.documentElement.lang = currentLang;
@@ -1391,7 +1500,7 @@ function fetchAndRenderHistory(discordId) {
     const userReports = globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId);
 
     if (userReports.length === 0) {
-        container.innerHTML = `<p style='font-size:13px; color:#9ca3af; text-align:center;'>${currentLang === 'pl' ? 'Brak zgłoszeń powiązanych z Twoim kontem Discord.' : 'No reports linked to your Discord account.'}</p>`;
+        container.innerHTML = `<p style='font-size:13px; color:var(--text-dim); text-align:center;'>${currentLang === 'pl' ? 'Brak zgłoszeń powiązanych z Twoim kontem Discord.' : 'No reports linked to your Discord account.'}</p>`;
         return;
     }
 
@@ -1429,7 +1538,7 @@ function fetchAndRenderHistory(discordId) {
 
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <span style="font-weight:bold; color:#fff; font-size:14px;">${r.id}</span>
+                <span style="font-weight:bold; color:var(--text); font-size:14px;">${r.id}</span>
                 <div style="display:flex; gap:6px;">
                     <span style="background:${roleBg}; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${roleLabel}</span>
                     <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${r.status}</span>
@@ -1504,11 +1613,11 @@ function renderAdmin() {
 
             tr.innerHTML = `
                 <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
-                <td><strong style="color:#fff;">${r.id}</strong></td>
-                <td><strong>${r.nick}</strong><br><span style="color:#9ca3af; font-size:10px;">ID: ${r.discordId}</span></td>
-                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:#cbd5e1; font-size:11px;">${r.category}</span></td>
+                <td><strong style="color:var(--text);">${r.id}</strong></td>
+                <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
+                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
                 <td>${r.session || r.sessionType || ""}</td>
-                <td><strong>${r.accusedNick}</strong><br><span style="color:#9ca3af; font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
+                <td><strong>${r.accusedNick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
                 <td>
                     <div class="cell-wrap">${r.details}</div>
                     <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
@@ -1531,13 +1640,13 @@ function renderAdmin() {
     const appTbody = document.getElementById("adminAppealsTableBody");
     appTbody.innerHTML = "";
     if (globalAppeals.length === 0) {
-        appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#9ca3af; padding:12px;">Brak złożonych odwołań.</td></tr>`;
+        appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:12px;">Brak złożonych odwołań.</td></tr>`;
     } else {
         globalAppeals.forEach(a => {
             const trA = document.createElement("tr");
             trA.innerHTML = `
                 <td><strong>${a.appealId}</strong></td>
-                <td><span style="color:#fbbf24; font-weight:bold;">${a.caseId}</span></td>
+                <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
                 <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
                 <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
                 <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
@@ -1959,6 +2068,10 @@ async function sendPlayerChatMessage() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    // Przywróć zapisany motyw (jasny/ciemny)
+    const savedTheme = localStorage.getItem("siteTheme");
+    applyTheme(savedTheme === "light" ? "light" : "dark");
+
     // Przywróć sesję admina po przeładowaniu / zmianie karty
     if (localStorage.getItem("adminAuth") === "1") {
         isAdminAuthenticated = true;
