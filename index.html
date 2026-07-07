@@ -1659,6 +1659,18 @@ function renderAdmin() {
                 <td>
                     <div class="cell-wrap">${r.details}</div>
                     <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
+                    ${r.decisionData ? `
+                        <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+                                <strong style="color:#fff;">⚖️ Werdykt:</strong>
+                                <button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>
+                            </div>
+                            ${r.decisionData.decision}<br>
+                            <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
+                            <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                            <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                        </div>
+                    ` : ''}
                 </td>
                 <td>${r.evidence ? `<a class="evidence-link" href="${r.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
                 <td>
@@ -1753,6 +1765,21 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence)
         document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
         document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${foundCase.evidence ? `<a href="${foundCase.evidence}" target="_blank">Link</a>` : 'Brak'}<br>Nowy dowód: ${newEvidence ? `<a href="${newEvidence}" target="_blank">Link</a>` : 'Brak'}`;
         document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
+    }
+}
+
+async function deleteVerdict(id) {
+    if (!confirm(currentLang === 'pl' ? "Czy na pewno chcesz usunąć werdykt z tego zgłoszenia? Status wróci do \"Przyjęte\". Werdykt trafi do Kosza." : "Are you sure you want to delete the verdict from this report? Status will revert to \"Accepted\". The verdict will be moved to Trash.")) return;
+    try {
+        const report = globalIncidents.find(r => r.id === id);
+        if (report && report.decisionData) {
+            await moveToTrash("verdict", id, report.decisionData);
+        }
+        await database.ref("incidents/" + id + "/decisionData").remove();
+        await database.ref("incidents/" + id + "/status").set("Przyjęte");
+        alert(currentLang === 'pl' ? "Werdykt został usunięty i przeniesiony do Kosza." : "Verdict has been deleted and moved to Trash.");
+    } catch (err) {
+        alert("Błąd: " + err.message);
     }
 }
 
@@ -2056,6 +2083,14 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     if (mainReport) {
         await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
         await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
+        await database.ref("incidents/" + originalCaseId + "/decisionData").set({
+            decision: decision,
+            timePenalty: timePenalty,
+            pointsPenalty: pointsPenalty,
+            verdictDetails: verdictDetails,
+            judge: judge,
+            issuedAt: Date.now()
+        });
     }
 
     const mainEvidence = (mainReport && mainReport.evidence) ? mainReport.evidence : "Brak";
@@ -2111,6 +2146,9 @@ async function restoreTrashItem(trashId) {
             await database.ref("appeals/" + item.originalId).set(item.data);
         } else if (item.type === "chat_bulk") {
             await database.ref("chat").update(item.data);
+        } else if (item.type === "verdict") {
+            await database.ref("incidents/" + item.originalId + "/decisionData").set(item.data);
+            await database.ref("incidents/" + item.originalId + "/status").set("Werdykt wydany");
         }
         await database.ref("trash/" + trashId).remove();
         alert(currentLang === 'pl' ? "Element został przywrócony." : "Item restored.");
@@ -2135,6 +2173,9 @@ async function restoreAllTrash() {
                 await database.ref("appeals/" + item.originalId).set(item.data);
             } else if (item.type === "chat_bulk") {
                 await database.ref("chat").update(item.data);
+            } else if (item.type === "verdict") {
+                await database.ref("incidents/" + item.originalId + "/decisionData").set(item.data);
+                await database.ref("incidents/" + item.originalId + "/status").set("Werdykt wydany");
             }
             await database.ref("trash/" + item.id).remove();
         } catch (err) { console.error("Błąd przywracania elementu kosza:", err); }
@@ -2166,11 +2207,14 @@ function renderTrash() {
         const tr = document.createElement("tr");
         const typeLabel = item.type === "incident" ? "Zgłoszenie"
             : item.type === "appeal" ? "Apelacja"
+            : item.type === "verdict" ? "Werdykt"
             : "Czat (cała historia)";
         const desc = item.type === "incident"
             ? `${item.originalId || ""} — ${item.data?.nick || "?"} vs ${item.data?.accusedNick || "?"}`
             : item.type === "appeal"
             ? `${item.originalId || item.data?.caseId || ""} — ${item.data?.nick || item.data?.discordId || "?"}`
+            : item.type === "verdict"
+            ? `${item.originalId || ""} — ${item.data?.decision || "?"}`
             : `${Object.keys(item.data || {}).length} wiadomości`;
         const dateStr = item.deletedAt ? new Date(item.deletedAt).toLocaleString() : "-";
         tr.innerHTML = `
