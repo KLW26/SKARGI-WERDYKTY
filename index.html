@@ -2055,7 +2055,10 @@ function renderAdmin() {
 
             tr.innerHTML = `
                 <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
-                <td><strong style="color:var(--text);">${r.id}</strong></td>
+                <td>
+                    <strong style="color:var(--text);">${r.id}</strong>
+                    <button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>
+                </td>
                 <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
                 <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
                 <td>${r.session || r.sessionType || ""}</td>
@@ -2310,6 +2313,71 @@ async function moveToTrash(type, originalId, data) {
         data: data,
         deletedAt: firebase.database.ServerValue.TIMESTAMP
     });
+}
+
+// Edycja ID zgłoszenia (np. FIA-0001 -> FIA-0050). Klucz w bazie = ID, więc trzeba
+// przenieść cały rekord pod nowy klucz i zaktualizować wszystkie powiązane odwołania
+// (apelacje po caseId) oraz wiadomości czatu przypisane do tej sprawy.
+async function editIncidentId(oldId) {
+    if (!isAdminAuthenticated) {
+        alert(currentLang === 'pl' ? "Brak uprawnień." : "Not authorized.");
+        return;
+    }
+    const report = globalIncidents.find(r => r.id === oldId);
+    if (!report) return;
+
+    const promptText = currentLang === 'pl'
+        ? `Podaj nowe ID dla zgłoszenia ${oldId} (format: FIA-XXXX):`
+        : `Enter new ID for report ${oldId} (format: FIA-XXXX):`;
+    const raw = prompt(promptText, oldId);
+    if (raw === null) return;
+    const newId = raw.trim().toUpperCase();
+    if (!newId || newId === oldId) return;
+
+    if (!/^FIA-\d+$/.test(newId)) {
+        alert(currentLang === 'pl'
+            ? "Nieprawidłowy format ID. Wymagany format: FIA-XXXX (np. FIA-0001)."
+            : "Invalid ID format. Required format: FIA-XXXX (e.g. FIA-0001).");
+        return;
+    }
+    if (globalIncidents.some(r => r.id === newId)) {
+        alert(currentLang === 'pl'
+            ? `Zgłoszenie o ID ${newId} już istnieje. Wybierz inne ID.`
+            : `A report with ID ${newId} already exists. Choose a different ID.`);
+        return;
+    }
+
+    const relatedAppeals = globalAppeals.filter(a => a.caseId === oldId);
+    const relatedChatKeys = globalChatData
+        ? Object.entries(globalChatData).filter(([, m]) => m.caseId === oldId).map(([key]) => key)
+        : [];
+
+    const confirmMsg = currentLang === 'pl'
+        ? `Zmienić ID zgłoszenia z ${oldId} na ${newId}?\n\nPowiązane apelacje (${relatedAppeals.length}) i wiadomości czatu (${relatedChatKeys.length}) zostaną automatycznie zaktualizowane.`
+        : `Change report ID from ${oldId} to ${newId}?\n\nRelated appeals (${relatedAppeals.length}) and chat messages (${relatedChatKeys.length}) will be updated automatically.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const { id: _drop, ...data } = report;
+        const updates = {};
+        updates[`incidents/${newId}`] = data;
+        updates[`incidents/${oldId}`] = null;
+
+        relatedAppeals.forEach(a => {
+            updates[`appeals/${a.id}/caseId`] = newId;
+        });
+        relatedChatKeys.forEach(key => {
+            updates[`chat/${key}/caseId`] = newId;
+        });
+
+        await database.ref().update(updates);
+
+        if (selectedPlayerCaseId === oldId) selectedPlayerCaseId = newId;
+
+        alert(currentLang === 'pl' ? `ID zgłoszenia zmienione na ${newId}.` : `Report ID changed to ${newId}.`);
+    } catch (err) {
+        alert("Błąd: " + err.message);
+    }
 }
 
 async function deleteReport(id) {
