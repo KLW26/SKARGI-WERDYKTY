@@ -1589,6 +1589,7 @@ function checkAdminAuth() {
         document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
         showSection("adminSection");
         renderAdmin();
+        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
     } else {
         document.getElementById("loginStatus").textContent = currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!";
     }
@@ -1781,10 +1782,23 @@ function fetchAndRenderHistory(discordId) {
     container.innerHTML = "";
 
     const userReports = globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId);
+    const userAppeals = globalAppeals.filter(a => a.discordId === discordId);
 
-    if (userReports.length === 0) {
+    if (userReports.length === 0 && userAppeals.length === 0) {
         container.innerHTML = `<p style='font-size:13px; color:var(--text-dim); text-align:center;'>${currentLang === 'pl' ? 'Brak zgłoszeń powiązanych z Twoim kontem Discord.' : 'No reports linked to your Discord account.'}</p>`;
         return;
+    }
+
+    // === Panel administratora: usuwanie całej historii tego użytkownika ===
+    if (isAdminAuthenticated) {
+        const adminDeleteWrap = document.createElement("div");
+        adminDeleteWrap.style.cssText = "margin-bottom:14px; text-align:right;";
+        adminDeleteWrap.innerHTML = `
+            <button type="button" class="btn-danger" style="padding:6px 14px; font-size:11px;" onclick="adminDeleteAllHistory('${discordId}')">
+                🗑️ ${currentLang === 'pl' ? 'USUŃ CAŁĄ HISTORIĘ (ADMIN)' : 'DELETE ENTIRE HISTORY (ADMIN)'}
+            </button>
+        `;
+        container.appendChild(adminDeleteWrap);
     }
 
     userReports.sort((a,b) => b.timestamp - a.timestamp);
@@ -1836,7 +1850,8 @@ function fetchAndRenderHistory(discordId) {
             </div>
             ${hasEvidence(r) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
             ${decisionBlock}
-            <div style="margin-top:10px; text-align:right;">
+            <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
+                ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleReport('${r.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
                 <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${r.id}')">💬 Czatuj o tej sprawie</button>
             </div>
         `;
@@ -1844,7 +1859,6 @@ function fetchAndRenderHistory(discordId) {
     });
 
     // === Apelacje powiązane z kontem Discord użytkownika ===
-    const userAppeals = globalAppeals.filter(a => a.discordId === discordId);
     if (userAppeals.length > 0) {
         const appealsHeader = document.createElement("h3");
         appealsHeader.className = "section-title appeal-title";
@@ -1876,7 +1890,8 @@ function fetchAndRenderHistory(discordId) {
                     <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${a.reason}
                 </div>
                 ${hasEvidence(a) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(a)}</p>` : ''}
-                <div style="margin-top:10px; text-align:right;">
+                <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
+                    ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${a.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
                     <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${a.appealId}')">💬 Czatuj o tej apelacji</button>
                 </div>
             `;
@@ -2318,6 +2333,92 @@ async function deleteAppeal(id) {
     }
 }
 
+// Usuwanie POJEDYNCZEGO zgłoszenia z sekcji "Twoja Historia". Wyłącznie dla admina — trafia do Kosza.
+async function adminDeleteSingleReport(id, discordId) {
+    if (!isAdminAuthenticated) {
+        alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usuwać wpisy z historii." : "Not authorized — only an admin can delete history entries.");
+        return;
+    }
+    const report = globalIncidents.find(r => r.id === id);
+    if (!report) return;
+
+    const confirmMsg = currentLang === 'pl'
+        ? `Czy na pewno chcesz usunąć zgłoszenie ${id} z historii tego użytkownika?\n\nZostanie przeniesione do Kosza.`
+        : `Are you sure you want to delete report ${id} from this user's history?\n\nIt will be moved to Trash.`;
+    if (!confirm(confirmMsg)) return;
+
+    const { id: _drop, ...data } = report;
+    await moveToTrash("incident", id, data);
+    await database.ref("incidents/" + id).remove();
+
+    if (discordId) fetchAndRenderHistory(discordId);
+}
+
+// Usuwanie POJEDYNCZEJ apelacji z sekcji "Twoja Historia". Wyłącznie dla admina — trafia do Kosza.
+async function adminDeleteSingleAppeal(id, discordId) {
+    if (!isAdminAuthenticated) {
+        alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usuwać wpisy z historii." : "Not authorized — only an admin can delete history entries.");
+        return;
+    }
+    const appeal = globalAppeals.find(a => a.id === id);
+    if (!appeal) return;
+
+    const confirmMsg = currentLang === 'pl'
+        ? `Czy na pewno chcesz usunąć apelację ${appeal.appealId || id} z historii tego użytkownika?\n\nZostanie przeniesiona do Kosza.`
+        : `Are you sure you want to delete appeal ${appeal.appealId || id} from this user's history?\n\nIt will be moved to Trash.`;
+    if (!confirm(confirmMsg)) return;
+
+    const { id: _drop, ...data } = appeal;
+    await moveToTrash("appeal", id, data);
+    await database.ref("appeals/" + id).remove();
+
+    if (discordId) fetchAndRenderHistory(discordId);
+}
+
+// Usuwanie CAŁEJ historii (zgłoszeń + apelacji) danego użytkownika z sekcji "Twoja Historia".
+// Dostępne WYŁĄCZNIE dla zalogowanego administratora — dane trafiają do Kosza, więc można je przywrócić.
+async function adminDeleteAllHistory(discordId) {
+    if (!isAdminAuthenticated) {
+        alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usunąć całą historię." : "Not authorized — only an admin can delete the entire history.");
+        return;
+    }
+    if (!discordId) return;
+
+    const reports = globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId);
+    const appeals = globalAppeals.filter(a => a.discordId === discordId);
+
+    if (reports.length === 0 && appeals.length === 0) return;
+
+    const confirmMsg = currentLang === 'pl'
+        ? `Czy na pewno chcesz USUNĄĆ całą historię użytkownika (Discord ID: ${discordId})?\n\nZostanie usuniętych: ${reports.length} zgłoszeń oraz ${appeals.length} apelacji.\nDane trafią do Kosza i będzie można je przywrócić.`
+        : `Are you sure you want to DELETE the entire history for user (Discord ID: ${discordId})?\n\nThis will remove: ${reports.length} reports and ${appeals.length} appeals.\nData will be moved to Trash and can be restored later.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const updates = {};
+
+    for (const r of reports) {
+        const { id: _drop, ...data } = r;
+        await moveToTrash("incident", r.id, data);
+        updates[`incidents/${r.id}`] = null;
+    }
+    for (const a of appeals) {
+        const { id: _drop, ...data } = a;
+        await moveToTrash("appeal", a.id, data);
+        updates[`appeals/${a.id}`] = null;
+    }
+
+    if (Object.keys(updates).length > 0) {
+        await database.ref().update(updates);
+    }
+
+    alert(currentLang === 'pl'
+        ? "Cała historia użytkownika została usunięta. Możesz ją przywrócić z Kosza."
+        : "The user's entire history has been deleted. You can restore it from Trash.");
+
+    fetchAndRenderHistory(discordId);
+}
+
 function toggleSelectAll(master) {
     document.querySelectorAll(".admin-row-cb").forEach(cb => cb.checked = master.checked);
     updateBulkActionsBar();
@@ -2385,6 +2486,7 @@ function adminLogout() {
         document.getElementById("adminMenuBtn").onclick = function() { openAdminLogin(); };
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
         showSection('formSection');
+        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
     }
 }
 
