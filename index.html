@@ -554,6 +554,17 @@
     }
     .evidence-link:hover { text-decoration: underline; }
 
+    button.evidence-fetch-btn {
+      background: transparent;
+      border: none;
+      padding: 0;
+      font: inherit;
+      letter-spacing: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+    button.evidence-fetch-btn:disabled { cursor: wait; opacity: 0.6; }
+
     .action-btns { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
     .action-btns button { margin: 0; padding: 5px 8px; font-size: 10px; }
     .btn-view { background: rgba(255,255,255,0.07); font-size: 10px; padding: 3px 8px; margin-top: 4px; border: 1px solid var(--border); }
@@ -1187,10 +1198,12 @@ function fileToBase64(file) {
     });
 }
 
-// Wysyła plik bezpośrednio do Cloudflare R2 (łączny limit wszystkich plików w zgłoszeniu/wiadomości: 1GB, darmowy plan) i zwraca metadane + link do pobrania.
+// Wysyła plik bezpośrednio do Cloudflare R2 (łączny limit wszystkich plików w zgłoszeniu/wiadomości: 1GB, darmowy plan) i zwraca metadane pliku.
 // onProgress(percent) jest wywoływane w trakcie uploadu, żeby UI mógł pokazać pasek postępu.
 // Działanie: 1) pytamy Workera o "presigned URL" (krótki request, bez wysyłania pliku),
 //            2) wysyłamy plik BEZPOŚREDNIO do R2 pod ten link (Worker nie pośredniczy w transferze pliku).
+// WAŻNE: nie zapisujemy tu gotowego, "wiecznego" URL-a do pliku — zapisujemy tylko `key` (ścieżkę pliku w R2).
+// Świeży, tymczasowy link do PODGLĄDU pliku jest generowany dopiero na żądanie, patrz getFreshEvidenceUrl().
 async function uploadFileToStorage(file, folder, onProgress) {
     if (!R2_WORKER_URL || R2_WORKER_URL === "WKLEJ_TU_ADRES_WORKERA") {
         throw new Error("Upload plików nie jest skonfigurowany: uzupełnij R2_WORKER_URL w kodzie strony.");
@@ -1211,7 +1224,7 @@ async function uploadFileToStorage(file, folder, onProgress) {
         throw new Error(`Nie udało się przygotować uploadu (${presignRes.status}). ${errText}`);
     }
 
-    const { uploadUrl, publicUrl, key } = await presignRes.json();
+    const { uploadUrl, key } = await presignRes.json();
 
     await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -1230,8 +1243,67 @@ async function uploadFileToStorage(file, folder, onProgress) {
         xhr.send(file);
     });
 
-    return { url: publicUrl, path: key, name: file.name, size: file.size, type: file.type };
+    return { key, name: file.name, size: file.size, type: file.type };
 }
+
+// Cache w pamięci (NIE w localStorage) świeżych linków podglądu, żeby jedno i to samo kliknięcie
+// "Zobacz dowód" na dany plik w ramach tej samej sesji strony nie odpytywało Workera bez potrzeby.
+// Linki są krótkotrwałe (patrz Worker: presign-get), więc trzymamy je tylko do zadeklarowanego wygaśnięcia.
+const _evidenceUrlCache = new Map(); // key -> { url, expiresAt }
+
+// Pyta Workera o świeży, tymczasowy (presigned GET) link do podglądu pliku o podanym `key`.
+// Wywoływane DOPIERO w momencie, gdy admin/gracz faktycznie kliknie "Zobacz dowód" — nie przy renderowaniu listy.
+async function getFreshEvidenceUrl(key) {
+    if (!key) throw new Error("Brak klucza pliku (key).");
+
+    const cached = _evidenceUrlCache.get(key);
+    if (cached && cached.expiresAt > Date.now() + 5000) {
+        return cached.url;
+    }
+
+    const res = await fetch(`${R2_WORKER_URL}/presign-get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+    });
+
+    if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Nie udało się pobrać linku do podglądu (${res.status}). ${errText}`);
+    }
+
+    const { url, expiresIn } = await res.json();
+    const ttlMs = (typeof expiresIn === "number" ? expiresIn : 300) * 1000;
+    _evidenceUrlCache.set(key, { url, expiresAt: Date.now() + ttlMs });
+    return url;
+}
+
+// Obsługa kliknięcia w przycisk "Zobacz dowód" (delegacja zdarzeń — działa też dla treści dodanych do DOM później).
+// Pobiera świeży link z Workera i dopiero wtedy otwiera plik w nowej karcie.
+document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".evidence-fetch-btn");
+    if (!btn) return;
+    e.preventDefault();
+    if (btn.disabled) return;
+
+    const key = btn.getAttribute("data-key");
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = currentLang === 'pl' ? "⏳ Wczytywanie..." : "⏳ Loading...";
+
+    try {
+        const url = await getFreshEvidenceUrl(key);
+        window.open(url, "_blank", "noopener");
+    } catch (err) {
+        console.error("Błąd pobierania linku do dowodu:", err);
+        alert(currentLang === 'pl'
+            ? "Nie udało się wczytać podglądu pliku: " + err.message
+            : "Failed to load file preview: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+    }
+});
 
 // Wysyła wiele plików równolegle do Storage, raportując łączny postęp (uśredniony) przez onProgress(percent).
 async function uploadFilesToStorage(files, folder, onProgress) {
@@ -1291,6 +1363,21 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
     files.forEach(f => {
         const type = f.type || "";
         const caption = f.name || "Plik";
+        const sizeKb = f.size ? Math.round(f.size / 1024) : null;
+
+        if (f.key) {
+            // Nowy format: plik trzymany w R2 pod `key`. Nie mamy gotowego URL-a —
+            // link do podglądu dociągamy z Workera DOPIERO gdy ktoś kliknie przycisk.
+            const label = type.startsWith("image/")
+                ? `🖼️ ${currentLang === 'pl' ? 'Zobacz zdjęcie' : 'View image'}`
+                : type.startsWith("video/")
+                    ? `🎬 ${currentLang === 'pl' ? 'Zobacz wideo' : 'View video'}`
+                    : `📄 ${currentLang === 'pl' ? 'Zobacz dowód' : 'View evidence'}: ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}`;
+            linkParts.push(`<button type="button" class="evidence-link evidence-fetch-btn" data-key="${f.key}" title="${caption}">${label}</button>`);
+            return;
+        }
+
+        // Stary format (kompatybilność wsteczna): gotowy URL lub base64 zapisany bezpośrednio w rekordzie.
         const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
@@ -1307,7 +1394,6 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
                 </div>
             `);
         } else {
-            const sizeKb = f.size ? Math.round(f.size / 1024) : null;
             linkParts.push(`<a class="evidence-link" href="${src}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
         }
     });
@@ -1329,6 +1415,18 @@ function renderChatFilesHtml(files) {
     files.forEach(f => {
         const type = f.type || "";
         const caption = f.name || "Plik";
+        const sizeKb = f.size ? Math.round(f.size / 1024) : null;
+
+        if (f.key) {
+            const label = type.startsWith("image/")
+                ? `🖼️ ${currentLang === 'pl' ? 'Zobacz zdjęcie' : 'View image'}`
+                : type.startsWith("video/")
+                    ? `🎬 ${currentLang === 'pl' ? 'Zobacz wideo' : 'View video'}`
+                    : `📄 ${currentLang === 'pl' ? 'Zobacz dowód' : 'View evidence'}: ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}`;
+            linkParts.push(`<button type="button" class="evidence-link evidence-fetch-btn" data-key="${f.key}" title="${caption}">${label}</button>`);
+            return;
+        }
+
         const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
@@ -1345,7 +1443,6 @@ function renderChatFilesHtml(files) {
                 </div>
             `);
         } else {
-            const sizeKb = f.size ? Math.round(f.size / 1024) : null;
             linkParts.push(`<a class="evidence-link" href="${src}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
         }
     });
