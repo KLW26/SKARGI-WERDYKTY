@@ -742,6 +742,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <!-- Firebase Storage nieużywany od migracji na Cloudflare R2 (patrz uploadFileToStorage) -->
 </head>
 
 <body>
@@ -838,10 +839,11 @@
           <label data-key="labelEvidenceFile">Dowody (Pliki z komputera)</label>
           <input id="evidenceFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple>
           <div id="evidenceFileList" class="file-preview-list"></div>
-          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, bez limitu rozmiaru). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
-          <span class="error-message" id="evidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików.</span>
+          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
+          <span class="error-message" id="evidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+          <div id="evidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
         </div>
-        <button type="submit" data-key="btnSubmit">Prześlij Zgłoszenie</button>
+        <button type="submit" id="reportSubmitBtn" data-key="btnSubmit">Prześlij Zgłoszenie</button>
       </form>
     </div>
 
@@ -865,10 +867,11 @@
           <label data-key="labelAppealEvidenceFile">Nowe lub dodatkowe dowody (Pliki z komputera)</label>
           <input id="appealEvidenceFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple>
           <div id="appealEvidenceFileList" class="file-preview-list"></div>
-          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, bez limitu rozmiaru). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
-          <span class="error-message" id="appealEvidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików.</span>
+          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
+          <span class="error-message" id="appealEvidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+          <div id="appealEvidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
         </div>
-        <button type="submit" data-key="btnSubmitAppeal" class="btn-warning" style="">⚖️ Wyślij Apelację</button>
+        <button type="submit" id="appealSubmitBtn" data-key="btnSubmitAppeal" class="btn-warning" style="">⚖️ Wyślij Apelację</button>
       </form>
     </div>
 
@@ -913,7 +916,8 @@
         <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
         <div id="playerChatBox" style="display:none;"></div>
         <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
-        <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików.</span>
+        <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+        <div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
         <div class="row" id="playerChatInputRow" style="display:none;">
           <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
           <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
@@ -935,7 +939,8 @@
       <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
         <div id="chatBox"></div>
         <div id="chatFileList" class="file-preview-list chat-file-preview"></div>
-        <span class="error-message" id="chatFileError">Możesz dodać maksymalnie 5 plików.</span>
+        <span class="error-message" id="chatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+        <div id="chatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
         <div class="row">
           <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
           <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
@@ -1151,18 +1156,27 @@
 
 <script>
 const firebaseConfig = {
-    databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/" 
+    databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/"
 };
 
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
+// ====== KONFIGURACJA CLOUDFLARE R2 (upload plików dowodowych) ======
+// Adres Workera generującego presigned URL do R2 — wklej swój po wdrożeniu (patrz README.md w paczce Workera).
+const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev";
+
 const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
 
-const MAX_EVIDENCE_FILE_SIZE = Infinity; // brak limitu rozmiaru pojedynczego pliku
+const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024; // maks. ŁĄCZNY rozmiar wszystkich plików w jednym zgłoszeniu/wiadomości: 1 GB
 const MAX_EVIDENCE_FILES = 5; // maks. liczba plików na zgłoszenie/apelację
+
+// Zwraca łączny rozmiar (w bajtach) podanej listy plików.
+function getTotalFileSize(files) {
+    return files.reduce((sum, f) => sum + f.size, 0);
+}
 
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -1171,6 +1185,82 @@ function fileToBase64(file) {
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
     });
+}
+
+// Wysyła plik bezpośrednio do Cloudflare R2 (łączny limit wszystkich plików w zgłoszeniu/wiadomości: 1GB, darmowy plan) i zwraca metadane + link do pobrania.
+// onProgress(percent) jest wywoływane w trakcie uploadu, żeby UI mógł pokazać pasek postępu.
+// Działanie: 1) pytamy Workera o "presigned URL" (krótki request, bez wysyłania pliku),
+//            2) wysyłamy plik BEZPOŚREDNIO do R2 pod ten link (Worker nie pośredniczy w transferze pliku).
+async function uploadFileToStorage(file, folder, onProgress) {
+    if (!R2_WORKER_URL || R2_WORKER_URL === "WKLEJ_TU_ADRES_WORKERA") {
+        throw new Error("Upload plików nie jest skonfigurowany: uzupełnij R2_WORKER_URL w kodzie strony.");
+    }
+
+    const presignRes = await fetch(`${R2_WORKER_URL}/presign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            folder,
+        }),
+    });
+
+    if (!presignRes.ok) {
+        const errText = await presignRes.text().catch(() => "");
+        throw new Error(`Nie udało się przygotować uploadu (${presignRes.status}). ${errText}`);
+    }
+
+    const { uploadUrl, publicUrl, key } = await presignRes.json();
+
+    await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.upload.onprogress = (evt) => {
+            if (onProgress && evt.lengthComputable) {
+                onProgress(Math.round((evt.loaded / evt.total) * 100));
+            }
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`Błąd wysyłania pliku do R2 (status ${xhr.status}).`));
+        };
+        xhr.onerror = () => reject(new Error("Błąd sieci podczas wysyłania pliku do R2."));
+        xhr.send(file);
+    });
+
+    return { url: publicUrl, path: key, name: file.name, size: file.size, type: file.type };
+}
+
+// Wysyła wiele plików równolegle do Storage, raportując łączny postęp (uśredniony) przez onProgress(percent).
+async function uploadFilesToStorage(files, folder, onProgress) {
+    if (!files.length) return [];
+    const progressPerFile = new Array(files.length).fill(0);
+    const reportProgress = () => {
+        if (!onProgress) return;
+        const total = progressPerFile.reduce((a, b) => a + b, 0) / files.length;
+        onProgress(Math.round(total));
+    };
+    const uploads = files.map((f, idx) =>
+        uploadFileToStorage(f, folder, (pct) => { progressPerFile[idx] = pct; reportProgress(); })
+    );
+    return Promise.all(uploads);
+}
+
+// Pokazuje/aktualizuje/ukrywa pasek postępu uploadu w danym kontenerze (elId).
+function setUploadProgress(elId, percent) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (percent === null) {
+        el.style.display = "none";
+        el.innerHTML = "";
+        return;
+    }
+    el.style.display = "block";
+    el.innerHTML = currentLang === 'pl'
+        ? `⬆️ Przesyłanie plików... ${percent}%`
+        : `⬆️ Uploading files... ${percent}%`;
 }
 
 function hasEvidence(record) {
@@ -1201,23 +1291,24 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
     files.forEach(f => {
         const type = f.type || "";
         const caption = f.name || "Plik";
+        const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
-                <a href="${f.data}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
-                    <img src="${f.data}" alt="${caption}" class="evidence-thumb">
+                <a href="${src}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
+                    <img src="${src}" alt="${caption}" class="evidence-thumb">
                 </a>
             `);
         } else if (type.startsWith("video/")) {
             galleryParts.push(`
                 <div class="evidence-media-link" title="${caption}">
                     <video controls preload="metadata" class="evidence-video">
-                        <source src="${f.data}" type="${type}">
+                        <source src="${src}" type="${type}">
                     </video>
                 </div>
             `);
         } else {
             const sizeKb = f.size ? Math.round(f.size / 1024) : null;
-            linkParts.push(`<a class="evidence-link" href="${f.data}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
+            linkParts.push(`<a class="evidence-link" href="${src}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
         }
     });
 
@@ -1238,23 +1329,24 @@ function renderChatFilesHtml(files) {
     files.forEach(f => {
         const type = f.type || "";
         const caption = f.name || "Plik";
+        const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
-                <a href="${f.data}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
-                    <img src="${f.data}" alt="${caption}" class="evidence-thumb chat-thumb">
+                <a href="${src}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
+                    <img src="${src}" alt="${caption}" class="evidence-thumb chat-thumb">
                 </a>
             `);
         } else if (type.startsWith("video/")) {
             galleryParts.push(`
                 <div class="evidence-media-link" title="${caption}">
                     <video controls preload="metadata" class="evidence-video chat-thumb">
-                        <source src="${f.data}" type="${type}">
+                        <source src="${src}" type="${type}">
                     </video>
                 </div>
             `);
         } else {
             const sizeKb = f.size ? Math.round(f.size / 1024) : null;
-            linkParts.push(`<a class="evidence-link" href="${f.data}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
+            linkParts.push(`<a class="evidence-link" href="${src}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
         }
     });
 
@@ -1285,8 +1377,8 @@ const langData = {
         labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
         labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
         labelEvidenceFile: "Dowody (Plik z komputera)", labelAppealEvidenceFile: "Nowe lub dodatkowe dowody (Plik z komputera)",
-        evidenceFileHint: "Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, bez limitu rozmiaru). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.",
-        evidenceFileTooBig: "Możesz dodać maksymalnie 5 plików.",
+        evidenceFileHint: "Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.",
+        evidenceFileTooBig: "Możesz dodać maksymalnie 5 plików, łącznie do 1GB.",
         btnSubmit: "Prześlij Zgłoszenie", chatTitle: "Czat na Żywo", btnOpenChat: "OTWÓRZ CZAT SĘDZIÓW",
         adminSecTitle: "Zarządzanie Zgłoszeniami", btnResetId: "RESETUJ ID",
         thReporter: "Zgłaszający", thTrack: "Tor / Sesja", thAccused: "Oskarżony (Nick / ID)", thStatus: "Status", thActions: "Akcje",
@@ -1317,8 +1409,8 @@ const langData = {
         labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
         labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
         labelEvidenceFile: "Evidence (File from computer)", labelAppealEvidenceFile: "New or additional evidence (File from computer)",
-        evidenceFileHint: "You can attach several files at once — screenshots, video clips, or other files (max 5 files, no size limit). Link and files are both optional — provide one, the other, or both.",
-        evidenceFileTooBig: "You can add a maximum of 5 files.",
+        evidenceFileHint: "You can attach several files at once — screenshots, video clips, or other files (max 5 files, totaling up to 1GB). Link and files are both optional — provide one, the other, or both.",
+        evidenceFileTooBig: "You can add a maximum of 5 files, totaling up to 1GB.",
         btnSubmit: "Submit Report", chatTitle: "Live Chat", btnOpenChat: "OPEN STEWARDS CHAT",
         adminSecTitle: "Report Management", btnResetId: "RESET ID",
         thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
@@ -1597,6 +1689,9 @@ function checkAdminAuth() {
 
 document.getElementById("complaintForm").addEventListener("submit", async e => {
     e.preventDefault();
+    const submitBtn = document.getElementById("reportSubmitBtn");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
     const nick = document.getElementById("nick").value;
     const discordId = document.getElementById("discordId").value;
     const category = document.getElementById("category").value;
@@ -1611,7 +1706,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     const evidenceFileErrorEl = document.getElementById("evidenceFileError");
     const evidenceFiles = evidenceFileInput ? Array.from(evidenceFileInput.files) : [];
 
-    const evidenceFilesInvalid = evidenceFiles.length > MAX_EVIDENCE_FILES || evidenceFiles.some(f => f.size > MAX_EVIDENCE_FILE_SIZE);
+    const evidenceFilesInvalid = evidenceFiles.length > MAX_EVIDENCE_FILES || getTotalFileSize(evidenceFiles) > MAX_EVIDENCE_TOTAL_SIZE;
     if (evidenceFilesInvalid) {
         if (evidenceFileErrorEl) evidenceFileErrorEl.style.display = 'block';
         evidenceFileInput.classList.add('input-error');
@@ -1636,14 +1731,14 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
 
     if (evidenceFiles.length) {
         try {
-            newReport.evidenceFiles = await Promise.all(evidenceFiles.map(async f => ({
-                data: await fileToBase64(f),
-                name: f.name,
-                size: f.size,
-                type: f.type
-            })));
+            setUploadProgress("evidenceUploadProgress", 0);
+            newReport.evidenceFiles = await uploadFilesToStorage(evidenceFiles, `incidents/${fiaId}`, (pct) => setUploadProgress("evidenceUploadProgress", pct));
+            setUploadProgress("evidenceUploadProgress", null);
         } catch (err) {
-            console.error("Błąd odczytu plików dowodowych:", err);
+            setUploadProgress("evidenceUploadProgress", null);
+            console.error("Błąd przesyłania plików dowodowych:", err);
+            alert(currentLang === 'pl' ? "Błąd przesyłania plików dowodowych: " + err.message : "Error uploading evidence files: " + err.message);
+            return;
         }
     }
 
@@ -1665,10 +1760,16 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     };
 
     fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "<@&1443302932811616346> <@&1463610534309007380>", embeds: [embed] }) }).catch(()=>{});
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
 });
 
 document.getElementById("appealForm").addEventListener("submit", async e => {
     e.preventDefault();
+    const submitBtn = document.getElementById("appealSubmitBtn");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
     const caseId = document.getElementById("appealCaseId").value.trim().toUpperCase();
     const nick = document.getElementById("appealNick").value;
     const discordId = document.getElementById("appealDiscordId").value;
@@ -1679,7 +1780,7 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     const appealEvidenceFileErrorEl = document.getElementById("appealEvidenceFileError");
     const appealEvidenceFiles = appealEvidenceFileInput ? Array.from(appealEvidenceFileInput.files) : [];
 
-    const appealEvidenceFilesInvalid = appealEvidenceFiles.length > MAX_EVIDENCE_FILES || appealEvidenceFiles.some(f => f.size > MAX_EVIDENCE_FILE_SIZE);
+    const appealEvidenceFilesInvalid = appealEvidenceFiles.length > MAX_EVIDENCE_FILES || getTotalFileSize(appealEvidenceFiles) > MAX_EVIDENCE_TOTAL_SIZE;
     if (appealEvidenceFilesInvalid) {
         if (appealEvidenceFileErrorEl) appealEvidenceFileErrorEl.style.display = 'block';
         appealEvidenceFileInput.classList.add('input-error');
@@ -1701,14 +1802,14 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
 
     if (appealEvidenceFiles.length) {
         try {
-            newAppeal.evidenceFiles = await Promise.all(appealEvidenceFiles.map(async f => ({
-                data: await fileToBase64(f),
-                name: f.name,
-                size: f.size,
-                type: f.type
-            })));
+            setUploadProgress("appealEvidenceUploadProgress", 0);
+            newAppeal.evidenceFiles = await uploadFilesToStorage(appealEvidenceFiles, `appeals/${appealId}`, (pct) => setUploadProgress("appealEvidenceUploadProgress", pct));
+            setUploadProgress("appealEvidenceUploadProgress", null);
         } catch (err) {
-            console.error("Błąd odczytu pliku dowodowego apelacji:", err);
+            setUploadProgress("appealEvidenceUploadProgress", null);
+            console.error("Błąd przesyłania plików dowodowych apelacji:", err);
+            alert(currentLang === 'pl' ? "Błąd przesyłania plików dowodowych: " + err.message : "Error uploading evidence files: " + err.message);
+            return;
         }
     }
 
@@ -1732,6 +1833,9 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     };
 
     fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "<@&1443302932811616346> <@&1463610534309007380>", embeds: [embed] }) }).catch(()=>{});
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
 });
 
 function requestVerificationPin() {
@@ -2854,6 +2958,12 @@ async function sendChatMessage() {
         alert(currentLang === 'pl' ? `Możesz dołączyć maksymalnie ${MAX_EVIDENCE_FILES} plików.` : `You can attach up to ${MAX_EVIDENCE_FILES} files.`);
         return;
     }
+    if (getTotalFileSize(files) > MAX_EVIDENCE_TOTAL_SIZE) {
+        alert(currentLang === 'pl'
+            ? `Łączny rozmiar plików przekracza limit 1GB.`
+            : `The total file size exceeds the 1GB limit.`);
+        return;
+    }
     const msgData = {
         nick: document.getElementById("chatNick").value || "Steward",
         text: text,
@@ -2863,9 +2973,16 @@ async function sendChatMessage() {
         timestamp: firebase.database.ServerValue.TIMESTAMP
     };
     if (files.length) {
-        msgData.files = await Promise.all(files.map(async f => ({
-            data: await fileToBase64(f), name: f.name, size: f.size, type: f.type
-        })));
+        try {
+            setUploadProgress("chatUploadProgress", 0);
+            msgData.files = await uploadFilesToStorage(files, `chat/${Date.now()}`, (pct) => setUploadProgress("chatUploadProgress", pct));
+            setUploadProgress("chatUploadProgress", null);
+        } catch (err) {
+            setUploadProgress("chatUploadProgress", null);
+            console.error("Błąd przesyłania plików czatu:", err);
+            alert(currentLang === 'pl' ? "Błąd przesyłania plików: " + err.message : "Error uploading files: " + err.message);
+            return;
+        }
     }
     const newMsgRef = database.ref("chat").push();
     await newMsgRef.set(msgData);
@@ -2906,6 +3023,12 @@ async function sendPlayerChatMessage() {
         alert(currentLang === 'pl' ? `Możesz dołączyć maksymalnie ${MAX_EVIDENCE_FILES} plików.` : `You can attach up to ${MAX_EVIDENCE_FILES} files.`);
         return;
     }
+    if (getTotalFileSize(files) > MAX_EVIDENCE_TOTAL_SIZE) {
+        alert(currentLang === 'pl'
+            ? `Łączny rozmiar plików przekracza limit 1GB.`
+            : `The total file size exceeds the 1GB limit.`);
+        return;
+    }
     const relatedAppeal = globalAppeals.find(a => a.appealId === selectedPlayerCaseId);
     const relatedReport = globalIncidents.find(r => r.id === selectedPlayerCaseId);
     let playerNick = document.getElementById("historyDiscordInput").value.trim();
@@ -2924,9 +3047,16 @@ async function sendPlayerChatMessage() {
         timestamp: firebase.database.ServerValue.TIMESTAMP
     };
     if (files.length) {
-        msgData.files = await Promise.all(files.map(async f => ({
-            data: await fileToBase64(f), name: f.name, size: f.size, type: f.type
-        })));
+        try {
+            setUploadProgress("playerChatUploadProgress", 0);
+            msgData.files = await uploadFilesToStorage(files, `chat/${Date.now()}`, (pct) => setUploadProgress("playerChatUploadProgress", pct));
+            setUploadProgress("playerChatUploadProgress", null);
+        } catch (err) {
+            setUploadProgress("playerChatUploadProgress", null);
+            console.error("Błąd przesyłania plików czatu:", err);
+            alert(currentLang === 'pl' ? "Błąd przesyłania plików: " + err.message : "Error uploading files: " + err.message);
+            return;
+        }
     }
     const newMsgRef = database.ref("chat").push();
     await newMsgRef.set(msgData);
@@ -3086,10 +3216,25 @@ window.addEventListener("DOMContentLoaded", () => {
 
         function validateAndRender() {
             const files = Array.from(input.files);
-            const invalid = files.length > MAX_EVIDENCE_FILES || files.some(f => f.size > MAX_EVIDENCE_FILE_SIZE);
+            const tooMany = files.length > MAX_EVIDENCE_FILES;
+            const totalSize = getTotalFileSize(files);
+            const tooBig = totalSize > MAX_EVIDENCE_TOTAL_SIZE;
+            const invalid = tooMany || tooBig;
             if (invalid) {
                 input.classList.add('input-error');
-                if (errorEl) errorEl.style.display = 'block';
+                if (errorEl) {
+                    if (tooBig) {
+                        const totalMb = (totalSize / (1024 * 1024)).toFixed(1);
+                        errorEl.textContent = currentLang === 'pl'
+                            ? `Łączny rozmiar plików (${totalMb} MB) przekracza limit 1GB.`
+                            : `Total file size (${totalMb} MB) exceeds the 1GB limit.`;
+                    } else {
+                        errorEl.textContent = currentLang === 'pl'
+                            ? `Możesz dodać maksymalnie ${MAX_EVIDENCE_FILES} plików, łącznie do 1GB.`
+                            : `You can add a maximum of ${MAX_EVIDENCE_FILES} files, totaling up to 1GB.`;
+                    }
+                    errorEl.style.display = 'block';
+                }
             } else {
                 input.classList.remove('input-error');
                 if (errorEl) errorEl.style.display = 'none';
@@ -3100,9 +3245,12 @@ window.addEventListener("DOMContentLoaded", () => {
             files.forEach((file, idx) => {
                 const row = document.createElement("div");
                 row.className = "file-preview-row";
+                if (tooBig) row.style.color = "var(--red-text)";
 
                 const label = document.createElement("span");
-                label.textContent = `📎 ${file.name} (${Math.round(file.size / 1024)} KB)`;
+                const sizeMb = file.size / (1024 * 1024);
+                const sizeLabel = sizeMb >= 1 ? `${sizeMb.toFixed(1)} MB` : `${Math.round(file.size / 1024)} KB`;
+                label.textContent = `📎 ${file.name} (${sizeLabel})`;
                 row.appendChild(label);
 
                 const removeBtn = document.createElement("button");
