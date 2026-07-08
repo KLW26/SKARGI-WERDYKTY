@@ -700,6 +700,21 @@
       border: 1px solid var(--border); display: block; background: #000;
     }
 
+    /* === ZAŁĄCZNIKI W CZACIE === */
+    .btn-attach {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; flex-shrink: 0;
+      border: 1px solid var(--border); border-radius: 2px;
+      background: rgba(255,255,255,0.04); color: var(--text-dim);
+      cursor: pointer; font-size: 16px; transition: all 0.2s;
+    }
+    .btn-attach:hover { border-color: var(--red); color: #fff; background: rgba(225,6,0,0.1); }
+    .btn-attach.has-files { border-color: var(--green); color: var(--green); }
+    .chat-file-preview:not(:empty) { margin-bottom: 8px; }
+    .chat-gallery { margin-top: 6px; }
+    .chat-thumb { max-width: 110px; max-height: 90px; }
+    .chat-file-links { margin-top: 6px; }
+
     /* === SCROLLBAR === */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg-deep); }
@@ -879,10 +894,19 @@
 
       <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
         <h3 class="section-title" style="font-size: 16px; border-left-color: #00c853;">💬 Czat na Żywo ze Stewardami</h3>
-        <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Tutaj możesz bezpośrednio pisać z sędziami rozpatrującymi zgłoszenia.</p>
-        <div id="playerChatBox"></div>
-        <div class="row">
+        <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie powyżej (przycisk "💬 Czatuj o tej sprawie"), aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
+        <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
+          <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
+          <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
+        </div>
+        <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
+        <div id="playerChatBox" style="display:none;"></div>
+        <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
+        <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików.</span>
+        <div class="row" id="playerChatInputRow" style="display:none;">
           <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
+          <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
+          <input id="playerChatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
           <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
         </div>
       </div>
@@ -899,9 +923,13 @@
 
       <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
         <div id="chatBox"></div>
+        <div id="chatFileList" class="file-preview-list chat-file-preview"></div>
+        <span class="error-message" id="chatFileError">Możesz dodać maksymalnie 5 plików.</span>
         <div class="row">
           <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
           <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
+          <label class="btn-attach" for="chatFile" title="Dołącz plik z komputera">📎</label>
+          <input id="chatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
           <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
           <button class="btn-danger" onclick="clearChat()">Wyczyść czat</button>
           <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Powrót do panelu</button>
@@ -1190,6 +1218,41 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
     return html;
 }
 
+// Renderuje kompaktową galerię/plik-linki dla załączników dołączonych do wiadomości na czacie.
+function renderChatFilesHtml(files) {
+    if (!Array.isArray(files) || !files.length) return "";
+    const linkParts = [];
+    const galleryParts = [];
+
+    files.forEach(f => {
+        const type = f.type || "";
+        const caption = f.name || "Plik";
+        if (type.startsWith("image/")) {
+            galleryParts.push(`
+                <a href="${f.data}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
+                    <img src="${f.data}" alt="${caption}" class="evidence-thumb chat-thumb">
+                </a>
+            `);
+        } else if (type.startsWith("video/")) {
+            galleryParts.push(`
+                <div class="evidence-media-link" title="${caption}">
+                    <video controls preload="metadata" class="evidence-video chat-thumb">
+                        <source src="${f.data}" type="${type}">
+                    </video>
+                </div>
+            `);
+        } else {
+            const sizeKb = f.size ? Math.round(f.size / 1024) : null;
+            linkParts.push(`<a class="evidence-link" href="${f.data}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
+        }
+    });
+
+    let html = "";
+    if (galleryParts.length) html += `<div class="evidence-gallery chat-gallery">${galleryParts.join('')}</div>`;
+    if (linkParts.length) html += `<div class="chat-file-links">${linkParts.join('<br>')}</div>`;
+    return html;
+}
+
 let globalIncidents = [];
 let globalAppeals = [];
 let globalTrash = [];
@@ -1199,6 +1262,7 @@ let currentLang = 'pl';
 let currentlyEditedReportId = null;
 
 let authorizedHistoryDiscordId = null;
+let selectedPlayerCaseId = null;
 let activeVerificationPin = null;
 
 const langData = {
@@ -1679,6 +1743,7 @@ function verifyHistoryPin() {
 
     if (activeVerificationPin && enteredPin === activeVerificationPin) {
         authorizedHistoryDiscordId = discordId;
+        selectedPlayerCaseId = null;
         statusEl.textContent = currentLang === 'pl' ? "Autoryzacja udana! Ładowanie danych..." : "Authorization successful! Loading...";
         statusEl.style.color = "#4ade80";
         
@@ -1760,12 +1825,104 @@ function fetchAndRenderHistory(discordId) {
             </div>
             ${hasEvidence(r) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
             ${decisionBlock}
+            <div style="margin-top:10px; text-align:right;">
+                <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${r.id}')">💬 Czatuj o tej sprawie</button>
+            </div>
         `;
         container.appendChild(div);
     });
 }
 
 function updatePlayerChatCaseSelectOptions(userDiscordId) {}
+
+function selectPlayerChatCase(caseId) {
+    selectedPlayerCaseId = caseId;
+    const bar = document.getElementById("playerChatActiveCaseBar");
+    const label = document.getElementById("playerChatActiveCaseLabel");
+    const noCaseMsg = document.getElementById("playerChatNoCaseMsg");
+    const chatBox = document.getElementById("playerChatBox");
+    const inputRow = document.getElementById("playerChatInputRow");
+
+    if (label) label.textContent = caseId;
+    if (bar) bar.style.display = "flex";
+    if (noCaseMsg) noCaseMsg.style.display = "none";
+    if (chatBox) chatBox.style.display = "block";
+    if (inputRow) inputRow.style.display = "flex";
+
+    const container = document.getElementById("playerChatBoxContainer");
+    if (container) {
+        container.style.display = "block";
+        container.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    renderPlayerChatBox();
+}
+
+function deselectPlayerChatCase() {
+    selectedPlayerCaseId = null;
+    const bar = document.getElementById("playerChatActiveCaseBar");
+    const noCaseMsg = document.getElementById("playerChatNoCaseMsg");
+    const chatBox = document.getElementById("playerChatBox");
+    const inputRow = document.getElementById("playerChatInputRow");
+
+    if (bar) bar.style.display = "none";
+    if (noCaseMsg) noCaseMsg.style.display = "block";
+    if (chatBox) { chatBox.style.display = "none"; chatBox.innerHTML = ""; }
+    if (inputRow) inputRow.style.display = "none";
+}
+
+function resolveChatDisplayNick(m) {
+    const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
+    if (isSteward) return m.nick;
+
+    // Wiadomości gracza: spróbuj podmienić surowe Discord ID na prawdziwy nick z powiązanego zgłoszenia.
+    const relatedReport = globalIncidents.find(r => r.id === m.caseId) ||
+        globalIncidents.find(r => r.discordId === m.userDiscordId || r.accusedDiscordId === m.userDiscordId);
+
+    if (relatedReport) {
+        if (relatedReport.discordId === m.userDiscordId && relatedReport.nick) return relatedReport.nick;
+        if (relatedReport.accusedDiscordId === m.userDiscordId && relatedReport.accusedNick) return relatedReport.accusedNick;
+    }
+    return m.nick;
+}
+
+function renderPlayerChatBox() {
+    const playerChatBox = document.getElementById("playerChatBox");
+    if (!playerChatBox) return;
+    playerChatBox.innerHTML = "";
+
+    if (!selectedPlayerCaseId || !authorizedHistoryDiscordId || !globalChatData) return;
+
+    Object.values(globalChatData).forEach(m => {
+        if (m.caseId !== selectedPlayerCaseId) return;
+        const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
+        if (!(m.userDiscordId === authorizedHistoryDiscordId || isSteward)) return;
+
+        const msgClass = isSteward ? "msg msg-steward" : "msg msg-player";
+        const wrapper = document.createElement("div");
+        wrapper.className = msgClass;
+
+        const meta = document.createElement("span");
+        meta.className = "msg-meta";
+        meta.textContent = `${resolveChatDisplayNick(m)} [${m.caseId || 'Ogólny'}]`;
+
+        const bodyText = document.createTextNode(m.text);
+        wrapper.appendChild(meta);
+        wrapper.appendChild(bodyText);
+
+        if (Array.isArray(m.files) && m.files.length) {
+            const filesHtml = renderChatFilesHtml(m.files);
+            if (filesHtml) {
+                const filesWrap = document.createElement("div");
+                filesWrap.innerHTML = filesHtml;
+                wrapper.appendChild(filesWrap);
+            }
+        }
+
+        playerChatBox.appendChild(wrapper);
+    });
+    playerChatBox.scrollTop = playerChatBox.scrollHeight;
+}
 
 function renderAdmin() {
     const tbody = document.getElementById("adminTableBody");
@@ -2457,11 +2614,20 @@ function renderAdminChatBox() {
 
             const meta = document.createElement("span");
             meta.className = "msg-meta";
-            meta.textContent = `${m.nick} [${m.caseId || 'Ogólny'}]`;
+            meta.textContent = `${resolveChatDisplayNick(m)} [${m.caseId || 'Ogólny'}]`;
 
             const bodyText = document.createTextNode(m.text);
             wrapper.appendChild(meta);
             wrapper.appendChild(bodyText);
+
+            if (Array.isArray(m.files) && m.files.length) {
+                const filesHtml = renderChatFilesHtml(m.files);
+                if (filesHtml) {
+                    const filesWrap = document.createElement("div");
+                    filesWrap.innerHTML = filesHtml;
+                    wrapper.appendChild(filesWrap);
+                }
+            }
 
             adminChatBox.appendChild(wrapper);
         });
@@ -2471,18 +2637,33 @@ function renderAdminChatBox() {
 async function sendChatMessage() {
     const selectedCaseId = document.getElementById("chatCaseSelect")?.value || "";
     const msgInput = document.getElementById("chatMsg");
+    const fileInput = document.getElementById("chatFile");
     const text = msgInput.value.trim();
-    if (!text) return;
-    const newMsgRef = database.ref("chat").push();
-    await newMsgRef.set({
+    const files = fileInput ? Array.from(fileInput.files) : [];
+    if (!text && !files.length) return;
+    if (files.length > MAX_EVIDENCE_FILES) {
+        alert(currentLang === 'pl' ? `Możesz dołączyć maksymalnie ${MAX_EVIDENCE_FILES} plików.` : `You can attach up to ${MAX_EVIDENCE_FILES} files.`);
+        return;
+    }
+    const msgData = {
         nick: document.getElementById("chatNick").value || "Steward",
         text: text,
         role: "steward",
         caseId: selectedCaseId || "Ogólny",
         userDiscordId: "admin",
         timestamp: firebase.database.ServerValue.TIMESTAMP
-    });
+    };
+    if (files.length) {
+        msgData.files = await Promise.all(files.map(async f => ({
+            data: await fileToBase64(f), name: f.name, size: f.size, type: f.type
+        })));
+    }
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set(msgData);
     msgInput.value = "";
+    if (fileInput) fileInput.value = "";
+    const chatFileListEl = document.getElementById("chatFileList");
+    if (chatFileListEl) chatFileListEl.innerHTML = "";
 }
 
 async function clearChat() {
@@ -2503,19 +2684,44 @@ async function clearChat() {
 
 async function sendPlayerChatMessage() {
     const msgInput = document.getElementById("playerChatMsg");
+    const fileInput = document.getElementById("playerChatFile");
     if (!msgInput) return;
+    if (!selectedPlayerCaseId) {
+        alert(currentLang === 'pl' ? "Najpierw wybierz zgłoszenie, którego dotyczy czat (przycisk „💬 Czatuj o tej sprawie” na liście Twoich zgłoszeń)." : "First select the report this chat is about (the “💬 Chat about this case” button on your report list).");
+        return;
+    }
     const text = msgInput.value.trim();
-    if (!text || !authorizedHistoryDiscordId) return;
-    const newMsgRef = database.ref("chat").push();
-    await newMsgRef.set({
-        nick: document.getElementById("historyDiscordInput").value.trim(),
+    const files = fileInput ? Array.from(fileInput.files) : [];
+    if ((!text && !files.length) || !authorizedHistoryDiscordId) return;
+    if (files.length > MAX_EVIDENCE_FILES) {
+        alert(currentLang === 'pl' ? `Możesz dołączyć maksymalnie ${MAX_EVIDENCE_FILES} plików.` : `You can attach up to ${MAX_EVIDENCE_FILES} files.`);
+        return;
+    }
+    const relatedReport = globalIncidents.find(r => r.id === selectedPlayerCaseId);
+    let playerNick = document.getElementById("historyDiscordInput").value.trim();
+    if (relatedReport) {
+        if (relatedReport.discordId === authorizedHistoryDiscordId && relatedReport.nick) playerNick = relatedReport.nick;
+        else if (relatedReport.accusedDiscordId === authorizedHistoryDiscordId && relatedReport.accusedNick) playerNick = relatedReport.accusedNick;
+    }
+    const msgData = {
+        nick: playerNick,
         text: text,
         role: "player",
         userDiscordId: authorizedHistoryDiscordId,
-        caseId: "Kierowca",
+        caseId: selectedPlayerCaseId,
         timestamp: firebase.database.ServerValue.TIMESTAMP
-    });
+    };
+    if (files.length) {
+        msgData.files = await Promise.all(files.map(async f => ({
+            data: await fileToBase64(f), name: f.name, size: f.size, type: f.type
+        })));
+    }
+    const newMsgRef = database.ref("chat").push();
+    await newMsgRef.set(msgData);
     msgInput.value = "";
+    if (fileInput) fileInput.value = "";
+    const playerChatFileListEl = document.getElementById("playerChatFileList");
+    if (playerChatFileListEl) playerChatFileListEl.innerHTML = "";
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -2568,32 +2774,7 @@ window.addEventListener("DOMContentLoaded", () => {
         globalChatData = data;
 
         renderAdminChatBox();
-
-        const playerChatBox = document.getElementById("playerChatBox");
-        playerChatBox.innerHTML = "";
-
-        if (data) {
-            Object.values(data).forEach(m => {
-                const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
-                const msgClass = isSteward ? "msg msg-steward" : "msg msg-player";
-
-                const wrapper = document.createElement("div");
-                wrapper.className = msgClass;
-
-                const meta = document.createElement("span");
-                meta.className = "msg-meta";
-                meta.textContent = `${m.nick} [${m.caseId || 'Ogólny'}]`;
-
-                const bodyText = document.createTextNode(m.text);
-                wrapper.appendChild(meta);
-                wrapper.appendChild(bodyText);
-
-                if (authorizedHistoryDiscordId && (m.userDiscordId === authorizedHistoryDiscordId || isSteward)) {
-                    playerChatBox.appendChild(wrapper.cloneNode(true));
-                }
-            });
-            playerChatBox.scrollTop = playerChatBox.scrollHeight;
-        }
+        renderPlayerChatBox();
     });
 
     initFormDropdowns();
@@ -2681,6 +2862,8 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     setupMultiFileInput('evidenceFile', 'evidenceFileList', 'evidenceFileError');
     setupMultiFileInput('appealEvidenceFile', 'appealEvidenceFileList', 'appealEvidenceFileError');
+    setupMultiFileInput('chatFile', 'chatFileList', 'chatFileError');
+    setupMultiFileInput('playerChatFile', 'playerChatFileList', 'playerChatFileError');
 });
 </script>
 </body>
