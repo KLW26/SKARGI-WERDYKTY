@@ -672,6 +672,34 @@
     .input-error { border-color: var(--red) !important; }
     .error-message { color: #f97373; font-size: 11px; margin-top: 4px; display: none; letter-spacing: 0.5px; }
 
+    .file-preview-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .file-preview-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 3px;
+      padding: 5px 10px; font-size: 11px; color: var(--text-dim);
+    }
+    .file-preview-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-preview-remove {
+      background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: 2px; width: 20px; height: 20px; line-height: 1; cursor: pointer;
+      flex-shrink: 0; font-size: 12px; padding: 0;
+    }
+    .file-preview-remove:hover { border-color: var(--red); color: #fff; background: rgba(225,6,0,0.15); }
+
+    .evidence-gallery {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
+    }
+    .evidence-media-link { display: inline-block; line-height: 0; }
+    .evidence-thumb {
+      max-width: 160px; max-height: 120px; width: auto; height: auto;
+      object-fit: cover; border-radius: 4px; border: 1px solid var(--border);
+      cursor: zoom-in; display: block; background: var(--bg-input);
+    }
+    .evidence-video {
+      max-width: 240px; max-height: 160px; border-radius: 4px;
+      border: 1px solid var(--border); display: block; background: #000;
+    }
+
     /* === SCROLLBAR === */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg-deep); }
@@ -785,6 +813,13 @@
           <input id="evidence" type="text" placeholder="https://...">
           <span class="error-message" id="evidenceError">Podaj prawidłowy link (np. https://...)</span>
         </div>
+        <div class="field">
+          <label data-key="labelEvidenceFile">Dowody (Pliki z komputera)</label>
+          <input id="evidenceFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple>
+          <div id="evidenceFileList" class="file-preview-list"></div>
+          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, bez limitu rozmiaru). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
+          <span class="error-message" id="evidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików.</span>
+        </div>
         <button type="submit" data-key="btnSubmit">Prześlij Zgłoszenie</button>
       </form>
     </div>
@@ -800,6 +835,13 @@
         </div>
         <div class="field"><label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label><textarea id="appealReason" required placeholder="Wpisz szczegółowe argumenty..."></textarea></div>
         <div class="field"><label data-key="labelAppealEvidence">Nowe lub dodatkowe dowody (Link)</label><input id="appealEvidence" type="text" placeholder="https://..."></div>
+        <div class="field">
+          <label data-key="labelAppealEvidenceFile">Nowe lub dodatkowe dowody (Pliki z komputera)</label>
+          <input id="appealEvidenceFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple>
+          <div id="appealEvidenceFileList" class="file-preview-list"></div>
+          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, bez limitu rozmiaru). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
+          <span class="error-message" id="appealEvidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików.</span>
+        </div>
         <button type="submit" data-key="btnSubmitAppeal" class="btn-warning" style="">⚖️ Wyślij Apelację</button>
       </form>
     </div>
@@ -1080,6 +1122,74 @@ const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
 
+const MAX_EVIDENCE_FILE_SIZE = Infinity; // brak limitu rozmiaru pojedynczego pliku
+const MAX_EVIDENCE_FILES = 5; // maks. liczba plików na zgłoszenie/apelację
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+    });
+}
+
+function hasEvidence(record) {
+    return !!(record && (record.evidence || record.evidenceFileData || (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length)));
+}
+
+// Zwraca gotowy fragment HTML z linkiem do dowodu (URL) oraz z WYŚWIETLONYMI (nie do pobrania) załączonymi plikami:
+// obrazy jako miniatury (kliknięcie otwiera pełny rozmiar w nowej karcie), wideo jako odtwarzacz inline,
+// pozostałe typy plików (pdf, txt, log itp.) jako link do podglądu w nowej karcie.
+// Obsługuje zarówno stare zgłoszenia (pojedynczy plik: evidenceFileData/Name/Size/Type) jak i nowe (tablica evidenceFiles).
+// linkLabel pozwala nadpisać tekst linku do URL dowodu (np. skrócony przycisk w tabeli admina).
+function renderEvidenceHtml(record, linkLabel, emptyLabel) {
+    if (!record) return emptyLabel || "";
+    const linkParts = [];
+    const galleryParts = [];
+
+    if (record.evidence) {
+        linkParts.push(`<a class="evidence-link" href="${record.evidence}" target="_blank" rel="noopener">${linkLabel || record.evidence}</a>`);
+    }
+
+    let files = [];
+    if (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length) {
+        files = record.evidenceFiles;
+    } else if (record.evidenceFileData) {
+        files = [{ data: record.evidenceFileData, name: record.evidenceFileName, size: record.evidenceFileSize, type: record.evidenceFileType }];
+    }
+
+    files.forEach(f => {
+        const type = f.type || "";
+        const caption = f.name || "Plik";
+        if (type.startsWith("image/")) {
+            galleryParts.push(`
+                <a href="${f.data}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
+                    <img src="${f.data}" alt="${caption}" class="evidence-thumb">
+                </a>
+            `);
+        } else if (type.startsWith("video/")) {
+            galleryParts.push(`
+                <div class="evidence-media-link" title="${caption}">
+                    <video controls preload="metadata" class="evidence-video">
+                        <source src="${f.data}" type="${type}">
+                    </video>
+                </div>
+            `);
+        } else {
+            const sizeKb = f.size ? Math.round(f.size / 1024) : null;
+            linkParts.push(`<a class="evidence-link" href="${f.data}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
+        }
+    });
+
+    let html = "";
+    if (linkParts.length) html += linkParts.join('<br>');
+    if (galleryParts.length) html += `<div class="evidence-gallery">${galleryParts.join('')}</div>`;
+
+    if (!html) return emptyLabel !== undefined ? emptyLabel : "-";
+    return html;
+}
+
 let globalIncidents = [];
 let globalAppeals = [];
 let globalTrash = [];
@@ -1099,6 +1209,9 @@ const langData = {
         secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
         labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
         labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
+        labelEvidenceFile: "Dowody (Plik z komputera)", labelAppealEvidenceFile: "Nowe lub dodatkowe dowody (Plik z komputera)",
+        evidenceFileHint: "Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, bez limitu rozmiaru). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.",
+        evidenceFileTooBig: "Możesz dodać maksymalnie 5 plików.",
         btnSubmit: "Prześlij Zgłoszenie", chatTitle: "Czat na Żywo", btnOpenChat: "OTWÓRZ CZAT SĘDZIÓW",
         adminSecTitle: "Zarządzanie Zgłoszeniami", btnResetId: "RESETUJ ID",
         thReporter: "Zgłaszający", thTrack: "Tor / Sesja", thAccused: "Oskarżony (Nick / ID)", thStatus: "Status", thActions: "Akcje",
@@ -1128,6 +1241,9 @@ const langData = {
         secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
         labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
         labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
+        labelEvidenceFile: "Evidence (File from computer)", labelAppealEvidenceFile: "New or additional evidence (File from computer)",
+        evidenceFileHint: "You can attach several files at once — screenshots, video clips, or other files (max 5 files, no size limit). Link and files are both optional — provide one, the other, or both.",
+        evidenceFileTooBig: "You can add a maximum of 5 files.",
         btnSubmit: "Submit Report", chatTitle: "Live Chat", btnOpenChat: "OPEN STEWARDS CHAT",
         adminSecTitle: "Report Management", btnResetId: "RESET ID",
         thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
@@ -1415,6 +1531,20 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     const details = document.getElementById("details").value;
     const evidence = document.getElementById("evidence").value;
 
+    const evidenceFileInput = document.getElementById("evidenceFile");
+    const evidenceFileErrorEl = document.getElementById("evidenceFileError");
+    const evidenceFiles = evidenceFileInput ? Array.from(evidenceFileInput.files) : [];
+
+    const evidenceFilesInvalid = evidenceFiles.length > MAX_EVIDENCE_FILES || evidenceFiles.some(f => f.size > MAX_EVIDENCE_FILE_SIZE);
+    if (evidenceFilesInvalid) {
+        if (evidenceFileErrorEl) evidenceFileErrorEl.style.display = 'block';
+        evidenceFileInput.classList.add('input-error');
+        return;
+    } else if (evidenceFileErrorEl) {
+        evidenceFileErrorEl.style.display = 'none';
+        evidenceFileInput.classList.remove('input-error');
+    }
+
     const snapshot = await database.ref("incident_counter").get();
     let counter = snapshot.exists() ? snapshot.val() : 0;
     counter++;
@@ -1428,9 +1558,24 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
         status: "Oczekuje", timestamp: Date.now()
     };
 
+    if (evidenceFiles.length) {
+        try {
+            newReport.evidenceFiles = await Promise.all(evidenceFiles.map(async f => ({
+                data: await fileToBase64(f),
+                name: f.name,
+                size: f.size,
+                type: f.type
+            })));
+        } catch (err) {
+            console.error("Błąd odczytu plików dowodowych:", err);
+        }
+    }
+
     await database.ref("incidents/" + fiaId).set(newReport);
     alert(langData[currentLang].alertSent + " ID: " + fiaId);
     e.target.reset();
+    const evidenceFileListEl = document.getElementById("evidenceFileList");
+    if (evidenceFileListEl) evidenceFileListEl.innerHTML = "";
     handleCategoryChange(); // Resetowanie widoczności pól oskarżonego
 
     const embed = {
@@ -1454,6 +1599,20 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     const reason = document.getElementById("appealReason").value;
     const evidence = document.getElementById("appealEvidence").value;
 
+    const appealEvidenceFileInput = document.getElementById("appealEvidenceFile");
+    const appealEvidenceFileErrorEl = document.getElementById("appealEvidenceFileError");
+    const appealEvidenceFiles = appealEvidenceFileInput ? Array.from(appealEvidenceFileInput.files) : [];
+
+    const appealEvidenceFilesInvalid = appealEvidenceFiles.length > MAX_EVIDENCE_FILES || appealEvidenceFiles.some(f => f.size > MAX_EVIDENCE_FILE_SIZE);
+    if (appealEvidenceFilesInvalid) {
+        if (appealEvidenceFileErrorEl) appealEvidenceFileErrorEl.style.display = 'block';
+        appealEvidenceFileInput.classList.add('input-error');
+        return;
+    } else if (appealEvidenceFileErrorEl) {
+        appealEvidenceFileErrorEl.style.display = 'none';
+        appealEvidenceFileInput.classList.remove('input-error');
+    }
+
     const reportSnap = await database.ref("incidents/" + caseId).get();
     if (!reportSnap.exists()) { alert(langData[currentLang].alertCaseNotFound); return; }
 
@@ -1464,11 +1623,26 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     const appealId = "APP-" + String(appealCounter).padStart(4, "0");
     const newAppeal = { appealId, caseId, nick, discordId, reason, evidence, status: "Nowa", timestamp: Date.now() };
 
+    if (appealEvidenceFiles.length) {
+        try {
+            newAppeal.evidenceFiles = await Promise.all(appealEvidenceFiles.map(async f => ({
+                data: await fileToBase64(f),
+                name: f.name,
+                size: f.size,
+                type: f.type
+            })));
+        } catch (err) {
+            console.error("Błąd odczytu pliku dowodowego apelacji:", err);
+        }
+    }
+
     await database.ref("appeals/" + appealId).set(newAppeal);
     await database.ref("incidents/" + caseId + "/status").set("W apelacji");
 
     alert(langData[currentLang].alertAppealSent + " ID: " + appealId);
     e.target.reset();
+    const appealEvidenceFileListEl = document.getElementById("appealEvidenceFileList");
+    if (appealEvidenceFileListEl) appealEvidenceFileListEl.innerHTML = "";
 
     const embed = {
         title: langData.pl.dcAppealTitle,
@@ -1584,7 +1758,7 @@ function fetchAndRenderHistory(discordId) {
             <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
                 <strong>Opis zdarzenia:</strong> ${r.details}
             </div>
-            ${r.evidence ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> <a href="${r.evidence}" target="_blank" class="evidence-link">${r.evidence}</a></p>` : ''}
+            ${hasEvidence(r) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
             ${decisionBlock}
         `;
         container.appendChild(div);
@@ -1672,7 +1846,7 @@ function renderAdmin() {
                         </div>
                     ` : ''}
                 </td>
-                <td>${r.evidence ? `<a class="evidence-link" href="${r.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
+                <td>${renderEvidenceHtml(r, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
                     <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>
                     <div class="action-btns">
@@ -1704,11 +1878,11 @@ function renderAdmin() {
                 <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
                 <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
                 <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
-                <td>${a.evidence ? `<a class="evidence-link" href="${a.evidence}" target="_blank">${t.evidenceBtn}</a>` : `<span>Brak</span>`}</td>
+                <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
                     <span style="background:${appBadgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${appStatusText}</span>
                     <div class="action-btns">
-                        <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}', '${a.evidence || ''}')">Rozpatrz werdykt</button>
+                        <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}')">Rozpatrz werdykt</button>
                         <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
                         <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
                         <button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>
@@ -1750,12 +1924,12 @@ function transferToVerdictPanel(id, accusedDiscordId) {
     const found = globalIncidents.find(r => r.id === id);
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
-        document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank">${found.evidence}</a>` : "-";
+        document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
         document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session || found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
     }
 }
 
-function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence) {
+function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     document.getElementById("caseId").value = `${caseId} (${appealId})`;
     document.getElementById("accusedId").value = driverDiscordId;
     const foundCase = globalIncidents.find(r => r.id === caseId);
@@ -1763,7 +1937,7 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence)
 
     if (foundCase && foundAppeal) {
         document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
-        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${foundCase.evidence ? `<a href="${foundCase.evidence}" target="_blank">Link</a>` : 'Brak'}<br>Nowy dowód: ${newEvidence ? `<a href="${newEvidence}" target="_blank">Link</a>` : 'Brak'}`;
+        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${renderEvidenceHtml(foundCase, "Link", "Brak")}<br>Nowy dowód: ${renderEvidenceHtml(foundAppeal, "Link", "Brak")}`;
         document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
     }
 }
@@ -1814,19 +1988,19 @@ function transferToVerdictPanel(id, accusedDiscordId) {
     const found = globalIncidents.find(r => r.id === id);
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
-        document.getElementById("verdictPreviewEvidence").innerHTML = found.evidence ? `<a href="${found.evidence}" target="_blank" class="evidence-link">${found.evidence}</a>` : "-";
+        document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
         document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
     }
 }
 
-function transferAppealToVerdict(caseId, driverDiscordId, appealId, newEvidence) {
+function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     document.getElementById("caseId").value = `${caseId} (${appealId})`;
     document.getElementById("accusedId").value = driverDiscordId;
     const foundCase = globalIncidents.find(r => r.id === caseId);
     const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
     if (foundCase && foundAppeal) {
         document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
-        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${foundCase.evidence ? `<a href="${foundCase.evidence}" target="_blank">Link</a>` : 'Brak'}<br>Nowy dowód: ${newEvidence ? `<a href="${newEvidence}" target="_blank">Link</a>` : 'Brak'}`;
+        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${renderEvidenceHtml(foundCase, "Link", "Brak")}<br>Nowy dowód: ${renderEvidenceHtml(foundAppeal, "Link", "Brak")}`;
         document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
     }
 }
@@ -2093,7 +2267,19 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         });
     }
 
-    const mainEvidence = (mainReport && mainReport.evidence) ? mainReport.evidence : "Brak";
+    let mainEvidence = "Brak";
+    if (mainReport) {
+        const evParts = [];
+        if (mainReport.evidence) evParts.push(mainReport.evidence);
+        const evFiles = Array.isArray(mainReport.evidenceFiles) && mainReport.evidenceFiles.length
+            ? mainReport.evidenceFiles
+            : (mainReport.evidenceFileData ? [{ name: mainReport.evidenceFileName }] : []);
+        if (evFiles.length) {
+            const names = evFiles.map(f => f.name || "plik").join(", ");
+            evParts.push(`📎 Załączone pliki (${evFiles.length}): ${names} (zobacz w panelu admina)`);
+        }
+        if (evParts.length) mainEvidence = evParts.join("\n");
+    }
 
     const embed = {
         title: t.embedTitle, color: 3447003,
@@ -2445,6 +2631,56 @@ window.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // ====== PODGLĄD I WALIDACJA WIELU PLIKÓW DOWODOWYCH (na żywo) ======
+    function setupMultiFileInput(inputId, listId, errorId) {
+        const input = document.getElementById(inputId);
+        const listEl = document.getElementById(listId);
+        const errorEl = document.getElementById(errorId);
+        if (!input) return;
+
+        function validateAndRender() {
+            const files = Array.from(input.files);
+            const invalid = files.length > MAX_EVIDENCE_FILES || files.some(f => f.size > MAX_EVIDENCE_FILE_SIZE);
+            if (invalid) {
+                input.classList.add('input-error');
+                if (errorEl) errorEl.style.display = 'block';
+            } else {
+                input.classList.remove('input-error');
+                if (errorEl) errorEl.style.display = 'none';
+            }
+
+            if (!listEl) return;
+            listEl.innerHTML = "";
+            files.forEach((file, idx) => {
+                const row = document.createElement("div");
+                row.className = "file-preview-row";
+
+                const label = document.createElement("span");
+                label.textContent = `📎 ${file.name} (${Math.round(file.size / 1024)} KB)`;
+                row.appendChild(label);
+
+                const removeBtn = document.createElement("button");
+                removeBtn.type = "button";
+                removeBtn.className = "file-preview-remove";
+                removeBtn.textContent = "✕";
+                removeBtn.title = currentLang === 'pl' ? "Usuń plik" : "Remove file";
+                removeBtn.addEventListener("click", () => {
+                    const dt = new DataTransfer();
+                    Array.from(input.files).forEach((f, i) => { if (i !== idx) dt.items.add(f); });
+                    input.files = dt.files;
+                    validateAndRender();
+                });
+                row.appendChild(removeBtn);
+
+                listEl.appendChild(row);
+            });
+        }
+
+        input.addEventListener('change', validateAndRender);
+    }
+    setupMultiFileInput('evidenceFile', 'evidenceFileList', 'evidenceFileError');
+    setupMultiFileInput('appealEvidenceFile', 'appealEvidenceFileList', 'appealEvidenceFileError');
 });
 </script>
 </body>
