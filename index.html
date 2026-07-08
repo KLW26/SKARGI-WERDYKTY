@@ -1253,18 +1253,23 @@ const _evidenceUrlCache = new Map(); // key -> { url, expiresAt }
 
 // Pyta Workera o świeży, tymczasowy (presigned GET) link do podglądu pliku o podanym `key`.
 // Wywoływane DOPIERO w momencie, gdy admin/gracz faktycznie kliknie "Zobacz dowód" — nie przy renderowaniu listy.
-async function getFreshEvidenceUrl(key) {
+// `expiresIn` (sekundy, opcjonalne) pozwala poprosić o dłużej ważny link — np. do embeda na Discordzie.
+async function getFreshEvidenceUrl(key, expiresIn) {
     if (!key) throw new Error("Brak klucza pliku (key).");
 
-    const cached = _evidenceUrlCache.get(key);
+    const cacheKey = `${key}::${expiresIn || "default"}`;
+    const cached = _evidenceUrlCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now() + 5000) {
         return cached.url;
     }
 
+    const body = { key };
+    if (typeof expiresIn === "number") body.expiresIn = expiresIn;
+
     const res = await fetch(`${R2_WORKER_URL}/presign-get`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
+        body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -1272,10 +1277,45 @@ async function getFreshEvidenceUrl(key) {
         throw new Error(`Nie udało się pobrać linku do podglądu (${res.status}). ${errText}`);
     }
 
-    const { url, expiresIn } = await res.json();
-    const ttlMs = (typeof expiresIn === "number" ? expiresIn : 300) * 1000;
-    _evidenceUrlCache.set(key, { url, expiresAt: Date.now() + ttlMs });
+    const { url, expiresIn: actualTtl } = await res.json();
+    const ttlMs = (typeof actualTtl === "number" ? actualTtl : 300) * 1000;
+    _evidenceUrlCache.set(cacheKey, { url, expiresAt: Date.now() + ttlMs });
     return url;
+}
+
+// Buduje treść pola "Dowód" do embeda Discorda: dla każdego załączonego pliku (evidenceFiles z `key`)
+// generuje długożyjący (7 dni — maksimum jakie pozwala podpisywanie SigV4/R2) presigned link i zwraca
+// go jako klikalny markdown link Discorda. Jeśli któryś link nie uda się wygenerować, wpis dla tego
+// pliku spada do samej nazwy (bez linku), żeby cały werdykt i tak poszedł na Discorda.
+async function buildDiscordEvidenceValue(record) {
+    const parts = [];
+    if (record && record.evidence) parts.push(record.evidence);
+
+    const files = (record && Array.isArray(record.evidenceFiles) && record.evidenceFiles.length)
+        ? record.evidenceFiles
+        : (record && record.evidenceFileData ? [{ name: record.evidenceFileName, url: record.evidenceFileData }] : []);
+    if (files.length) {
+        const DISCORD_LINK_TTL = 60 * 60 * 24 * 7; // 7 dni
+        const fileLines = await Promise.all(files.map(async (f) => {
+            const label = f.name || "plik";
+            if (f.key) {
+                try {
+                    const url = await getFreshEvidenceUrl(f.key, DISCORD_LINK_TTL);
+                    return `📎 [${label}](${url})`;
+                } catch (err) {
+                    console.error("Nie udało się wygenerować linku do dowodu dla Discorda:", err);
+                    return `📎 ${label} (błąd generowania linku)`;
+                }
+            }
+            // Stary format (base64/publiczny url zapisany bezpośrednio w rekordzie) — bez linku
+            // dla base64 (za duże/nieklikalne w Discordzie), z linkiem jeśli to zwykły http(s) url.
+            if (f.url && /^https?:\/\//.test(f.url)) return `📎 [${label}](${f.url})`;
+            return `📎 ${label}`;
+        }));
+        parts.push(fileLines.join("\n"));
+    }
+
+    return parts.length ? parts.join("\n") : "Brak";
 }
 
 // Obsługa kliknięcia w przycisk "Zobacz dowód" (delegacja zdarzeń — działa też dla treści dodanych do DOM później).
@@ -2029,6 +2069,7 @@ function fetchAndRenderHistory(discordId) {
                         <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${r.decisionData.decision}<br>
                         <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${r.decisionData.timePenalty || 'brak'}, Punkty: ${r.decisionData.pointsPenalty || '0'}<br>
                         <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                        ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                         <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
                     </div>
                 </div>
@@ -2049,7 +2090,7 @@ function fetchAndRenderHistory(discordId) {
             <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
                 <strong>Opis zdarzenia:</strong> ${r.details}
             </div>
-            ${hasEvidence(r) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
+            ${(hasEvidence(r) && !r.decisionData) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
             ${decisionBlock}
             <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
                 ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleReport('${r.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
@@ -2276,6 +2317,7 @@ function renderAdmin() {
                             ${r.decisionData.decision}<br>
                             <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
                             <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                            ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                             <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
                         </div>
                     ` : ''}
@@ -2822,19 +2864,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         });
     }
 
-    let mainEvidence = "Brak";
-    if (mainReport) {
-        const evParts = [];
-        if (mainReport.evidence) evParts.push(mainReport.evidence);
-        const evFiles = Array.isArray(mainReport.evidenceFiles) && mainReport.evidenceFiles.length
-            ? mainReport.evidenceFiles
-            : (mainReport.evidenceFileData ? [{ name: mainReport.evidenceFileName }] : []);
-        if (evFiles.length) {
-            const names = evFiles.map(f => f.name || "plik").join(", ");
-            evParts.push(`📎 Załączone pliki (${evFiles.length}): ${names} (zobacz w panelu admina)`);
-        }
-        if (evParts.length) mainEvidence = evParts.join("\n");
-    }
+    const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
     const winnerNick = (mainReport && mainReport.accusedNick) ? mainReport.accusedNick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
     const embed = {
