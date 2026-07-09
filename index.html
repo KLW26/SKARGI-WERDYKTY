@@ -1216,7 +1216,11 @@
       <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
       <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
       
-      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444; margin-left: auto;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
+      <span id="loggedInAsLabel" style="display:none; align-items:center; margin-left:auto; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
+        <span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
+        <span id="loggedInAsText">Zalogowano jako: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
+      </span>
+      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
       <button id="usersMenuBtn" onclick="openUsersSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">👥 Użytkownicy i Role</button>
     </div>
 
@@ -2381,11 +2385,25 @@ async function checkAdminAuth() {
     document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
 
     applyStewardPermissions();
+    updateLoggedInAsLabel();
     listenToUsersAndLogs();
 
     showSection("adminSection");
     renderAdmin();
     if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+}
+
+function updateLoggedInAsLabel() {
+    const label = document.getElementById("loggedInAsLabel");
+    const nickEl = document.getElementById("loggedInAsNick");
+    if (!label || !nickEl) return;
+    if (isAdminAuthenticated && loggedInSteward) {
+        nickEl.textContent = loggedInSteward.nick;
+        label.style.display = "flex";
+    } else {
+        label.style.display = "none";
+        nickEl.textContent = "";
+    }
 }
 
 function applyStewardPermissions() {
@@ -3500,6 +3518,7 @@ function adminLogout() {
         if(document.getElementById("usersMenuBtn")) {
             document.getElementById("usersMenuBtn").style.display = "none";
         }
+        updateLoggedInAsLabel();
         showSection('formSection');
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
     }
@@ -3978,6 +3997,7 @@ function finalizeAutoLogin() {
     isAdminAuthenticated = true;
     document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
     applyStewardPermissions();
+    updateLoggedInAsLabel();
     listenToUsersAndLogs();
     showSection("adminSection");
     renderAdmin();
