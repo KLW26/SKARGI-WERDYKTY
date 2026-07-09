@@ -2351,22 +2351,6 @@ function openUsersSection() {
     }
 }
 
-function buildRootStewardObject() {
-    return {
-        nick: "Root Administrator", id: "ROOT", role: "ROOT",
-        permissions: {
-            review_incidents: true,
-            review_appeals: true,
-            manage_users: true,
-            access_trash: true,
-            edit_reports: true,
-            edit_notes: true,
-            clear_chat: true,
-            manage_settings: true
-        }
-    };
-}
-
 async function checkAdminAuth() {
     const loginId = document.getElementById("adminLoginId").value.trim();
     const pass = document.getElementById("adminPass").value;
@@ -2374,13 +2358,8 @@ async function checkAdminAuth() {
     statusEl.style.color = "#f97373";
 
     if (!loginId) {
-        // Puste pole Discord ID = próba logowania jako Root Administrator (hasło główne, bootstrap)
-        if (pass !== ROOT_ADMIN_PASSWORD) {
-            statusEl.textContent = currentLang === 'pl' ? "Nieprawidłowe hasło głównego administratora!" : "Invalid root administrator password!";
-            return;
-        }
-        loggedInSteward = buildRootStewardObject();
-        localStorage.setItem("adminAuthId", "ROOT");
+        statusEl.textContent = currentLang === 'pl' ? "Podaj Discord ID." : "Enter Discord ID.";
+        return;
     } else {
         // Logowanie jako konkretny steward — identyfikacja po Discord ID i weryfikacja jego własnego hasła
         const steward = globalStewards.find(s => s.id === loginId);
@@ -3983,13 +3962,6 @@ function tryAutoLogin() {
     stewardsFirstSnapshotReceived = true;
     if (!pendingAutoLoginId || isAdminAuthenticated) return;
 
-    if (pendingAutoLoginId === "ROOT") {
-        loggedInSteward = buildRootStewardObject();
-        finalizeAutoLogin();
-        pendingAutoLoginId = null;
-        return;
-    }
-
     const steward = globalStewards.find(s => s.id === pendingAutoLoginId);
     if (steward) {
         loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
@@ -4236,10 +4208,6 @@ window.addEventListener("DOMContentLoaded", () => {
     listenToStewards();
 
     pendingAutoLoginId = localStorage.getItem("adminAuthId");
-    if (pendingAutoLoginId === "ROOT") {
-        // Logowanie jako Root nie wymaga danych ze "stewards", można przywrócić od razu.
-        tryAutoLogin();
-    }
     // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
     // gdy tylko nadejdzie pierwszy snapshot z "stewards" (patrz listenToStewards).
 
