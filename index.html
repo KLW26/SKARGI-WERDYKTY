@@ -625,7 +625,7 @@
     }
     .login-box h1 {
       font-size: 24px;
-      margin-bottom: 24px;
+      margin-bottom: 12px;
     }
     .desc-box {
       background: var(--bg-panel);
@@ -749,38 +749,450 @@
     .badge-appeal { background: rgba(168,85,247,0.12); color: var(--purple-text); border: 1px solid rgba(168,85,247,0.3); }
 
     small { color: var(--text-dim); font-size: 11px; letter-spacing: 0.3px; }
+
+    /* ============================================================
+       === ROZBUDOWA GRAFICZNA — PREMIUM / WYŚCIGOWY STYL (v2) ===
+       Warstwa dodatkowa: efekty świetlne, gradienty, animacje.
+       Nie zmienia żadnych ID/klas używanych przez JS.
+    ============================================================ */
+
+    @keyframes glowPulse {
+      0%, 100% { opacity: 0.55; }
+      50% { opacity: 1; }
+    }
+    @keyframes sweepLine {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(320%); }
+    }
+    @keyframes shimmerBar {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes floatIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.99); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes numberGlow {
+      0%, 100% { text-shadow: 0 0 6px rgba(225,6,0,0.15); }
+      50% { text-shadow: 0 0 16px rgba(225,6,0,0.45), 0 0 2px rgba(255,255,255,0.3); }
+    }
+    @keyframes bgDrift {
+      0% { background-position: 0 0, 100% 100%, 0 0, 0 0; }
+      100% { background-position: 40px 60px, 60% 40%, 80px 0, 0 80px; }
+    }
+
+    /* --- Karoseria / tło całej aplikacji --- */
+    body::before {
+      animation: bgDrift 26s linear infinite alternate;
+    }
+    body::after {
+      background-size: 200% 100%;
+      animation: shimmerBar 5s linear infinite;
+    }
+
+    .card {
+      box-shadow: 0 40px 100px -30px rgba(0,0,0,0.7), 0 0 0 1px var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      animation: floatIn 0.5s ease;
+    }
+
+    /* --- Górny pasek: efekt przemiatającego światła + flaga w kratkę --- */
+    .top-bar {
+      background:
+        linear-gradient(90deg, rgba(225,6,0,0.05), transparent 30%),
+        var(--bg-deep);
+    }
+    .top-bar::before {
+      font-size: 130px;
+      animation: glowPulse 6s ease-in-out infinite;
+    }
+
+    h1 {
+      text-shadow: 0 0 22px rgba(225,6,0,0.35);
+      position: relative;
+    }
+    h1 span {
+      background: linear-gradient(120deg, var(--red) 0%, #ff5b3d 45%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 12px rgba(225,6,0,0.45));
+    }
+
+    /* --- Menu nawigacyjne: aktywne podświetlenie i wjeżdżająca linia --- */
+    .menu button {
+      overflow: hidden;
+    }
+    .menu button::after {
+      content: "";
+      position: absolute;
+      left: 50%; bottom: 0;
+      width: 0; height: 3px;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+      transition: width 0.25s ease, left 0.25s ease;
+      border-radius: 2px 2px 0 0;
+    }
+    .menu button:hover::after { width: 70%; left: 15%; }
+    .menu button:active { transform: translateY(1px); }
+    #adminMenuBtn {
+      box-shadow: inset 0 0 0 1px rgba(225,6,0,0.25);
+    }
+
+    /* --- Sekcje: delikatny gradient tła + wjazd --- */
+    .section.active {
+      background: radial-gradient(ellipse 120% 60% at 50% 0%, rgba(255,255,255,0.015), transparent 60%);
+    }
+
+    .section-title {
+      position: relative;
+    }
+    .section-title::before {
+      box-shadow: 0 0 12px rgba(225,6,0,0.6);
+      animation: glowPulse 3s ease-in-out infinite;
+    }
+    .section-title.appeal-title::before { box-shadow: 0 0 12px rgba(255,215,0,0.6); }
+
+    /* --- Pola formularza: subtelny glow na focus, gładsze krawędzie --- */
+    input, select, textarea {
+      transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      box-shadow: 0 0 0 1px rgba(225,6,0,0.35), 0 0 18px rgba(225,6,0,0.18);
+      transform: translateY(-1px);
+    }
+
+    /* --- Przyciski: połysk przy najechaniu + mocniejszy cień --- */
+    button, .link-btn {
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 6px 16px -6px rgba(225,6,0,0.45);
+      background-image: linear-gradient(135deg, var(--red), #ff2d1f 55%, var(--red));
+    }
+    button::before, .link-btn::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; height: 100%; width: 40%;
+      background: linear-gradient(115deg, transparent, rgba(255,255,255,0.35), transparent);
+      transform: translateX(-150%);
+      pointer-events: none;
+    }
+    button:hover::before, .link-btn:hover::before {
+      animation: sweepLine 0.7s ease forwards;
+    }
+    button:hover, .link-btn:hover {
+      box-shadow: 0 10px 24px -6px rgba(225,6,0,0.6);
+    }
+    .btn-secondary { background-image: none; box-shadow: none; }
+    .btn-danger { background-image: linear-gradient(135deg, #7f1d1d, #b91c1c 60%, #7f1d1d); box-shadow: 0 6px 16px -6px rgba(185,28,28,0.5); }
+    .btn-success { background-image: linear-gradient(135deg, #065f46, #059669 60%, #065f46); box-shadow: 0 6px 16px -6px rgba(5,150,105,0.5); }
+    .btn-warning { box-shadow: 0 6px 16px -6px rgba(160,120,0,0.5); }
+    .btn-verdict-transfer { box-shadow: 0 6px 16px -6px rgba(109,40,217,0.55); }
+
+    /* --- Statystyki: karty z poświatą i animowanym akcentem --- */
+    .stats-group-box {
+      background: linear-gradient(180deg, var(--bg-panel), var(--bg-card));
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stats-group-box:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 32px -18px rgba(225,6,0,0.35);
+    }
+    .stats-group-box::before {
+      box-shadow: 0 0 10px rgba(225,6,0,0.6);
+    }
+    .stat-box {
+      background: linear-gradient(160deg, var(--bg-deep), var(--bg-panel));
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .stat-box:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 22px -12px rgba(225,6,0,0.5);
+    }
+    .stat-box strong { animation: numberGlow 4s ease-in-out infinite; }
+
+    /* --- Tabele: podświetlony wiersz i nagłówek z akcentem --- */
+    .table-wrapper {
+      box-shadow: 0 12px 30px -20px rgba(0,0,0,0.6);
+    }
+    th {
+      position: relative;
+      background: linear-gradient(180deg, var(--bg-deep), var(--bg-panel));
+    }
+    th::after {
+      content: "";
+      position: absolute;
+      left: 0; bottom: -1px; right: 0; height: 1px;
+      background: linear-gradient(90deg, var(--red), transparent 60%);
+    }
+    tbody tr { position: relative; }
+    tbody tr:hover {
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+
+    /* --- Odznaki statusów: delikatna poświata --- */
+    .badge-pending { box-shadow: 0 0 10px rgba(251,191,36,0.15); }
+    .badge-accepted { box-shadow: 0 0 10px rgba(0,200,83,0.18); }
+    .badge-rejected { box-shadow: 0 0 10px rgba(225,6,0,0.18); }
+    .badge-appeal { box-shadow: 0 0 10px rgba(168,85,247,0.18); }
+
+    /* --- Modale: mocniejszy blur, wjazd ze skalą --- */
+    .login-modal, .desc-modal { backdrop-filter: blur(6px) saturate(1.2); }
+    .login-box, .desc-box {
+      animation: floatIn 0.3s ease;
+      box-shadow: 0 30px 70px -20px rgba(0,0,0,0.7), 0 0 40px -10px rgba(225,6,0,0.15);
+    }
+
+    /* --- Panel werdyktu: subtelny złoty akcent na obrysie --- */
+    .verdict-panel {
+      background: linear-gradient(180deg, var(--bg-panel), var(--bg-card));
+      box-shadow: 0 16px 40px -26px rgba(0,0,0,0.7);
+    }
+
+    /* --- Pasek postępu: efekt przesuwającego się blasku --- */
+    .progress-container { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03); }
+    #progress-bar {
+      background-image: linear-gradient(90deg, var(--red), #ff8a4c, var(--gold), var(--red));
+      background-size: 300% 100%;
+      animation: shimmerBar 3.5s linear infinite;
+      box-shadow: 0 0 10px rgba(225,6,0,0.5);
+    }
+
+    /* --- Historia / czat: delikatna poświata na krawędzi --- */
+    .history-item { box-shadow: -2px 0 10px -6px rgba(225,6,0,0.35); }
+    .msg-steward { box-shadow: -2px 0 10px -6px rgba(21,101,192,0.4); }
+    .msg-player { box-shadow: 2px 0 10px -6px rgba(0,200,83,0.35); }
+    #chatBox, #playerChatBox { box-shadow: inset 0 0 24px rgba(0,0,0,0.25); }
+
+    /* --- Scrollbar z akcentem gradientowym --- */
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, var(--red), var(--gold-dim));
+    }
+
+    /* --- Motyw jasny: dopasowanie mocniejszych cieni do jasnego tła --- */
+    html[data-theme="light"] .card {
+      box-shadow: 0 30px 70px -35px rgba(15,23,42,0.35), 0 0 0 1px var(--border);
+    }
+    html[data-theme="light"] .stats-group-box:hover,
+    html[data-theme="light"] .stat-box:hover {
+      box-shadow: 0 14px 26px -16px rgba(225,6,0,0.25);
+    }
+    html[data-theme="light"] button, html[data-theme="light"] .link-btn {
+      box-shadow: 0 6px 14px -6px rgba(225,6,0,0.35);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body::before, body::after, h1 span, .section-title::before,
+      #progress-bar, .stat-box strong, .card { animation: none !important; }
+    }
+
+    /* ============================================================
+       === ROZBUDOWA GRAFICZNA v3 — TOR WYŚCIGOWY / STYL HUD ===
+       Kolejna warstwa: flaga w kratkę, ramki HUD w rogach paneli,
+       ścięte narożniki przycisków, obracające się poświaty modali,
+       pulsujące kropki statusów, siatka toru w tle sekcji.
+       Wyłącznie warstwa wizualna — żadne ID/klasy używane przez
+       JavaScript nie są ruszane ani zmieniane.
+    ============================================================ */
+
+    @keyframes ringSpin { to { transform: rotate(360deg); } }
+    @keyframes flagShift { 0% { background-position: 0 0; } 100% { background-position: 24px 24px; } }
+    @keyframes dotPulse { 0%,100% { transform: translateY(-50%) scale(1); opacity: 1; } 50% { transform: translateY(-50%) scale(1.7); opacity: 0.45; } }
+    @keyframes stripeSlide { 0% { background-position: 0 0; } 100% { background-position: 180px 0; } }
+    @keyframes cornerGlow { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.75; } }
+
+    /* --- Flaga w kratkę: dekoracyjny róg górnego paska --- */
+    .top-bar { position: relative; }
+    .race-flag-deco {
+      position: absolute;
+      top: 0; right: 0;
+      width: 96px; height: 100%;
+      background-image: repeating-conic-gradient(rgba(255,255,255,0.16) 0% 25%, transparent 0% 50%);
+      background-size: 13px 13px;
+      clip-path: polygon(100% 0, 100% 100%, 35% 100%);
+      opacity: 0.35;
+      pointer-events: none;
+      animation: flagShift 3.5s linear infinite;
+      z-index: 0;
+    }
+    html[data-theme="light"] .race-flag-deco { opacity: 0.12; }
+
+    /* --- Narożniki kart: subtelna wstążka w kratkę (linia mety) --- */
+    .card { position: relative; }
+    .card::before, .card::after {
+      content: "";
+      position: absolute;
+      width: 60px; height: 60px;
+      background-image: repeating-conic-gradient(rgba(225,6,0,0.55) 0% 25%, rgba(255,215,0,0.55) 0% 50%);
+      background-size: 9px 9px;
+      opacity: 0.1;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .card::before { top: 0; left: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
+    .card::after { bottom: 0; right: 0; clip-path: polygon(100% 100%, 0 100%, 100% 0); }
+    html[data-theme="light"] .card::before,
+    html[data-theme="light"] .card::after { opacity: 0.05; }
+
+    /* --- Ramki HUD w rogach paneli: tabele, werdykt, statystyki --- */
+    .table-wrapper, .verdict-panel, .stats-group-box { position: relative; }
+    .table-wrapper::before, .verdict-panel::before, .stats-group-box::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(90deg, var(--red) 0 18px, transparent 18px) top left / 22px 2px no-repeat,
+        linear-gradient(180deg, var(--red) 0 18px, transparent 18px) top left / 2px 22px no-repeat,
+        linear-gradient(270deg, var(--gold) 0 18px, transparent 18px) top right / 22px 2px no-repeat,
+        linear-gradient(180deg, var(--gold) 0 18px, transparent 18px) top right / 2px 22px no-repeat;
+      animation: cornerGlow 4s ease-in-out infinite;
+    }
+
+    /* --- Przyciski: ścięte narożniki, jak elementy karoserii bolidu --- */
+    button, .link-btn {
+      clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    }
+
+    /* --- Liczby w statystykach: wyrównana szerokość cyfr --- */
+    .stat-box strong { font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
+
+    /* --- Odznaki statusów: pulsująca kropka na start --- */
+    .badge { position: relative; padding-left: 17px; }
+    .badge::before {
+      content: "";
+      position: absolute;
+      left: 6px; top: 50%;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      transform: translateY(-50%);
+      animation: dotPulse 1.8s ease-in-out infinite;
+    }
+
+    /* --- Tytuły sekcji: dopełniająca linia z prawej strony --- */
+    .section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      align-self: center;
+      background: linear-gradient(90deg, rgba(225,6,0,0.5), transparent);
+      margin-left: 8px;
+    }
+    .section-title.appeal-title::after { background: linear-gradient(90deg, rgba(255,215,0,0.5), transparent); }
+
+    /* --- Modale: obracająca się poświata za oknem logowania / opisu --- */
+    .login-box, .desc-box { position: relative; }
+    .login-box::before, .desc-box::before {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      z-index: -1;
+      border-radius: 6px;
+      background: conic-gradient(from 0deg, var(--red), transparent 30%, var(--gold), transparent 70%, var(--red));
+      opacity: 0.4;
+      filter: blur(12px);
+      animation: ringSpin 6s linear infinite;
+    }
+
+    /* --- Aktywne sekcje: delikatna siatka nawierzchni toru --- */
+    .section.active {
+      background-image:
+        radial-gradient(ellipse 120% 60% at 50% 0%, rgba(255,255,255,0.015), transparent 60%),
+        repeating-linear-gradient(135deg, rgba(255,255,255,0.008) 0 2px, transparent 2px 26px);
+    }
+
+    /* --- Pasek menu: cienki pasek w kratkę pod zakładkami --- */
+    .menu::before {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: -1px;
+      height: 1px;
+      background-image: repeating-linear-gradient(90deg, var(--red) 0 6px, var(--gold) 6px 12px, transparent 12px 18px);
+      opacity: 0.35;
+      animation: stripeSlide 4.5s linear infinite;
+    }
+
+    /* --- Motyw jasny: dopasowanie poświat modali i ramek HUD --- */
+    html[data-theme="light"] .login-box::before,
+    html[data-theme="light"] .desc-box::before { opacity: 0.22; }
+    html[data-theme="light"] .table-wrapper::before,
+    html[data-theme="light"] .verdict-panel::before,
+    html[data-theme="light"] .stats-group-box::after { opacity: 0.7; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .race-flag-deco, .login-box::before, .desc-box::before,
+      .menu::before, .badge::before,
+      .table-wrapper::before, .verdict-panel::before, .stats-group-box::after {
+        animation: none !important;
+      }
+    }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-  <!-- Firebase Storage nieużywany od migracji na Cloudflare R2 (patrz uploadFileToStorage) -->
 </head>
 
 <body>
   <div id="adminLoginModal" class="login-modal">
     <div class="login-box">
       <h1 data-key="adminPanel">Panel FIA</h1>
+      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Zaloguj się swoim Discord ID i hasłem nadanym przez administratora.</p>
       <div class="field">
-        <label data-key="adminPass">Hasło Administracyjne</label>
-        <input id="adminPass" type="password">
+        <label>Twoje Discord ID</label>
+        <input id="adminLoginId" type="text" placeholder="np. 294330293281161634">
+        <small style="color: var(--text-dim); font-size: 11px; display:block; margin-top:4px;"></small>
       </div>
-      <button onclick="checkAdminAuth()" data-key="loginBtn">Zaloguj</button> <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
+      <div class="field">
+        <label data-key="adminPass">Hasło</label>
+        <input id="adminPass" type="password" placeholder="Wpisz hasło..." onkeydown="if(event.key === 'Enter') checkAdminAuth()">
+      </div>
+      <button onclick="checkAdminAuth()" data-key="loginBtn">Zaloguj</button> 
+      <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
       <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
     </div>
   </div>
 
   <div id="descModal" class="desc-modal">
     <div class="desc-box">
-      <h2 class="section-title" id="descModalTitle">Opis zgłoszenia</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 class="section-title" id="descModalTitle" style="margin-bottom: 0;">Opis zgłoszenia</h2>
+        <button id="btnOpenEditMode" class="btn-warning" onclick="toggleEditMode()" style="font-size: 11px; padding: 6px 12px; display: none;">✏️ TRYB EDYCJI ZGŁOSZENIA</button>
+      </div>
+      
       <div id="descModalBody" style="background:#111827; color:#e8eaf0; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
       
+      <div id="descEditMode" style="display: none; flex-direction: column; gap: 10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--gold);">
+        <p style="font-size: 11px; color: var(--gold); margin-bottom: 4px;">Edytujesz oryginalne dane wprowadzone przez gracza.</p>
+        
+        <div class="row">
+          <div class="field">
+            <label>Zgłaszający (Nick)</label>
+            <input type="text" id="editReporterNick">
+          </div>
+          <div class="field">
+            <label>Oskarżony (Nick)</label>
+            <input type="text" id="editAccusedNick">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Oryginalny Opis Zdarzenia</label>
+          <textarea id="editDescription" style="min-height: 100px;"></textarea>
+        </div>
+
+        <button class="btn-success" onclick="saveEditedReport()">💾 Zapisz Zmiany w Zgłoszeniu</button>
+      </div>
+      
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 4px 0;">
+
       <div>
         <label style="font-weight: bold; margin-bottom: 4px;" id="lblModalNotes">Uzasadnienie sędziowskie / Notatki:</label>
         <textarea id="modalNotesField" placeholder="Wpisz oficjalne uzasadnienie kary, uwagi lub notatki robocze..." style="min-height: 80px;"></textarea>
       </div>
 
       <div style="display: flex; gap: 8px;">
-        <button onclick="saveModalNotes()" style="flex:1;">Zapisz Notatki</button>
+        <button id="btnSaveNotes" onclick="saveModalNotes()" style="flex:1;">Zapisz Notatki</button>
         <button class="btn-secondary" onclick="closeDescModal()" style="flex:1;">Zamknij</button>
       </div>
     </div>
@@ -788,6 +1200,7 @@
 
   <div class="card">
     <div class="top-bar">
+      <div class="race-flag-deco" aria-hidden="true"></div>
       <div>
         <h1><span>FIA</span> System Zgłoszeń</h1>
         <p class="subtitle" data-key="mainSubtitle">Zarządzanie incydentami wyścigowymi</p>
@@ -802,7 +1215,9 @@
       <button onclick="showSection('formSection')" data-key="navNew">Nowe Zgłoszenie</button>
       <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
       <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
-      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
+      
+      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444; margin-left: auto;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
+      <button id="usersMenuBtn" onclick="openUsersSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">👥 Użytkownicy i Role</button>
     </div>
 
     <div id="formSection" class="section active">
@@ -996,7 +1411,7 @@
         <h2 class="section-title" data-key="adminSecTitle" style="margin-bottom: 0;">Zarządzanie Zgłoszeniami</h2>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button style="font-size:11px; padding: 6px 14px;" onclick="showSection('chatSection')" data-key="btnOpenChat">💬 CZAT SĘDZIÓW</button>
-          <button style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;" onclick="openTrash()">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
+          <button id="openTrashBtn" style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;" onclick="openTrash()">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
           <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportDatabase()">⬇ EKSPORTUJ</button>
           <button class="btn-danger" style="padding: 6px 14px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">↺ RESETUJ ID</button>
           <button style="background:#4c1d95; border: 1px solid #6d28d9; padding: 6px 14px; font-size: 11px; border-radius:2px; font-weight:700; cursor:pointer; color:white; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;" onclick="resetAppealIDCounter()">↺ ID APELACJI</button>
@@ -1056,7 +1471,7 @@
         <div class="btns">
           <button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
           <button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
-          <button style="background: #64748b;" onclick="bulkDelete()">Masowo Usuń</button>
+          <button id="bulkDeleteBtn" style="background: #64748b;" onclick="bulkDelete()">Masowo Usuń</button>
         </div>
       </div>
 
@@ -1163,9 +1578,151 @@
       </div>
 
     </div>
+
+    <div id="usersSection" class="section">
+        <div class="section-title">Zarządzanie Użytkownikami i Uprawnieniami</div>
+        
+        <div class="stats-container-grid">
+            <div class="stats-group-box">
+                <div class="stats-group-title">Kolegium Sędziowskie (Stewardzi)</div>
+                <div class="admin-stats">
+                    <div class="stat-box">
+                        <span>Łącznie Stewardów</span>
+                        <strong id="totalStewardsCount">0</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span>Główni Sędziowie (Lead)</span>
+                        <strong id="leadStewardsCount">0</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-group-box">
+                <div class="stats-group-title">Dziennik Zdarzeń Systemowych</div>
+                <div class="admin-stats">
+                    <div class="stat-box">
+                        <span>Zarejestrowane Logi Akcji</span>
+                        <strong id="totalLogsCount">0</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="align-items: flex-start; gap: 20px;">
+            <div style="flex: 1; max-width: 420px; background: var(--bg-panel); padding: 24px; border: 1px solid var(--border); border-radius: 4px; border-top: 2px solid var(--red);">
+                <div class="stats-group-title" style="margin-bottom: 16px; color: var(--red); font-size: 13px;">Profil i Rola Sędziego</div>
+                <form id="stewardForm" onsubmit="saveSteward(event)">
+                    <div class="field">
+                        <label for="stewardNick">Pseudonim (Nick)</label>
+                        <input type="text" id="stewardNick" required placeholder="np. Steward_Alek">
+                    </div>
+                    <div class="field">
+                        <label for="stewardDiscord">Discord ID</label>
+                        <input type="text" id="stewardDiscord" required placeholder="np. 294330293281161634">
+                    </div>
+                    <div class="field">
+                        <label for="stewardPassword">Hasło logowania do panelu</label>
+                        <input type="text" id="stewardPassword" placeholder="Ustaw hasło dla tego stewarda...">
+                        <small style="color: var(--text-dim); font-size: 11px;">Tym Discord ID + hasłem steward zaloguje się w oknie logowania. Przy edycji zostaw puste, aby nie zmieniać obecnego hasła.</small>
+                    </div>
+                    <div class="field">
+                        <label for="stewardRole">Oficjalna Rola FIA</label>
+                        <select id="stewardRole" onchange="autoAssignPermissions()">
+                            <option value="Główny Steward">Główny Steward (Lead Steward)</option>
+                            <option value="Steward">Steward Wyścigowy</option>
+                            <option value="Junior Steward">Młodszy Steward (Junior)</option>
+                            <option value="Asystent">Sędzia Asystent</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label style="margin-bottom: 8px;">Dedykowane Uprawnienia</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px; background: var(--bg-deep); padding: 12px; border-radius: 3px; border: 1px solid var(--border);">
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_review" style="width: auto; margin: 0; cursor: pointer;"> Rozpatrywanie zgłoszeń (INC)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_appeals" style="width: auto; margin: 0; cursor: pointer;"> Rozpatrywanie apelacji (APP)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_users" style="width: auto; margin: 0; cursor: pointer;"> Zarządzanie użytkownikami (USR)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_trash" style="width: auto; margin: 0; cursor: pointer;"> Stały dostęp do Kosza (TRSH)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
+                                <input type="checkbox" id="perm_edit" style="width: auto; margin: 0; cursor: pointer;"> Pełna edycja treści graczy (EDIT)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_notes" style="width: auto; margin: 0; cursor: pointer;"> Edycja notatek sędziowskich (NOTES)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_chat" style="width: auto; margin: 0; cursor: pointer;"> Czyszczenie historii czatu (CHAT)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_settings" style="width: auto; margin: 0; cursor: pointer;"> Zarządzanie systemem (Reset ID, Eksport) (SYS)
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-success" style="width: 100%; margin-top: 10px;">Zapisz i Autoryzuj</button>
+                    <button type="button" class="btn-secondary" onclick="resetStewardForm()" style="width: 100%; margin-top: 8px;">Wyczyść formularz</button>
+                </form>
+            </div>
+
+            <div style="flex: 2;">
+                <div class="stats-group-title" style="margin-bottom: 12px;">Aktywny Personel Sędziowski</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Steward</th>
+                                <th style="width: 25%;">Discord ID</th>
+                                <th style="width: 20%;">Rola</th>
+                                <th style="width: 18%;">Uprawnienia</th>
+                                <th style="width: 12%;">Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stewardsTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px;">
+            <div class="section-title appeal-title">Logi Akcji Sędziowskich (Audit Trail)</div>
+            <div class="admin-controls">
+                <input type="text" id="logSearch" class="search-input" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." oninput="renderLogsTable()">
+                <select id="logFilterAction" class="filter-select" onchange="renderLogsTable()">
+                    <option value="ALL">Wszystkie kategorie</option>
+                    <option value="VERDICT">Werdykty i kary</option>
+                    <option value="APPEAL">Apelacje kierowców</option>
+                    <option value="USER_MGMT">Zarządzanie sędziami</option>
+                    <option value="TRASH">Operacje na Koszu</option>
+                </select>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">Data i godzina</th>
+                            <th style="width: 18%;">Steward (Operator)</th>
+                            <th style="width: 14%;">Kategoria</th>
+                            <th style="width: 12%;">Powiązane ID</th>
+                            <th style="width: 38%;">Szczegóły operacji</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
   </div>
 
 <script>
+let loggedInSteward = null;
+let globalStewards = [];
+let globalLogs = [];
+
 const firebaseConfig = {
     databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/"
 };
@@ -1173,18 +1730,15 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// ====== KONFIGURACJA CLOUDFLARE R2 (upload plików dowodowych) ======
-// Adres Workera generującego presigned URL do R2 — wklej swój po wdrożeniu (patrz README.md w paczce Workera).
 const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev";
 
 const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
 
-const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024; // maks. ŁĄCZNY rozmiar wszystkich plików w jednym zgłoszeniu/wiadomości: 1 GB
-const MAX_EVIDENCE_FILES = 5; // maks. liczba plików na zgłoszenie/apelację
+const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024;
+const MAX_EVIDENCE_FILES = 5;
 
-// Zwraca łączny rozmiar (w bajtach) podanej listy plików.
 function getTotalFileSize(files) {
     return files.reduce((sum, f) => sum + f.size, 0);
 }
@@ -1198,12 +1752,6 @@ function fileToBase64(file) {
     });
 }
 
-// Wysyła plik bezpośrednio do Cloudflare R2 (łączny limit wszystkich plików w zgłoszeniu/wiadomości: 1GB, darmowy plan) i zwraca metadane pliku.
-// onProgress(percent) jest wywoływane w trakcie uploadu, żeby UI mógł pokazać pasek postępu.
-// Działanie: 1) pytamy Workera o "presigned URL" (krótki request, bez wysyłania pliku),
-//            2) wysyłamy plik BEZPOŚREDNIO do R2 pod ten link (Worker nie pośredniczy w transferze pliku).
-// WAŻNE: nie zapisujemy tu gotowego, "wiecznego" URL-a do pliku — zapisujemy tylko `key` (ścieżkę pliku w R2).
-// Świeży, tymczasowy link do PODGLĄDU pliku jest generowany dopiero na żądanie, patrz getFreshEvidenceUrl().
 async function uploadFileToStorage(file, folder, onProgress) {
     if (!R2_WORKER_URL || R2_WORKER_URL === "WKLEJ_TU_ADRES_WORKERA") {
         throw new Error("Upload plików nie jest skonfigurowany: uzupełnij R2_WORKER_URL w kodzie strony.");
@@ -1246,14 +1794,8 @@ async function uploadFileToStorage(file, folder, onProgress) {
     return { key, name: file.name, size: file.size, type: file.type };
 }
 
-// Cache w pamięci (NIE w localStorage) świeżych linków podglądu, żeby jedno i to samo kliknięcie
-// "Zobacz dowód" na dany plik w ramach tej samej sesji strony nie odpytywało Workera bez potrzeby.
-// Linki są krótkotrwałe (patrz Worker: presign-get), więc trzymamy je tylko do zadeklarowanego wygaśnięcia.
-const _evidenceUrlCache = new Map(); // key -> { url, expiresAt }
+const _evidenceUrlCache = new Map();
 
-// Pyta Workera o świeży, tymczasowy (presigned GET) link do podglądu pliku o podanym `key`.
-// Wywoływane DOPIERO w momencie, gdy admin/gracz faktycznie kliknie "Zobacz dowód" — nie przy renderowaniu listy.
-// `expiresIn` (sekundy, opcjonalne) pozwala poprosić o dłużej ważny link — np. do embeda na Discordzie.
 async function getFreshEvidenceUrl(key, expiresIn) {
     if (!key) throw new Error("Brak klucza pliku (key).");
 
@@ -1283,10 +1825,6 @@ async function getFreshEvidenceUrl(key, expiresIn) {
     return url;
 }
 
-// Buduje treść pola "Dowód" do embeda Discorda: dla każdego załączonego pliku (evidenceFiles z `key`)
-// generuje długożyjący (7 dni — maksimum jakie pozwala podpisywanie SigV4/R2) presigned link i zwraca
-// go jako klikalny markdown link Discorda. Jeśli któryś link nie uda się wygenerować, wpis dla tego
-// pliku spada do samej nazwy (bez linku), żeby cały werdykt i tak poszedł na Discorda.
 async function buildDiscordEvidenceValue(record) {
     const parts = [];
     if (record && record.evidence) parts.push(record.evidence);
@@ -1295,7 +1833,7 @@ async function buildDiscordEvidenceValue(record) {
         ? record.evidenceFiles
         : (record && record.evidenceFileData ? [{ name: record.evidenceFileName, url: record.evidenceFileData }] : []);
     if (files.length) {
-        const DISCORD_LINK_TTL = 60 * 60 * 24 * 7; // 7 dni
+        const DISCORD_LINK_TTL = 60 * 60 * 24 * 7; 
         const fileLines = await Promise.all(files.map(async (f) => {
             const label = f.name || "plik";
             if (f.key) {
@@ -1307,8 +1845,6 @@ async function buildDiscordEvidenceValue(record) {
                     return `📎 ${label} (błąd generowania linku)`;
                 }
             }
-            // Stary format (base64/publiczny url zapisany bezpośrednio w rekordzie) — bez linku
-            // dla base64 (za duże/nieklikalne w Discordzie), z linkiem jeśli to zwykły http(s) url.
             if (f.url && /^https?:\/\//.test(f.url)) return `📎 [${label}](${f.url})`;
             return `📎 ${label}`;
         }));
@@ -1318,8 +1854,6 @@ async function buildDiscordEvidenceValue(record) {
     return parts.length ? parts.join("\n") : "Brak";
 }
 
-// Obsługa kliknięcia w przycisk "Zobacz dowód" (delegacja zdarzeń — działa też dla treści dodanych do DOM później).
-// Pobiera świeży link z Workera i dopiero wtedy otwiera plik w nowej karcie.
 document.addEventListener("click", async (e) => {
     const btn = e.target.closest(".evidence-fetch-btn");
     if (!btn) return;
@@ -1345,7 +1879,6 @@ document.addEventListener("click", async (e) => {
     }
 });
 
-// Wysyła wiele plików równolegle do Storage, raportując łączny postęp (uśredniony) przez onProgress(percent).
 async function uploadFilesToStorage(files, folder, onProgress) {
     if (!files.length) return [];
     const progressPerFile = new Array(files.length).fill(0);
@@ -1360,7 +1893,6 @@ async function uploadFilesToStorage(files, folder, onProgress) {
     return Promise.all(uploads);
 }
 
-// Pokazuje/aktualizuje/ukrywa pasek postępu uploadu w danym kontenerze (elId).
 function setUploadProgress(elId, percent) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -1379,11 +1911,6 @@ function hasEvidence(record) {
     return !!(record && (record.evidence || record.evidenceFileData || (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length)));
 }
 
-// Zwraca gotowy fragment HTML z linkiem do dowodu (URL) oraz z WYŚWIETLONYMI (nie do pobrania) załączonymi plikami:
-// obrazy jako miniatury (kliknięcie otwiera pełny rozmiar w nowej karcie), wideo jako odtwarzacz inline,
-// pozostałe typy plików (pdf, txt, log itp.) jako link do podglądu w nowej karcie.
-// Obsługuje zarówno stare zgłoszenia (pojedynczy plik: evidenceFileData/Name/Size/Type) jak i nowe (tablica evidenceFiles).
-// linkLabel pozwala nadpisać tekst linku do URL dowodu (np. skrócony przycisk w tabeli admina).
 function renderEvidenceHtml(record, linkLabel, emptyLabel) {
     if (!record) return emptyLabel || "";
     const linkParts = [];
@@ -1406,8 +1933,6 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
         const sizeKb = f.size ? Math.round(f.size / 1024) : null;
 
         if (f.key) {
-            // Nowy format: plik trzymany w R2 pod `key`. Nie mamy gotowego URL-a —
-            // link do podglądu dociągamy z Workera DOPIERO gdy ktoś kliknie przycisk.
             const label = type.startsWith("image/")
                 ? `🖼️ ${currentLang === 'pl' ? 'Zobacz zdjęcie' : 'View image'}`
                 : type.startsWith("video/")
@@ -1417,7 +1942,6 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
             return;
         }
 
-        // Stary format (kompatybilność wsteczna): gotowy URL lub base64 zapisany bezpośrednio w rekordzie.
         const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
@@ -1446,7 +1970,6 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
     return html;
 }
 
-// Renderuje kompaktową galerię/plik-linki dla załączników dołączonych do wiadomości na czacie.
 function renderChatFilesHtml(files) {
     if (!Array.isArray(files) || !files.length) return "";
     const linkParts = [];
@@ -1500,6 +2023,7 @@ let globalChatData = null;
 let isAdminAuthenticated = false;
 let currentLang = 'pl';
 let currentlyEditedReportId = null;
+let isUsersAuth = false;
 
 let authorizedHistoryDiscordId = null;
 let selectedPlayerCaseId = null;
@@ -1670,6 +2194,7 @@ tracks.forEach(track => {
   option.textContent = track;
   trackSelect.appendChild(option);
 });
+
 function handleCategoryChange() {
     const categorySelect = document.getElementById("category");
     const accusedNickField = document.getElementById("accusedNickField");
@@ -1806,22 +2331,97 @@ function showSection(id) {
     document.getElementById(id).classList.add('active');
 }
 
-function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminPass").focus(); }
-function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; document.getElementById("adminPass").value = ""; }
+function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminLoginId").focus(); }
+function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; document.getElementById("adminPass").value = ""; document.getElementById("adminLoginId").value = ""; }
 
-function checkAdminAuth() {
-    const pass = document.getElementById("adminPass").value;
-    if (pass === "FIA2024") {
-        isAdminAuthenticated = true;
-        localStorage.setItem("adminAuth", "1");
-        closeAdminLogin();
-        document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
-        showSection("adminSection");
-        renderAdmin();
-        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
-    } else {
-        document.getElementById("loginStatus").textContent = currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!";
+function openUsersSection() {
+    if (isUsersAuth) {
+        showSection('usersSection');
+        renderUsersAndLogs();
+        return;
     }
+    const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Zarządzania Użytkownikami i Rolami:" : "Enter password for Users and Roles section:");
+    if (pass === "ADMIN2026") {
+        isUsersAuth = true;
+        sessionStorage.setItem("usersAuth", "1");
+        showSection('usersSection');
+        renderUsersAndLogs();
+    } else if (pass !== null) {
+        alert(currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!");
+    }
+}
+
+const ROOT_ADMIN_PASSWORD = "FIA2024";
+
+function buildRootStewardObject() {
+    return {
+        nick: "Root Administrator", id: "ROOT", role: "ROOT",
+        permissions: {
+            review_incidents: true,
+            review_appeals: true,
+            manage_users: true,
+            access_trash: true,
+            edit_reports: true,
+            edit_notes: true,
+            clear_chat: true,
+            manage_settings: true
+        }
+    };
+}
+
+async function checkAdminAuth() {
+    const loginId = document.getElementById("adminLoginId").value.trim();
+    const pass = document.getElementById("adminPass").value;
+    const statusEl = document.getElementById("loginStatus");
+    statusEl.style.color = "#f97373";
+
+    if (!loginId) {
+        // Puste pole Discord ID = próba logowania jako Root Administrator (hasło główne, bootstrap)
+        if (pass !== ROOT_ADMIN_PASSWORD) {
+            statusEl.textContent = currentLang === 'pl' ? "Nieprawidłowe hasło głównego administratora!" : "Invalid root administrator password!";
+            return;
+        }
+        loggedInSteward = buildRootStewardObject();
+        localStorage.setItem("adminAuthId", "ROOT");
+    } else {
+        // Logowanie jako konkretny steward — identyfikacja po Discord ID i weryfikacja jego własnego hasła
+        const steward = globalStewards.find(s => s.id === loginId);
+        if (!steward) {
+            statusEl.textContent = currentLang === 'pl' ? "Nie znaleziono stewarda o podanym Discord ID." : "No steward found with that Discord ID.";
+            return;
+        }
+        if (!steward.password || pass !== steward.password) {
+            statusEl.textContent = currentLang === 'pl' ? "Nieprawidłowe hasło dla tego Discord ID!" : "Invalid password for this Discord ID!";
+            return;
+        }
+        loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
+        localStorage.setItem("adminAuthId", steward.id);
+    }
+
+    isAdminAuthenticated = true;
+
+    closeAdminLogin();
+    document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
+
+    applyStewardPermissions();
+    listenToUsersAndLogs();
+
+    showSection("adminSection");
+    renderAdmin();
+    if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+}
+
+function applyStewardPermissions() {
+    const perms = loggedInSteward?.permissions || {};
+    
+    const usersBtn = document.getElementById("usersMenuBtn");
+    if (usersBtn) usersBtn.style.display = perms.manage_users ? "block" : "none";
+
+    const trashBtn = document.getElementById("openTrashBtn");
+    if (trashBtn) trashBtn.style.display = perms.access_trash ? "inline-block" : "none";
+
+    const bulkBar = document.getElementById("bulkBar");
+    if (bulkBar && !perms.review_incidents) bulkBar.style.display = "none";
 }
 
 document.getElementById("complaintForm").addEventListener("submit", async e => {
@@ -1884,7 +2484,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     e.target.reset();
     const evidenceFileListEl = document.getElementById("evidenceFileList");
     if (evidenceFileListEl) evidenceFileListEl.innerHTML = "";
-    handleCategoryChange(); // Resetowanie widoczności pól oskarżonego
+    handleCategoryChange();
 
     const embed = {
         title: langData.pl.dcReportTitle,
@@ -2030,7 +2630,6 @@ function fetchAndRenderHistory(discordId) {
         return;
     }
 
-    // === Panel administratora: usuwanie całej historii tego użytkownika ===
     if (isAdminAuthenticated) {
         const adminDeleteWrap = document.createElement("div");
         adminDeleteWrap.style.cssText = "margin-bottom:14px; text-align:right;";
@@ -2100,7 +2699,6 @@ function fetchAndRenderHistory(discordId) {
         container.appendChild(div);
     });
 
-    // === Apelacje powiązane z kontem Discord użytkownika ===
     if (userAppeals.length > 0) {
         const appealsHeader = document.createElement("h3");
         appealsHeader.className = "section-title appeal-title";
@@ -2184,13 +2782,11 @@ function resolveChatDisplayNick(m) {
     const isSteward = (m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward");
     if (isSteward) return m.nick;
 
-    // Wiadomości gracza: spróbuj podmienić surowe Discord ID na prawdziwy nick z powiązanej apelacji.
     const relatedAppeal = globalAppeals.find(a => a.appealId === m.caseId);
     if (relatedAppeal && relatedAppeal.discordId === m.userDiscordId && relatedAppeal.nick) {
         return relatedAppeal.nick;
     }
 
-    // Wiadomości gracza: spróbuj podmienić surowe Discord ID na prawdziwy nick z powiązanego zgłoszenia.
     const relatedReport = globalIncidents.find(r => r.id === m.caseId) ||
         globalIncidents.find(r => r.discordId === m.userDiscordId || r.accusedDiscordId === m.userDiscordId);
 
@@ -2265,7 +2861,7 @@ function renderAdmin() {
         cAppAll++;
         if (a.status === "Nowa") cAppPending++;
         if (a.status === "Przyjęte") cAppChanged++;
-        if (a.status === "Podtrzymany") cAppMaintained++;
+        if (a.status === "Podtrzymany" || a.status === "Podtrzymana") cAppMaintained++;
         if (a.status === "Zakończona") cAppClosed++;
     });
     document.getElementById("statAppAll").textContent = cAppAll;
@@ -2273,6 +2869,9 @@ function renderAdmin() {
     document.getElementById("statAppChanged").textContent = cAppChanged;
     document.getElementById("statAppMaintained").textContent = cAppMaintained;
     document.getElementById("statAppClosed").textContent = cAppClosed;
+
+    const perms = loggedInSteward?.permissions || {};
+    const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
 
     globalIncidents.forEach(r => {
         const matchesSearch = r.nick.toLowerCase().includes(searchQuery) || (r.accusedNick || "").toLowerCase().includes(searchQuery) || r.track.toLowerCase().includes(searchQuery) || r.id.toLowerCase().includes(searchQuery);
@@ -2295,11 +2894,24 @@ function renderAdmin() {
             if (r.status === "W apelacji") trStatusText = t.statusAppeal;
             if (r.status === "Werdykt wydany") trStatusText = t.statusVerdictIssued;
 
+            let incActionsHtml = "";
+            if (perms.review_incidents || isRoot) {
+                incActionsHtml += `
+                    <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
+                    <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
+                    <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
+                `;
+            }
+            if (perms.access_trash || isRoot) {
+                incActionsHtml += `<button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>`;
+            }
+            if (!incActionsHtml) incActionsHtml = `<span style="font-size:10px; color:var(--text-dim); text-align:center;">Brak uprawnień</span>`;
+
             tr.innerHTML = `
                 <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
                 <td>
                     <strong style="color:var(--text);">${r.id}</strong>
-                    <button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>
+                    ${(loggedInSteward && loggedInSteward.role === "Steward") ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
                 </td>
                 <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
                 <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
@@ -2312,7 +2924,7 @@ function renderAdmin() {
                         <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
                                 <strong style="color:#fff;">⚖️ Werdykt:</strong>
-                                <button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>
+                                ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
                             </div>
                             ${r.decisionData.decision}<br>
                             <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
@@ -2326,10 +2938,7 @@ function renderAdmin() {
                 <td>
                     <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>
                     <div class="action-btns">
-                        <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
-                        <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
-                        <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
-                        <button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>
+                        ${incActionsHtml}
                     </div>
                 </td>
             `;
@@ -2349,6 +2958,20 @@ function renderAdmin() {
             if (a.status === "Podtrzymany" || a.status === "Podtrzymana") appBadgeBg = "#6b7280";
             if (a.status === "Zakończona") appBadgeBg = "#3b82f6";
             const appStatusText = a.status || "Nowa";
+
+            let appActionsHtml = "";
+            if (perms.review_appeals || isRoot) {
+                appActionsHtml += `
+                    <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}')">Rozpatrz werdykt</button>
+                    <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
+                    <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
+                `;
+            }
+            if (perms.access_trash || isRoot) {
+                appActionsHtml += `<button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>`;
+            }
+            if (!appActionsHtml) appActionsHtml = `<span style="font-size:10px; color:var(--text-dim); text-align:center;">Brak uprawnień</span>`;
+
             trA.innerHTML = `
                 <td><strong>${a.appealId}</strong></td>
                 <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
@@ -2358,10 +2981,7 @@ function renderAdmin() {
                 <td>
                     <span style="background:${appBadgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${appStatusText}</span>
                     <div class="action-btns">
-                        <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}')">Rozpatrz werdykt</button>
-                        <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
-                        <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
-                        <button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>
+                        ${appActionsHtml}
                     </div>
                 </td>
             `;
@@ -2373,25 +2993,129 @@ function renderAdmin() {
     updateBulkActionsBar();
 }
 
+let isEditModeActive = false;
+
 function openDescModal(id) {
     currentlyEditedReportId = id;
     const item = globalIncidents.find(r => r.id === id);
     if (!item) return;
+    
+    isEditModeActive = false;
+    document.getElementById("descModalBody").style.display = "block";
+    
+    const editModeContainer = document.getElementById("descEditMode");
+    if (editModeContainer) editModeContainer.style.display = "none";
+
+    const btnEdit = document.getElementById("btnOpenEditMode");
+    if (btnEdit) {
+        const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.edit_reports));
+        btnEdit.style.display = canEdit ? "inline-block" : "none";
+    }
+
     document.getElementById("descModalTitle").textContent = `Sprawa ${item.id}`;
     document.getElementById("descModalBody").textContent = item.details;
-    document.getElementById("modalNotesField").value = item.notes || "";
+    
+    const notesField = document.getElementById("modalNotesField");
+    const saveNotesBtn = document.getElementById("btnSaveNotes");
+    notesField.value = item.notes || "";
+    
+    const canEditNotes = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.edit_notes));
+    
+    if (!canEditNotes) {
+        notesField.readOnly = true;
+        notesField.style.opacity = "0.7";
+        if (saveNotesBtn) saveNotesBtn.style.display = "none";
+    } else {
+        notesField.readOnly = false;
+        notesField.style.opacity = "1";
+        if (saveNotesBtn) saveNotesBtn.style.display = "block";
+    }
+
     document.getElementById("descModal").style.display = "flex";
 }
 
 async function saveModalNotes() {
     if (!currentlyEditedReportId) return;
+    
+    const canEditNotes = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.edit_notes));
+    if (!canEditNotes) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do edytowania notatek." : "Not authorized to edit notes.");
+        return;
+    }
+    
     await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(document.getElementById("modalNotesField").value);
-    alert("Zapisano."); closeDescModal();
+    alert(currentLang === 'pl' ? "Zapisano." : "Saved.");
+    closeDescModal();
 }
 
 function closeDescModal() {
     document.getElementById("descModal").style.display = "none";
     currentlyEditedReportId = null;
+    isEditModeActive = false;
+}
+
+function toggleEditMode() {
+    if (!currentlyEditedReportId) return;
+
+    const report = globalIncidents.find(r => r.id === currentlyEditedReportId);
+    if (!report) return;
+
+    const normalView = document.getElementById("descModalBody");
+    const editView = document.getElementById("descEditMode");
+
+    isEditModeActive = !isEditModeActive;
+
+    if (isEditModeActive) {
+        normalView.style.display = "none";
+        editView.style.display = "flex";
+
+        document.getElementById("editReporterNick").value = report.nick || "";
+        document.getElementById("editAccusedNick").value = report.accusedNick || "";
+        document.getElementById("editDescription").value = report.details || "";
+    } else {
+        normalView.style.display = "block";
+        editView.style.display = "none";
+    }
+}
+
+async function saveEditedReport() {
+    if (!currentlyEditedReportId) return;
+    
+    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.edit_reports));
+    if (!canEdit) {
+        alert(currentLang === 'pl' ? "Brak dedykowanych uprawnień (EDIT) do modyfikacji zgłoszeń!" : "Unauthorized to edit content!");
+        return;
+    }
+
+    const newReporterNick = document.getElementById("editReporterNick").value.trim();
+    const newAccusedNick = document.getElementById("editAccusedNick").value.trim();
+    const newDescription = document.getElementById("editDescription").value.trim();
+
+    if (!newReporterNick || !newAccusedNick || !newDescription) {
+        alert(currentLang === 'pl' ? "Żadne pole nie może być puste!" : "Fields cannot be empty!");
+        return;
+    }
+
+    try {
+        const updates = {};
+        updates[`incidents/${currentlyEditedReportId}/nick`] = newReporterNick;
+        updates[`incidents/${currentlyEditedReportId}/accusedNick`] = newAccusedNick;
+        updates[`incidents/${currentlyEditedReportId}/details`] = newDescription;
+
+        await database.ref().update(updates);
+
+        const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+        await logAction(stewardName, "VERDICT", currentlyEditedReportId, `Steward użył narzędzi edycji, zmieniając oryginalne dane zgłoszenia.`);
+
+        alert(currentLang === 'pl' ? "Zmiany zostały pomyślnie zapisane." : "Changes saved successfully.");
+
+        document.getElementById("descModalBody").textContent = newDescription;
+        toggleEditMode();
+        renderAdmin(); 
+    } catch (err) {
+        console.error("Błąd podczas nadpisywania zgłoszenia:", err);
+        alert("Wystąpił błąd podczas zapisu: " + err.message);
+    }
 }
 
 function transferToVerdictPanel(id, accusedDiscordId) {
@@ -2419,6 +3143,10 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
 }
 
 async function deleteVerdict(id) {
+    if (loggedInSteward && loggedInSteward.role !== "ROOT" && loggedInSteward.role !== "Główny Steward") {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania werdyktów. Tylko Główny Steward może to zrobić." : "Not authorized to delete verdicts.");
+        return;
+    }
     if (!confirm(currentLang === 'pl' ? "Czy na pewno chcesz usunąć werdykt z tego zgłoszenia? Status wróci do \"Przyjęte\". Werdykt trafi do Kosza." : "Are you sure you want to delete the verdict from this report? Status will revert to \"Accepted\". The verdict will be moved to Trash.")) return;
     try {
         const report = globalIncidents.find(r => r.id === id);
@@ -2458,34 +3186,14 @@ async function updateStatus(id, newStatus) {
     } catch(e) { console.error(e); }
 }
 
-function transferToVerdictPanel(id, accusedDiscordId) {
-    document.getElementById("caseId").value = id;
-    document.getElementById("accusedId").value = accusedDiscordId || "";
-    const found = globalIncidents.find(r => r.id === id);
-    if (found) {
-        document.getElementById("verdictPreviewDesc").textContent = found.details;
-        document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
-        document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
-    }
-}
-
-function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
-    document.getElementById("caseId").value = `${caseId} (${appealId})`;
-    document.getElementById("accusedId").value = driverDiscordId;
-    const foundCase = globalIncidents.find(r => r.id === caseId);
-    const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
-    if (foundCase && foundAppeal) {
-        document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
-        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${renderEvidenceHtml(foundCase, "Link", "Brak")}<br>Nowy dowód: ${renderEvidenceHtml(foundAppeal, "Link", "Brak")}`;
-        document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
-    }
-}
-
 async function acceptAppeal(appealId, caseId, discordId) {
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Przyjęte";
     updates[`incidents/${caseId}/status`] = "Przyjęte";
     await database.ref().update(updates);
+    
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
+    await logAction(stewardName, "APPEAL", caseId, `Zaakceptowano apelację ${appealId} i zmieniono pierwotną decyzję.`);
 
     const isPl = (currentLang === 'pl');
     const appealObj = globalAppeals.find(a => a.appealId === appealId);
@@ -2508,6 +3216,9 @@ async function rejectAppeal(appealId, caseId, discordId) {
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Podtrzymany";
     await database.ref().update(updates);
+    
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
+    await logAction(stewardName, "APPEAL", caseId, `Odrzucono apelację ${appealId}. Podtrzymano pierwotny werdykt sędziowski. Uzasadnienie: ${reason}`);
 
     const isPl = (currentLang === 'pl');
     const appealObj = globalAppeals.find(a => a.appealId === appealId);
@@ -2556,16 +3267,21 @@ async function moveToTrash(type, originalId, data) {
         data: data,
         deletedAt: firebase.database.ServerValue.TIMESTAMP
     });
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "System/Steward";
+    await logAction(stewardName, "TRASH", originalId, `Przeniesiono obiekt typu [${type}] do Kosza systemowego.`);
 }
 
-// Edycja ID zgłoszenia (np. FIA-0001 -> FIA-0050). Klucz w bazie = ID, więc trzeba
-// przenieść cały rekord pod nowy klucz i zaktualizować wszystkie powiązane odwołania
-// (apelacje po caseId) oraz wiadomości czatu przypisane do tej sprawy.
 async function editIncidentId(oldId) {
     if (!isAdminAuthenticated) {
         alert(currentLang === 'pl' ? "Brak uprawnień." : "Not authorized.");
         return;
     }
+    
+    if (loggedInSteward && loggedInSteward.role === "Steward") {
+        alert(currentLang === 'pl' ? "Twoja rola nie pozwala na edycję ID zgłoszenia." : "Your role does not allow editing the report ID.");
+        return;
+    }
+
     const report = globalIncidents.find(r => r.id === oldId);
     if (!report) return;
 
@@ -2614,6 +3330,9 @@ async function editIncidentId(oldId) {
         });
 
         await database.ref().update(updates);
+        
+        const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
+        await logAction(stewardName, "VERDICT", oldId, `Zmieniono identyfikator zgłoszenia z ${oldId} na nową sygnaturę ${newId}.`);
 
         if (selectedPlayerCaseId === oldId) selectedPlayerCaseId = newId;
 
@@ -2644,7 +3363,6 @@ async function deleteAppeal(id) {
     }
 }
 
-// Usuwanie POJEDYNCZEGO zgłoszenia z sekcji "Twoja Historia". Wyłącznie dla admina — trafia do Kosza.
 async function adminDeleteSingleReport(id, discordId) {
     if (!isAdminAuthenticated) {
         alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usuwać wpisy z historii." : "Not authorized — only an admin can delete history entries.");
@@ -2665,7 +3383,6 @@ async function adminDeleteSingleReport(id, discordId) {
     if (discordId) fetchAndRenderHistory(discordId);
 }
 
-// Usuwanie POJEDYNCZEJ apelacji z sekcji "Twoja Historia". Wyłącznie dla admina — trafia do Kosza.
 async function adminDeleteSingleAppeal(id, discordId) {
     if (!isAdminAuthenticated) {
         alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usuwać wpisy z historii." : "Not authorized — only an admin can delete history entries.");
@@ -2686,8 +3403,6 @@ async function adminDeleteSingleAppeal(id, discordId) {
     if (discordId) fetchAndRenderHistory(discordId);
 }
 
-// Usuwanie CAŁEJ historii (zgłoszeń + apelacji) danego użytkownika z sekcji "Twoja Historia".
-// Dostępne WYŁĄCZNIE dla zalogowanego administratora — dane trafiają do Kosza, więc można je przywrócić.
 async function adminDeleteAllHistory(discordId) {
     if (!isAdminAuthenticated) {
         alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usunąć całą historię." : "Not authorized — only an admin can delete the entire history.");
@@ -2738,6 +3453,12 @@ function toggleSelectAll(master) {
 function updateBulkActionsBar() {
     const selected = document.querySelectorAll(".admin-row-cb:checked");
     const bar = document.getElementById("bulkBar");
+    const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
+    if (bulkDeleteBtn) {
+        const isRoot = loggedInSteward?.role === "ROOT" || loggedInSteward?.role === "Główny Steward";
+        const canDelete = isRoot || !!(loggedInSteward?.permissions && loggedInSteward.permissions.access_trash);
+        bulkDeleteBtn.style.display = canDelete ? "inline-flex" : "none";
+    }
     if (selected.length > 0) {
         bar.style.display = "flex";
         document.getElementById("bulkSelectedCount").textContent = `Wybrano: ${selected.length} zgłoszeń`;
@@ -2791,17 +3512,29 @@ async function bulkDelete() {
 function adminLogout() {
     if (confirm("Czy na pewno chcesz się wylogować z panelu administratora?")) {
         isAdminAuthenticated = false;
+        loggedInSteward = null;
         isTrashAuthenticated = false;
-        localStorage.removeItem("adminAuth");
+        isUsersAuth = false;
+        pendingAutoLoginId = null;
+        localStorage.removeItem("adminAuthId");
+        sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
         document.getElementById("adminMenuBtn").onclick = function() { openAdminLogin(); };
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
+        if(document.getElementById("usersMenuBtn")) {
+            document.getElementById("usersMenuBtn").style.display = "none";
+        }
         showSection('formSection');
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
     }
 }
 
 function resetIDCounter() {
+    const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canExport) {
+        alert("Brak uprawnień do zarządzania systemem!");
+        return;
+    }
     if (confirm(langData[currentLang].confirmReset)) {
         database.ref("counters").set({ incidents: 0, appeals: 0 });
         database.ref("incident_counter").set(0);
@@ -2810,6 +3543,11 @@ function resetIDCounter() {
 }
 
 function resetAppealIDCounter() {
+    const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canExport) {
+        alert("Brak uprawnień do zarządzania systemem!");
+        return;
+    }
     if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz zresetować licznik ID apelacji do 0?" : "Reset appeal ID counter to 0?")) {
         database.ref("appeal_counter").set(0).then(() => {
             alert(currentLang === 'pl' ? "Licznik ID apelacji został zresetowany." : "Appeal ID counter has been reset.");
@@ -2864,6 +3602,9 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         });
     }
 
+    const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`);
+
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
     const winnerNick = (mainReport && mainReport.accusedNick) ? mainReport.accusedNick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
@@ -2900,6 +3641,11 @@ function handleDecisionChange() {
 }
 
 function exportDatabase() {
+    const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canExport) {
+        alert("Brak uprawnień do eksportu bazy danych!");
+        return;
+    }
     const fullData = { incidents: globalIncidents, appeals: globalAppeals, exportDate: new Date().toLocaleString() };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullData, null, 2));
     const downloadAnchor = document.createElement('a'); downloadAnchor.setAttribute("href", dataStr);
@@ -3120,7 +3866,8 @@ async function sendChatMessage() {
 }
 
 async function clearChat() {
-    if (!isAdminAuthenticated) {
+    const canClear = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.clear_chat));
+    if (!canClear) {
         alert(currentLang === 'pl' ? "Brak uprawnień do wyczyszczenia czatu!" : "Unauthorized to clear chat!");
         return;
     }
@@ -3193,21 +3940,317 @@ async function sendPlayerChatMessage() {
     if (playerChatFileListEl) playerChatFileListEl.innerHTML = "";
 }
 
+// ============================================================
+// === MODUŁ ZARZĄDZANIA UŻYTKOWNIKAMI, ROLAMI I LOGAMI AKCJI ===
+// ============================================================
+
+function listenToStewards() {
+    database.ref("stewards").on("value", snapshot => {
+        globalStewards = [];
+        if (snapshot.exists()) {
+            snapshot.forEach(child => {
+                globalStewards.push({ id: child.key, ...child.val() });
+            });
+        }
+        if (isAdminAuthenticated) {
+            renderStewardsTable();
+            updateUsersStats();
+        }
+        tryAutoLogin();
+    });
+}
+
+function listenToActionLogs() {
+    database.ref("action_logs").on("value", snapshot => {
+        globalLogs = [];
+        if (snapshot.exists()) {
+            snapshot.forEach(child => {
+                globalLogs.push({ id: child.key, ...child.val() });
+            });
+            globalLogs.sort((a, b) => b.timestamp - a.timestamp);
+        }
+        renderLogsTable();
+        updateUsersStats();
+    });
+}
+
+function listenToUsersAndLogs() {
+    // Stewardzi są już nasłuchiwani od startu strony (potrzebne do logowania) — tu doładowujemy logi akcji.
+    listenToActionLogs();
+}
+
+let pendingAutoLoginId = null;
+let stewardsFirstSnapshotReceived = false;
+
+function tryAutoLogin() {
+    stewardsFirstSnapshotReceived = true;
+    if (!pendingAutoLoginId || isAdminAuthenticated) return;
+
+    if (pendingAutoLoginId === "ROOT") {
+        loggedInSteward = buildRootStewardObject();
+        finalizeAutoLogin();
+        pendingAutoLoginId = null;
+        return;
+    }
+
+    const steward = globalStewards.find(s => s.id === pendingAutoLoginId);
+    if (steward) {
+        loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
+        finalizeAutoLogin();
+        pendingAutoLoginId = null;
+    } else {
+        // Steward zapisany w localStorage już nie istnieje w bazie (np. usunięty) — czyścimy sesję.
+        localStorage.removeItem("adminAuthId");
+        pendingAutoLoginId = null;
+    }
+}
+
+function finalizeAutoLogin() {
+    isAdminAuthenticated = true;
+    document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
+    applyStewardPermissions();
+    listenToUsersAndLogs();
+    showSection("adminSection");
+    renderAdmin();
+}
+
+function autoAssignPermissions() {
+    const role = document.getElementById("stewardRole").value;
+    const pReview = document.getElementById("perm_review");
+    const pAppeals = document.getElementById("perm_appeals");
+    const pUsers = document.getElementById("perm_users");
+    const pTrash = document.getElementById("perm_trash");
+    const pEdit = document.getElementById("perm_edit");
+    const pNotes = document.getElementById("perm_notes");
+    const pChat = document.getElementById("perm_chat");
+    const pSettings = document.getElementById("perm_settings");
+
+    if (role === "Główny Steward") {
+        pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pChat.checked = true; pSettings.checked = true;
+    } else if (role === "Steward") {
+        pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pChat.checked = false; pSettings.checked = false;
+    } else if (role === "Junior Steward") {
+        pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pChat.checked = false; pSettings.checked = false;
+    } else {
+        pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pChat.checked = false; pSettings.checked = false;
+    }
+}
+
+function resetStewardForm() {
+    document.getElementById("stewardForm").reset();
+    document.getElementById("stewardDiscord").removeAttribute("disabled");
+    document.getElementById("stewardPassword").placeholder = currentLang === 'pl' ? "Ustaw hasło dla tego stewarda..." : "Set a password for this steward...";
+}
+
+async function saveSteward(event) {
+    event.preventDefault();
+    if (!isAdminAuthenticated) return alert("Brak uprawnień administratorskich!");
+
+    const nick = document.getElementById("stewardNick").value.trim();
+    const discordId = document.getElementById("stewardDiscord").value.trim();
+    const role = document.getElementById("stewardRole").value;
+    const passwordInput = document.getElementById("stewardPassword").value;
+
+    const existing = globalStewards.find(s => s.id === discordId);
+    let password = passwordInput;
+    if (!password) {
+        if (existing && existing.password) {
+            password = existing.password; // edycja bez zmiany hasła — zachowaj obecne
+        } else {
+            alert(currentLang === 'pl' ? "Ustaw hasło logowania dla tego stewarda (pole nie może być puste dla nowego konta)." : "Set a login password for this steward (required for a new account).");
+            return;
+        }
+    }
+
+    const permissions = {
+        review_incidents: document.getElementById("perm_review").checked,
+        review_appeals: document.getElementById("perm_appeals").checked,
+        manage_users: document.getElementById("perm_users").checked,
+        access_trash: document.getElementById("perm_trash").checked,
+        edit_reports: document.getElementById("perm_edit").checked,
+        edit_notes: document.getElementById("perm_notes").checked,
+        clear_chat: document.getElementById("perm_chat").checked,
+        manage_settings: document.getElementById("perm_settings").checked
+    };
+
+    await database.ref("stewards/" + discordId).set({
+        nick, role, password, permissions, lastUpdated: Date.now()
+    });
+
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+    await logAction(stewardName, "USER_MGMT", discordId, `Zapisano sędziego: ${nick} z przypisaną rolą "${role}"`);
+
+    alert("Dane stewarda i uprawnienia zostały zaktualizowane pomyślnie.");
+    resetStewardForm();
+}
+
+function editSteward(discordId) {
+    const st = globalStewards.find(s => s.id === discordId);
+    if (!st) return;
+
+    document.getElementById("stewardNick").value = st.nick;
+    document.getElementById("stewardDiscord").value = st.id;
+    document.getElementById("stewardDiscord").setAttribute("disabled", "true");
+    document.getElementById("stewardPassword").value = "";
+    document.getElementById("stewardPassword").placeholder = st.password
+        ? (currentLang === 'pl' ? "Zostaw puste, aby zachować obecne hasło" : "Leave blank to keep current password")
+        : (currentLang === 'pl' ? "Ustaw hasło dla tego stewarda..." : "Set a password for this steward...");
+    document.getElementById("stewardRole").value = st.role;
+
+    document.getElementById("perm_review").checked = !!st.permissions?.review_incidents;
+    document.getElementById("perm_appeals").checked = !!st.permissions?.review_appeals;
+    document.getElementById("perm_users").checked = !!st.permissions?.manage_users;
+    document.getElementById("perm_trash").checked = !!st.permissions?.access_trash;
+    document.getElementById("perm_edit").checked = !!st.permissions?.edit_reports;
+    document.getElementById("perm_notes").checked = !!st.permissions?.edit_notes;
+    document.getElementById("perm_chat").checked = !!st.permissions?.clear_chat;
+    document.getElementById("perm_settings").checked = !!st.permissions?.manage_settings;
+}
+
+async function deleteSteward(discordId, nick) {
+    if (!confirm(`Czy na pewno chcesz odebrać uprawnienia i usunąć sędziego ${nick}?`)) return;
+    await database.ref("stewards/" + discordId).remove();
+    
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+    await logAction(stewardName, "USER_MGMT", discordId, `Usunięto sędziego z personelu ligi: ${nick}`);
+    alert("Użytkownik został usunięty z systemu FIA.");
+}
+
+async function logAction(steward, category, targetId, details) {
+    try {
+        const newLogRef = database.ref("action_logs").push();
+        await newLogRef.set({
+            steward: steward || "System",
+            category: category,
+            targetId: targetId || "N/A",
+            details: details,
+            timestamp: Date.now()
+        });
+    } catch(err) {
+        console.error("Błąd zapisu logu systemowego:", err);
+    }
+}
+
+function renderStewardsTable() {
+    const tbody = document.getElementById("stewardsTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (globalStewards.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-dim);">Brak zarejestrowanego personelu.</td></tr>`;
+        return;
+    }
+
+    globalStewards.forEach(st => {
+        const tr = document.createElement("tr");
+
+        let permsHtml = "";
+        if (st.permissions?.review_incidents) permsHtml += `<span class="badge badge-accepted" style="font-size:9px; margin-right:4px; padding:1px 4px;" title="Zgłoszenia">INC</span>`;
+        if (st.permissions?.review_appeals) permsHtml += `<span class="badge badge-appeal" style="font-size:9px; margin-right:4px; padding:1px 4px;" title="Apelacje">APP</span>`;
+        if (st.permissions?.manage_users) permsHtml += `<span class="badge badge-pending" style="font-size:9px; margin-right:4px; padding:1px 4px;" title="Sędziowie">USR</span>`;
+        if (st.permissions?.access_trash) permsHtml += `<span class="badge badge-rejected" style="font-size:9px; margin-right:4px; padding:1px 4px;" title="Kosz">TRSH</span>`;
+        if (st.permissions?.edit_reports) permsHtml += `<span class="badge" style="background:#f97316; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #c2410c;" title="Edycja Treści">EDIT</span>`;
+        if (st.permissions?.edit_notes) permsHtml += `<span class="badge" style="background:#14b8a6; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #0d9488;" title="Edycja Notatek">NOTES</span>`;
+        if (st.permissions?.clear_chat) permsHtml += `<span class="badge" style="background:#ef4444; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #b91c1c;" title="Czyszczenie Czatu">CHAT</span>`;
+        if (st.permissions?.manage_settings) permsHtml += `<span class="badge" style="background:#6366f1; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #4338ca;" title="Ustawienia i System">SYS</span>`;
+        
+        if (!permsHtml) permsHtml = `<span style="color:var(--text-muted); font-size:11px;">Brak</span>`;
+
+        tr.innerHTML = `
+            <td><strong>${st.nick}</strong></td>
+            <td><code style="color:var(--gold);">${st.id}</code></td>
+            <td><span class="badge ${st.role === 'Główny Steward' ? 'badge-accepted' : 'badge-pending'}">${st.role}</span></td>
+            <td><div style="display:flex; flex-wrap:wrap; gap:2px;">${permsHtml}</div></td>
+            <td>
+                <div class="action-btns" style="flex-direction:row; gap:6px; margin:0;">
+                    <button class="btn-view" style="padding:3px 8px; margin:0;" onclick="editSteward('${st.id}')">Edytuj</button>
+                    <button class="btn-danger" style="padding:3px 8px; margin:0; font-size:10px;" onclick="deleteSteward('${st.id}', '${st.nick}')">✕</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderLogsTable() {
+    const tbody = document.getElementById("logsTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const searchVal = document.getElementById("logSearch").value.toLowerCase();
+    const filterAction = document.getElementById("logFilterAction").value;
+
+    const filtered = globalLogs.filter(log => {
+        if (filterAction !== "ALL" && log.category !== filterAction) return false;
+        if (searchVal) {
+            return (log.steward?.toLowerCase().includes(searchVal) ||
+                    log.details?.toLowerCase().includes(searchVal) ||
+                    log.targetId?.toLowerCase().includes(searchVal));
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-dim);">Brak logów pasujących do kryteriów wyszukiwania.</td></tr>`;
+        return;
+    }
+
+    filtered.forEach(log => {
+        const tr = document.createElement("tr");
+        const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
+        
+        let catBadge = "";
+        if (log.category === "VERDICT") catBadge = `<span class="badge badge-accepted">WERDYKT</span>`;
+        else if (log.category === "APPEAL") catBadge = `<span class="badge badge-appeal">APELACJA</span>`;
+        else if (log.category === "USER_MGMT") catBadge = `<span class="badge badge-pending">ROLE</span>`;
+        else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
+        else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
+
+        tr.innerHTML = `
+            <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
+            <td><strong>${log.steward}</strong></td>
+            <td>${catBadge}</td>
+            <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
+            <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function updateUsersStats() {
+    if(!document.getElementById("totalStewardsCount")) return;
+    document.getElementById("totalStewardsCount").textContent = globalStewards.length;
+    document.getElementById("leadStewardsCount").textContent = globalStewards.filter(s => s.role === "Główny Steward").length;
+    document.getElementById("totalLogsCount").textContent = globalLogs.length;
+}
+
+function renderUsersAndLogs() {
+    renderStewardsTable();
+    renderLogsTable();
+    updateUsersStats();
+}
+
 window.addEventListener("DOMContentLoaded", () => {
-    // Przywróć zapisany motyw (jasny/ciemny)
     const savedTheme = localStorage.getItem("siteTheme");
     applyTheme(savedTheme === "light" ? "light" : "dark");
 
-    // Przywróć sesję admina po przeładowaniu / zmianie karty
-    if (localStorage.getItem("adminAuth") === "1") {
-        isAdminAuthenticated = true;
-        document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
-        showSection("adminSection");
-    }
+    // Lista stewardów musi być dostępna od startu strony, żeby logowanie mogło
+    // zidentyfikować, KTO się loguje (po Discord ID) i wczytać jego uprawnienia.
+    listenToStewards();
 
-    // Przywróć autoryzację Kosza (ważna tylko w obrębie bieżącej karty/sesji)
+    pendingAutoLoginId = localStorage.getItem("adminAuthId");
+    if (pendingAutoLoginId === "ROOT") {
+        // Logowanie jako Root nie wymaga danych ze "stewards", można przywrócić od razu.
+        tryAutoLogin();
+    }
+    // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
+    // gdy tylko nadejdzie pierwszy snapshot z "stewards" (patrz listenToStewards).
+
     if (sessionStorage.getItem("trashAuth") === "1") {
         isTrashAuthenticated = true;
+    }
+    if (sessionStorage.getItem("usersAuth") === "1") {
+        isUsersAuth = true;
     }
 
     database.ref("incidents").on("value", (snapshot) => {
@@ -3235,7 +4278,7 @@ window.addEventListener("DOMContentLoaded", () => {
         snapshot.forEach(child => { globalTrash.push({ id: child.key, ...child.val() }); });
         const countBtnEl = document.getElementById("trashCountBtn");
         if (countBtnEl) countBtnEl.textContent = globalTrash.length;
-        if (isAdminAuthenticated) renderTrash();
+        if (isAdminAuthenticated && isTrashAuthenticated) renderTrash();
     });
 
     database.ref("chat").on("value", (snapshot) => {
@@ -3249,7 +4292,6 @@ window.addEventListener("DOMContentLoaded", () => {
     initFormDropdowns();
     initAdminTrackFilter();
 
-    // ====== PROGRESS BAR ======
     const form = document.getElementById('complaintForm');
     const progressBar = document.getElementById('progress-bar');
     if (form && progressBar) {
@@ -3265,7 +4307,6 @@ window.addEventListener("DOMContentLoaded", () => {
         form.addEventListener('input', updateProgressBar);
     }
 
-    // ====== WALIDACJA DISCORD ID (musi być numeryczne, inaczej ping nie zadziała) ======
     function setupDiscordIdValidation(inputId, errorId) {
         const input = document.getElementById(inputId);
         const errorEl = document.getElementById(errorId);
@@ -3289,7 +4330,6 @@ window.addEventListener("DOMContentLoaded", () => {
     setupDiscordIdValidation('accusedDiscordId', 'accusedDiscordIdError');
     setupDiscordIdValidation('appealDiscordId', 'appealDiscordIdError');
 
-    // Blokada wysyłki formularza zgłoszenia, jeśli Discord ID nie jest numeryczne
     const complaintFormEl = document.getElementById('complaintForm');
     if (complaintFormEl) {
         complaintFormEl.addEventListener('submit', function(e) {
@@ -3304,7 +4344,6 @@ window.addEventListener("DOMContentLoaded", () => {
         }, true);
     }
 
-    // Blokada wysyłki formularza apelacji, jeśli Discord ID nie jest numeryczne
     const appealFormEl = document.getElementById('appealForm');
     if (appealFormEl) {
         appealFormEl.addEventListener('submit', function(e) {
@@ -3317,7 +4356,6 @@ window.addEventListener("DOMContentLoaded", () => {
         }, true);
     }
 
-    // ====== EVIDENCE LINK VALIDATION ======
     const evidenceInput = document.getElementById('evidence');
     const evidenceError = document.getElementById('evidenceError');
     if (evidenceInput) {
@@ -3334,7 +4372,6 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ====== PODGLĄD I WALIDACJA WIELU PLIKÓW DOWODOWYCH (na żywo) ======
     function setupMultiFileInput(inputId, listId, errorId) {
         const input = document.getElementById(inputId);
         const listEl = document.getElementById(listId);
@@ -3395,10 +4432,19 @@ window.addEventListener("DOMContentLoaded", () => {
 
                 listEl.appendChild(row);
             });
+
+            const attachLabel = document.querySelector(`label[for="${inputId}"]`);
+            if (attachLabel) {
+                attachLabel.classList.toggle('has-files', files.length > 0);
+            }
+
+            return !invalid;
         }
 
         input.addEventListener('change', validateAndRender);
+        input._validateAndRender = validateAndRender;
     }
+
     setupMultiFileInput('evidenceFile', 'evidenceFileList', 'evidenceFileError');
     setupMultiFileInput('appealEvidenceFile', 'appealEvidenceFileList', 'appealEvidenceFileError');
     setupMultiFileInput('chatFile', 'chatFileList', 'chatFileError');
