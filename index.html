@@ -3519,7 +3519,6 @@ function adminLogout() {
         localStorage.removeItem("adminAuthId");
         sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
-        document.getElementById("adminMenuBtn").onclick = function() { openAdminLogin(); };
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
         if(document.getElementById("usersMenuBtn")) {
             document.getElementById("usersMenuBtn").style.display = "none";
