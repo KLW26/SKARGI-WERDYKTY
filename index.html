@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-
 <html lang="pl">
 <head>
-<meta charset="utf-8"/>
-<title>Zgłoś Incydent – FIA System</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&amp;family=Barlow:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
-<style>
+  <meta charset="UTF-8" />
+  <title>Zgłoś Incydent – FIA System</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
     :root {
       --red: #e10600;
       --red-dim: #8b0000;
@@ -1214,580 +1215,631 @@
       }
     }
   </style>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
+
 <body>
-<div class="login-modal" id="adminLoginModal">
-<div class="login-box">
-<h1 data-key="adminPanel">FIA Panel</h1>
-<p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Log in with your Discord ID and the password assigned by the administrator.</p>
-<div class="field">
-<label>Your Discord ID</label>
-<input id="adminLoginId" placeholder="e.g. 294330293281161634" type="text"/>
-<small style="color: var(--text-dim); font-size: 11px; display:block; margin-top:4px;"></small>
-</div>
-<div class="field">
-<label data-key="adminPass">Password</label>
-<input id="adminPass" onkeydown="if(event.key === 'Enter') checkAdminAuth()" placeholder="Enter password..." type="password"/>
-</div>
-<button data-key="loginBtn" onclick="checkAdminAuth()">Login</button>
-<button class="btn-secondary" data-key="cancelBtn" onclick="closeAdminLogin()">Cancel</button>
-<div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
-</div>
-</div>
-<div class="desc-modal" id="descModal">
-<div class="desc-box">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-<h2 class="section-title" id="descModalTitle" style="margin-bottom: 0;">Report Description</h2>
-<button class="btn-warning" id="btnOpenEditMode" onclick="toggleEditMode()" style="font-size: 11px; padding: 6px 12px; display: none;">✏️ REPORT EDIT MODE</button>
-</div>
-<div id="descModalBody" style="background:#111827; color:#e8eaf0; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
-<div id="descEditMode" style="display: none; flex-direction: column; gap: 10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--gold);">
-<p style="font-size: 11px; color: var(--gold); margin-bottom: 4px;">You are editing the original data submitted by the player.</p>
-<div class="row">
-<div class="field">
-<label>Reporter (Nick)</label>
-<input id="editReporterNick" type="text"/>
-</div>
-<div class="field">
-<label>Accused (Nick)</label>
-<input id="editAccusedNick" type="text"/>
-</div>
-</div>
-<div class="field">
-<label>Original Incident Description</label>
-<textarea id="editDescription" style="min-height: 100px;"></textarea>
-</div>
-<button class="btn-success" onclick="saveEditedReport()">💾 Save Report Changes</button>
-</div>
-<hr style="border: 0; border-top: 1px solid var(--border); margin: 4px 0;"/>
-<div>
-<label id="lblModalNotes" style="font-weight: bold; margin-bottom: 4px;">Stewards' Reasoning / Notes:</label>
-<textarea id="modalNotesField" placeholder="Enter the official penalty reasoning, remarks, or working notes..." style="min-height: 80px;"></textarea>
-</div>
-<div style="display: flex; gap: 8px;">
-<button id="btnSaveNotes" onclick="saveModalNotes()" style="flex:1;">Save Notes</button>
-<button class="btn-secondary" onclick="closeDescModal()" style="flex:1;">Close</button>
-</div>
-</div>
-</div>
-<div class="card">
-<div class="top-bar">
-<div aria-hidden="true" class="race-flag-deco"></div>
-<div>
-<h1><span>FIA</span> Reporting System</h1>
-<p class="subtitle" data-key="mainSubtitle">Racing incident management</p>
-</div>
-<div style="display:flex; align-items:center;">
-<button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()">☀ / 🌙</button>
-<button class="lang-btn" onclick="toggleLang()">PL / EN</button>
-</div>
-</div>
-<div class="menu">
-<button data-key="navNew" onclick="showSection('formSection')">New Report</button>
-<button class="btn-warning" data-key="navAppeal" onclick="showSection('appealSection')">Submit Appeal</button>
-<button class="btn-secondary" data-key="navHistory" onclick="showSection('historySection')">Global History</button>
-<span class="discord-status-bar" id="driverDiscordStatusBar" style="margin-left:auto;">
-<img alt="" id="driverDiscordAvatar" src=""/>
-<span data-key="discordLoggedInAs">Driver:</span> <strong id="driverDiscordName" style="color: var(--text);"></strong>
-<button class="logout-x" data-key="discordLogoutBtn" onclick="logoutDiscordDriver()" type="button">Logout</button>
-</span>
-<span id="loggedInAsLabel" style="display:none; align-items:center; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
-<span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
-<span id="loggedInAsText">Logged in as: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
-</span>
-<button class="btn-secondary" data-key="navAdmin" id="adminMenuBtn" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" style="border: 1px solid #ef4444;">Admin Panel</button>
-<button id="usersMenuBtn" onclick="openUsersSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">👥 Users &amp; Roles</button>
-</div>
-<div class="section active" id="formSection">
-<h2 class="section-title" data-key="secDetails">Incident Details</h2>
-<div class="lock-overlay" id="formLockOverlay">
-<div class="discord-required-box">
-<svg class="lock-icon" fill="none" height="40" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24" width="40"><rect height="10" rx="1.5" width="16" x="4" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
-<p data-key="formLockedMsg">You must log in with Discord before submitting a report. This lets us verify your identity as a driver.</p>
-<button class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;" type="button">
-<svg fill="currentColor" height="16" viewbox="0 0 127.14 96.36" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"></path></svg>
-<span data-key="discordLoginBtn">Zaloguj przez Discord</span>
-</button>
-</div>
-</div>
-<form id="complaintForm">
-<div class="progress-container">
-<div id="progress-bar" style="width: 0%;"></div>
-</div>
-<div class="row">
-<div class="field"><label data-key="labelNick">Twój Nick</label><input id="nick" required="" type="text"/></div>
-<div class="field">
-<label data-key="labelDiscord">Twoje Discord ID</label>
-<input id="discordId" placeholder="np. 441234567891011121" required="" type="text"/>
-<small style="color: var(--text-dim); font-size: 11px;">Musi to być numeryczne ID (nie nick ani User#1234!) — włącz Tryb dewelopera w Discordzie, kliknij PPM na swój profil i wybierz „Kopiuj ID użytkownika”. Bez tego ping nie zadziała.</small>
-<span class="error-message" id="discordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
-</div>
-</div>
-<div class="row">
-<div class="field">
-<label data-key="labelCategory">Kategoria</label>
-<select id="category" onchange="handleCategoryChange()" required=""></select>
-</div>
-<div class="field">
-<label data-key="labelTrack">Tor wyścigowy</label>
-<select id="track" required=""></select>
-</div>
-</div>
-<div class="row">
-<div class="field"><label data-key="labelSession">Rodzaj Sesji</label><select id="sessionType" required=""></select></div>
-<div class="field" id="accusedNickField"><label data-key="labelAccusedNick">Nick osoby zgłaszanej</label><input id="accusedNick" required="" type="text"/></div>
-<div class="field" id="accusedDiscordIdField">
-<label data-key="labelAccusedDiscord">Discord ID osoby zgłaszanej</label>
-<input id="accusedDiscordId" placeholder="np. 441234567891011121" required="" type="text"/>
-<small style="color: var(--text-dim); font-size: 11px;">Numeryczne ID (nie nick, nie User#1234) — inaczej ping nie zadziała.</small>
-<span class="error-message" id="accusedDiscordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
-</div>
-</div>
-<div class="field"><label data-key="labelDesc">Opis zdarzenia</label><textarea id="details" required=""></textarea></div>
-<div class="field">
-<label data-key="labelEvidence">Dowody (Link)</label>
-<input id="evidence" placeholder="https://..." type="text"/>
-<span class="error-message" id="evidenceError">Podaj prawidłowy link (np. https://...)</span>
-</div>
-<div class="field">
-<label data-key="labelEvidenceFile">Dowody (Pliki z komputera)</label>
-<input accept="image/*,video/*,.pdf,.txt,.log" id="evidenceFile" multiple="" type="file"/>
-<div class="file-preview-list" id="evidenceFileList"></div>
-<small data-key="evidenceFileHint" style="color: var(--text-dim); font-size: 11px;">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
-<span class="error-message" data-key="evidenceFileTooBig" id="evidenceFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
-<div id="evidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
-</div>
-<button data-key="btnSubmit" id="reportSubmitBtn" type="submit">Prześlij Zgłoszenie</button>
-</form>
-</div>
-<div class="section" id="appealSection">
-<h2 class="section-title appeal-title" data-key="appealSecTitle">Formularz Apelacyjny</h2>
-<p class="subtitle" data-key="appealSubtitle" style="color: var(--text-dim); margin-bottom: 16px; font-size: 12px; letter-spacing: 1px;">Nie zgadzasz się z decyzją sędziów? Odwołaj się, podając precyzyjne argumenty lub nowe dowody.</p>
-<div class="lock-overlay" id="appealLockOverlay">
-<div class="discord-required-box">
-<svg class="lock-icon" fill="none" height="40" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24" width="40"><rect height="10" rx="1.5" width="16" x="4" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
-<p data-key="appealLockedMsg">Aby złożyć apelację, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować, że apelację składa faktyczny kierowca sprawy.</p>
-<button class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;" type="button">
-<svg fill="currentColor" height="16" viewbox="0 0 127.14 96.36" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"></path></svg>
-<span data-key="discordLoginBtn">Zaloguj przez Discord</span>
-</button>
-</div>
-</div>
-<form id="appealForm">
-<div class="row">
-<div class="field">
-<label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label>
-<select id="appealCaseId" required=""></select>
-<small id="appealCaseIdNote" style="display:block; margin-top:4px; font-size:11px; color: var(--text-dim);"></small>
-</div>
-<div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" required="" type="text"/></div>
-<div class="field">
-<label data-key="labelDiscord">Twoje Discord ID</label>
-<input id="appealDiscordId" placeholder="np. 441234567891011121" required="" type="text">
-<small style="color: var(--text-dim); font-size: 11px;">Numeryczne ID (nie nick, nie User#1234) — inaczej ping nie zadziała.</small>
-<span class="error-message" id="appealDiscordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
-</input></div>
-</div>
-<div class="field"><label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label><textarea id="appealReason" placeholder="Wpisz szczegółowe argumenty..." required=""></textarea></div>
-<div class="field"><label data-key="labelAppealEvidence">Nowe lub dodatkowe dowody (Link)</label><input id="appealEvidence" placeholder="https://..." type="text"/></div>
-<div class="field">
-<label data-key="labelAppealEvidenceFile">Nowe lub dodatkowe dowody (Pliki z komputera)</label>
-<input accept="image/*,video/*,.pdf,.txt,.log" id="appealEvidenceFile" multiple="" type="file"/>
-<div class="file-preview-list" id="appealEvidenceFileList"></div>
-<small data-key="evidenceFileHint" style="color: var(--text-dim); font-size: 11px;">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
-<span class="error-message" data-key="evidenceFileTooBig" id="appealEvidenceFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
-<div id="appealEvidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
-</div>
-<button class="btn-warning" data-key="btnSubmitAppeal" id="appealSubmitBtn" style="" type="submit">⚖️ Wyślij Apelację</button>
-</form>
-</div>
-<div class="section" id="historySection">
-<h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
-<p class="subtitle" data-key="historySubtitleDiscordOnly" style="margin-bottom: 12px;">Zaloguj się przez Discord, aby zobaczyć historię swoich zgłoszeń i apelacji.</p>
-<div id="historyDiscordAuthBar" style="display:none; align-items:center; justify-content:space-between; gap:12px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.35); border-radius: 4px; padding: 14px 18px; margin-bottom: 16px;">
-<span style="font-size:12px; color: var(--text);">
+  <div id="adminLoginModal" class="login-modal">
+    <div class="login-box">
+      <h1 data-key="adminPanel">Panel FIA</h1>
+      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Zaloguj się swoim Discord ID i hasłem nadanym przez administratora.</p>
+      <div class="field">
+        <label>Twoje Discord ID</label>
+        <input id="adminLoginId" type="text" placeholder="np. 294330293281161634">
+        <small style="color: var(--text-dim); font-size: 11px; display:block; margin-top:4px;"></small>
+      </div>
+      <div class="field">
+        <label data-key="adminPass">Hasło</label>
+        <input id="adminPass" type="password" placeholder="Wpisz hasło..." onkeydown="if(event.key === 'Enter') checkAdminAuth()">
+      </div>
+      <button onclick="checkAdminAuth()" data-key="loginBtn">Zaloguj</button> 
+      <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
+      <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
+    </div>
+  </div>
+
+  <div id="descModal" class="desc-modal">
+    <div class="desc-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 class="section-title" id="descModalTitle" style="margin-bottom: 0;">Opis zgłoszenia</h2>
+        <button id="btnOpenEditMode" class="btn-warning" onclick="toggleEditMode()" style="font-size: 11px; padding: 6px 12px; display: none;">✏️ TRYB EDYCJI ZGŁOSZENIA</button>
+      </div>
+      
+      <div id="descModalBody" style="background:#111827; color:#e8eaf0; padding:12px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-height:180px; overflow-y:auto; border:1px solid #374151;"></div>
+      
+      <div id="descEditMode" style="display: none; flex-direction: column; gap: 10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--gold);">
+        <p style="font-size: 11px; color: var(--gold); margin-bottom: 4px;">Edytujesz oryginalne dane wprowadzone przez gracza.</p>
+        
+        <div class="row">
+          <div class="field">
+            <label>Zgłaszający (Nick)</label>
+            <input type="text" id="editReporterNick">
+          </div>
+          <div class="field">
+            <label>Oskarżony (Nick)</label>
+            <input type="text" id="editAccusedNick">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Oryginalny Opis Zdarzenia</label>
+          <textarea id="editDescription" style="min-height: 100px;"></textarea>
+        </div>
+
+        <button class="btn-success" onclick="saveEditedReport()">💾 Zapisz Zmiany w Zgłoszeniu</button>
+      </div>
+      
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 4px 0;">
+
+      <div>
+        <label style="font-weight: bold; margin-bottom: 4px;" id="lblModalNotes">Uzasadnienie sędziowskie / Notatki:</label>
+        <textarea id="modalNotesField" placeholder="Wpisz oficjalne uzasadnienie kary, uwagi lub notatki robocze..." style="min-height: 80px;"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button id="btnSaveNotes" onclick="saveModalNotes()" style="flex:1;">Zapisz Notatki</button>
+        <button class="btn-secondary" onclick="closeDescModal()" style="flex:1;">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="top-bar">
+      <div class="race-flag-deco" aria-hidden="true"></div>
+      <div>
+        <h1><span>FIA</span> System Zgłoszeń</h1>
+        <p class="subtitle" data-key="mainSubtitle">Zarządzanie incydentami wyścigowymi</p>
+      </div>
+      <div style="display:flex; align-items:center;">
+        <button class="theme-btn" id="themeToggleBtn" onclick="toggleTheme()">☀ / 🌙</button>
+        <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
+      </div>
+    </div>
+
+    <div class="menu">
+      <button onclick="showSection('formSection')" data-key="navNew">Nowe Zgłoszenie</button>
+      <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
+      <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
+      
+      <span id="driverDiscordStatusBar" class="discord-status-bar" style="margin-left:auto;">
+        <img id="driverDiscordAvatar" src="" alt="">
+        <span data-key="discordLoggedInAs">Kierowca:</span>&nbsp;<strong id="driverDiscordName" style="color: var(--text);"></strong>
+        <button type="button" class="logout-x" onclick="logoutDiscordDriver()" data-key="discordLogoutBtn">Wyloguj</button>
+      </span>
+
+      <span id="loggedInAsLabel" style="display:none; align-items:center; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
+        <span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
+        <span id="loggedInAsText">Zalogowano jako: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
+      </span>
+      <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
+      <button id="usersMenuBtn" onclick="openUsersSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">👥 Użytkownicy i Role</button>
+    </div>
+
+    <div id="formSection" class="section active">
+      <h2 class="section-title" data-key="secDetails">Szczegóły Incydentu</h2>
+
+      <div id="formLockOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <p data-key="formLockedMsg">Aby złożyć zgłoszenie, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować Twoją tożsamość jako kierowcy.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;">
+            <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+            <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+          </button>
+        </div>
+      </div>
+
+      <form id="complaintForm">
+        <div class="progress-container">
+          <div id="progress-bar" style="width: 0%;"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label data-key="labelNick">Twój Nick</label><input id="nick" type="text" required /></div>
+          <div class="field">
+            <label data-key="labelDiscord">Twoje Discord ID</label>
+            <input id="discordId" type="text" required placeholder="np. 441234567891011121">
+            <small style="color: var(--text-dim); font-size: 11px;">Musi to być numeryczne ID (nie nick ani User#1234!) — włącz Tryb dewelopera w Discordzie, kliknij PPM na swój profil i wybierz „Kopiuj ID użytkownika”. Bez tego ping nie zadziała.</small>
+            <span class="error-message" id="discordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+              <label data-key="labelCategory">Kategoria</label>
+              <select id="category" onchange="handleCategoryChange()" required></select>
+          </div>
+          <div class="field">
+              <label data-key="labelTrack">Tor wyścigowy</label>
+              <select id="track" required></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label data-key="labelSession">Rodzaj Sesji</label><select id="sessionType" required></select></div>
+          <div class="field" id="accusedNickField"><label data-key="labelAccusedNick">Nick osoby zgłaszanej</label><input id="accusedNick" type="text" required></div>
+          <div class="field" id="accusedDiscordIdField">
+            <label data-key="labelAccusedDiscord">Discord ID osoby zgłaszanej</label>
+            <input id="accusedDiscordId" type="text" required placeholder="np. 441234567891011121">
+            <small style="color: var(--text-dim); font-size: 11px;">Numeryczne ID (nie nick, nie User#1234) — inaczej ping nie zadziała.</small>
+            <span class="error-message" id="accusedDiscordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
+          </div>
+        </div>
+        <div class="field"><label data-key="labelDesc">Opis zdarzenia</label><textarea id="details" required></textarea></div>
+        <div class="field">
+          <label data-key="labelEvidence">Dowody (Link)</label>
+          <input id="evidence" type="text" placeholder="https://...">
+          <span class="error-message" id="evidenceError">Podaj prawidłowy link (np. https://...)</span>
+        </div>
+        <div class="field">
+          <label data-key="labelEvidenceFile">Dowody (Pliki z komputera)</label>
+          <input id="evidenceFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple>
+          <div id="evidenceFileList" class="file-preview-list"></div>
+          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
+          <span class="error-message" id="evidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+          <div id="evidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
+        </div>
+        <button type="submit" id="reportSubmitBtn" data-key="btnSubmit">Prześlij Zgłoszenie</button>
+      </form>
+    </div>
+
+    <div id="appealSection" class="section">
+      <h2 class="section-title appeal-title" data-key="appealSecTitle">Formularz Apelacyjny</h2>
+      <p class="subtitle" data-key="appealSubtitle" style="color: var(--text-dim); margin-bottom: 16px; font-size: 12px; letter-spacing: 1px;">Nie zgadzasz się z decyzją sędziów? Odwołaj się, podając precyzyjne argumenty lub nowe dowody.</p>
+
+      <div id="appealLockOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <p data-key="appealLockedMsg">Aby złożyć apelację, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować, że apelację składa faktyczny kierowca sprawy.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;">
+            <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+            <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+          </button>
+        </div>
+      </div>
+
+      <form id="appealForm">
+        <div class="row">
+          <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
+          <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
+          <div class="field">
+            <label data-key="labelDiscord">Twoje Discord ID</label>
+            <input id="appealDiscordId" type="text" required placeholder="np. 441234567891011121" />
+            <small style="color: var(--text-dim); font-size: 11px;">Numeryczne ID (nie nick, nie User#1234) — inaczej ping nie zadziała.</small>
+            <span class="error-message" id="appealDiscordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
+          </div>
+        </div>
+        <div class="field"><label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label><textarea id="appealReason" required placeholder="Wpisz szczegółowe argumenty..."></textarea></div>
+        <div class="field"><label data-key="labelAppealEvidence">Nowe lub dodatkowe dowody (Link)</label><input id="appealEvidence" type="text" placeholder="https://..."></div>
+        <div class="field">
+          <label data-key="labelAppealEvidenceFile">Nowe lub dodatkowe dowody (Pliki z komputera)</label>
+          <input id="appealEvidenceFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple>
+          <div id="appealEvidenceFileList" class="file-preview-list"></div>
+          <small style="color: var(--text-dim); font-size: 11px;" data-key="evidenceFileHint">Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.</small>
+          <span class="error-message" id="appealEvidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+          <div id="appealEvidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
+        </div>
+        <button type="submit" id="appealSubmitBtn" data-key="btnSubmitAppeal" class="btn-warning" style="">⚖️ Wyślij Apelację</button>
+      </form>
+    </div>
+
+    <div id="historySection" class="section">
+      <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
+      <p class="subtitle" style="margin-bottom: 12px;" data-key="historySubtitleDiscordOnly">Zaloguj się przez Discord, aby zobaczyć historię swoich zgłoszeń i apelacji.</p>
+
+      <div id="historyDiscordAuthBar" style="display:none; align-items:center; justify-content:space-between; gap:12px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.35); border-radius: 4px; padding: 14px 18px; margin-bottom: 16px;">
+        <span style="font-size:12px; color: var(--text);">
           ✅ <span data-key="historyVerifiedByDiscord">Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.</span>
-</span>
-<button class="btn-secondary" data-key="discordLogoutBtn" onclick="logoutDiscordDriver()" style="padding:6px 14px; font-size:11px;" type="button">Wyloguj</button>
-</div>
-<div class="lock-overlay" id="historyLockOverlay">
-<div class="discord-required-box">
-<svg class="lock-icon" fill="none" height="40" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24" width="40"><rect height="10" rx="1.5" width="16" x="4" y="10"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
-<p data-key="historyLockedMsg">Aby zobaczyć historię swoich zgłoszeń i apelacji, musisz zalogować się przez Discord.</p>
-<button class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;" type="button">
-<svg fill="currentColor" height="16" viewbox="0 0 127.14 96.36" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"></path></svg>
-<span data-key="discordLoginBtn">Zaloguj przez Discord</span>
-</button>
-</div>
-</div>
-<div id="historyContent">
-<div id="historyList"></div>
-<div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
-<h3 class="section-title" style="font-size: 16px; border-left-color: #00c853;">💬 Czat na Żywo ze Stewardami</h3>
-<p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie powyżej (przycisk "💬 Czatuj o tej sprawie"), aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
-<div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
-<span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
-<button class="btn-secondary" onclick="deselectPlayerChatCase()" style="padding:4px 10px; font-size:11px;" type="button">✕ Zmień zgłoszenie</button>
-</div>
-<p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
-<div id="playerChatBox" style="display:none;"></div>
-<div class="file-preview-list chat-file-preview" id="playerChatFileList"></div>
-<span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
-<div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
-<div class="row" id="playerChatInputRow" style="display:none;">
-<input id="playerChatMsg" onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()" placeholder="Napisz wiadomość na czacie..." type="text"/>
-<label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
-<input accept="image/*,video/*,.pdf,.txt,.log" id="playerChatFile" multiple="" style="display:none;" type="file"/>
-<button onclick="sendPlayerChatMessage()" style="background: #10b981;" type="button">Wyślij</button>
-</div>
-</div>
-</div>
-</div>
-<div class="section" id="chatSection">
-<h2 class="section-title" data-key="chatTitle">Czat na Żywo (Panel Sędziowski)</h2>
-<div class="row" style="margin-bottom:15px;">
-<select id="chatCaseSelect" onchange="handleStewardChatSelection(this)" style="max-width:320px;">
-<option value="">Wybierz ID zgłoszenia...</option>
-</select>
-</div>
-<div class="steward-chat-wrapper" id="stewardChatContentWrapper">
-<div id="chatBox"></div>
-<div class="file-preview-list chat-file-preview" id="chatFileList"></div>
-<span class="error-message" id="chatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
-<div id="chatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
-<div class="row">
-<input id="chatNick" placeholder="Twój Sędziowski Nick" style="width: 150px;" type="text" value="Steward"/>
-<input id="chatMsg" onkeydown="if(event.key === 'Enter') sendChatMessage()" placeholder="Napisz wiadomość jako sędzia..." type="text"/>
-<label class="btn-attach" for="chatFile" title="Dołącz plik z komputera">📎</label>
-<input accept="image/*,video/*,.pdf,.txt,.log" id="chatFile" multiple="" style="display:none;" type="file"/>
-<button data-key="btnSend" onclick="sendChatMessage()">Wyślij</button>
-<button class="btn-danger" onclick="clearChat()">Wyczyść czat</button>
-<button class="btn-secondary" data-key="btnBack" onclick="showSection('adminSection')">Powrót do panelu</button>
-</div>
-</div>
-</div>
-<div class="section" id="trashSection">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
-<h2 class="section-title" style="margin-bottom: 0; border-left-color:#64748b;">🗑 Kosz (<span id="trashCount">0</span>)</h2>
-<div style="display: flex; gap: 6px; flex-wrap: wrap;">
-<button class="btn-success" onclick="restoreAllTrash()" style="padding: 6px 14px; font-size: 11px;">↺ PRZYWRÓĆ WSZYSTKO</button>
-<button class="btn-danger" onclick="emptyTrash()" style="padding: 6px 14px; font-size: 11px;">✕ OPRÓŻNIJ KOSZ TRWALE</button>
-<button class="btn-secondary" onclick="showSection('adminSection')" style="padding: 6px 14px; font-size: 11px;">Powrót do panelu</button>
-</div>
-</div>
-<p style="font-size:12px; color:var(--text-dim); margin-bottom:14px; letter-spacing:0.5px;">
+        </span>
+        <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:11px;" onclick="logoutDiscordDriver()" data-key="discordLogoutBtn">Wyloguj</button>
+      </div>
+
+      <div id="historyLockOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <p data-key="historyLockedMsg">Aby zobaczyć historię swoich zgłoszeń i apelacji, musisz zalogować się przez Discord.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;">
+            <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+            <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="historyContent">
+        <div id="historyList"></div>
+
+        <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
+          <h3 class="section-title" style="font-size: 16px; border-left-color: #00c853;">💬 Czat na Żywo ze Stewardami</h3>
+          <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie powyżej (przycisk "💬 Czatuj o tej sprawie"), aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
+          <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
+            <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
+            <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
+          </div>
+          <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
+          <div id="playerChatBox" style="display:none;"></div>
+          <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
+          <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+          <div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
+          <div class="row" id="playerChatInputRow" style="display:none;">
+            <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
+            <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
+            <input id="playerChatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
+            <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="chatSection" class="section">
+      <h2 class="section-title" data-key="chatTitle">Czat na Żywo (Panel Sędziowski)</h2>
+      
+      <div class="row" style="margin-bottom:15px;">
+        <select id="chatCaseSelect" style="max-width:320px;" onchange="handleStewardChatSelection(this)">
+          <option value="">Wybierz ID zgłoszenia...</option>
+        </select>
+      </div>
+
+      <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
+        <div id="chatBox"></div>
+        <div id="chatFileList" class="file-preview-list chat-file-preview"></div>
+        <span class="error-message" id="chatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+        <div id="chatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
+        <div class="row">
+          <input id="chatNick" type="text" placeholder="Twój Sędziowski Nick" style="width: 150px;" value="Steward">
+          <input id="chatMsg" type="text" placeholder="Napisz wiadomość jako sędzia..." onkeydown="if(event.key === 'Enter') sendChatMessage()">
+          <label class="btn-attach" for="chatFile" title="Dołącz plik z komputera">📎</label>
+          <input id="chatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
+          <button onclick="sendChatMessage()" data-key="btnSend">Wyślij</button>
+          <button class="btn-danger" onclick="clearChat()">Wyczyść czat</button>
+          <button class="btn-secondary" onclick="showSection('adminSection')" data-key="btnBack">Powrót do panelu</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="trashSection" class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+        <h2 class="section-title" style="margin-bottom: 0; border-left-color:#64748b;">🗑 Kosz (<span id="trashCount">0</span>)</h2>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn-success" style="padding: 6px 14px; font-size: 11px;" onclick="restoreAllTrash()">↺ PRZYWRÓĆ WSZYSTKO</button>
+          <button class="btn-danger" style="padding: 6px 14px; font-size: 11px;" onclick="emptyTrash()">✕ OPRÓŻNIJ KOSZ TRWALE</button>
+          <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="showSection('adminSection')">Powrót do panelu</button>
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--text-dim); margin-bottom:14px; letter-spacing:0.5px;">
         Wszystko, co usuniesz w panelu (zgłoszenia, apelacje, czat) trafia najpierw tutaj. Możesz to w każdej chwili przywrócić — nawet jeśli usunąłeś wszystko naraz.
       </p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr>
-<th>Typ</th>
-<th>Opis</th>
-<th>Usunięto</th>
-<th>Akcje</th>
-</tr>
-</thead>
-<tbody id="trashTableBody"></tbody>
-</table>
-</div>
-</div>
-<div class="section" id="adminSection">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
-<h2 class="section-title" data-key="adminSecTitle" style="margin-bottom: 0;">Zarządzanie Zgłoszeniami</h2>
-<div style="display: flex; gap: 6px; flex-wrap: wrap;">
-<button data-key="btnOpenChat" onclick="showSection('chatSection')" style="font-size:11px; padding: 6px 14px;">💬 CZAT SĘDZIÓW</button>
-<button id="openTrashBtn" onclick="openTrash()" style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
-<button class="btn-secondary" onclick="exportDatabase()" style="padding: 6px 14px; font-size: 11px;">⬇ EKSPORTUJ</button>
-<button class="btn-danger" data-key="btnResetId" onclick="resetIDCounter()" style="padding: 6px 14px; font-size: 11px;">↺ RESETUJ ID</button>
-<button onclick="resetAppealIDCounter()" style="background:#4c1d95; border: 1px solid #6d28d9; padding: 6px 14px; font-size: 11px; border-radius:2px; font-weight:700; cursor:pointer; color:white; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;">↺ ID APELACJI</button>
-<button class="btn-danger" onclick="adminLogout()" style="padding: 6px 14px; font-size: 11px; border-color: #ef4444;">🔒 WYLOGUJ</button>
-</div>
-</div>
-<div class="stats-container-grid">
-<div class="stats-group-box">
-<div class="stats-group-title">📊 Incydenty główne</div>
-<div class="admin-stats">
-<div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
-<div class="stat-box"><span id="lblStatPending" style="color:var(--amber-text);">Oczekujące</span><strong id="statPending">0</strong></div>
-<div class="stat-box"><span id="lblStatAccepted" style="color:var(--green-text);">Przyjęte</span><strong id="statAccepted">0</strong></div>
-<div class="stat-box"><span id="lblStatAgainst" style="color:var(--red-text);">Odrzucone</span><strong id="statRejected">0</strong></div>
-</div>
-</div>
-<div class="stats-group-box" style="border-color: #eab308;">
-<div class="stats-group-title" style="color: var(--amber-text);">⚖️ Statystyki Odwołań (Apelacji)</div>
-<div class="admin-stats">
-<div class="stat-box"><span id="lblStatAppAll">Złożone</span><strong id="statAppAll">0</strong></div>
-<div class="stat-box"><span id="lblStatAppPending" style="color:var(--amber-text);">Nowe</span><strong id="statAppPending">0</strong></div>
-<div class="stat-box"><span id="lblStatAppChanged" style="color:var(--purple-text);">Przyjęte</span><strong id="statAppChanged">0</strong></div>
-<div class="stat-box"><span id="lblStatAppMaintained" style="color:var(--text-dim);">Podtrzymane</span><strong id="statAppMaintained">0</strong></div>
-<div class="stat-box"><span id="lblStatAppClosed" style="color:#3b82f6;">Zakończone</span><strong id="statAppClosed">0</strong></div>
-</div>
-</div>
-</div>
-<div class="admin-controls">
-<input class="search-input" id="adminSearch" oninput="renderAdmin()" placeholder="Szukaj po nicku, oskarżonym, torze..." type="text"/>
-<select class="filter-select" id="adminFilterStatus" onchange="renderAdmin()">
-<option value="ALL">Status: Wszystkie</option>
-<option value="Oczekuje">Oczekujące</option>
-<option value="Przyjęte">Przyjęte</option>
-<option value="Odrzucone">Odrzucone</option>
-<option value="W apelacji">W apelacji</option>
-<option value="Werdykt wydany">Werdykt wydany</option>
-</select>
-<select class="filter-select" id="adminFilterTrack" onchange="renderAdmin()">
-<option value="ALL">Wszystkie tory</option>
-</select>
-<select class="filter-select" id="adminFilterCategory" onchange="renderAdmin()">
-<option value="ALL">Wszystkie kategorie</option>
-<option value="Incydenty Wyścigowe">Incydenty Wyścigowe</option>
-<option value="Procedury i VSC/SC">Procedury i VSC/SC</option>
-<option value="Niesportowe">Niesportowe</option>
-</select>
-</div>
-<div class="bulk-actions-bar" id="bulkBar">
-<span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: var(--text);">Wybrano: 0 zgłoszeń</span>
-<div class="btns">
-<button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
-<button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
-<button id="bulkDeleteBtn" onclick="bulkDelete()" style="background: #64748b;">Masowo Usuń</button>
-</div>
-</div>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr>
-<th class="col-cb"><input id="selectAllCheckboxes" onclick="toggleSelectAll(this)" type="checkbox"/></th>
-<th class="col-id">ID</th>
-<th class="col-rep" data-key="thReporter">Zgłaszający</th>
-<th class="col-track">Tor / Kategoria</th>
-<th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
-<th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
-<th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
-<th class="col-ev" data-key="labelEvidence">Dowody</th>
-<th class="col-stat" data-key="thStatus">Status / Akcje</th>
-</tr>
-</thead>
-<tbody id="adminTableBody"></tbody>
-</table>
-</div>
-<h2 class="section-title appeal-title" style="margin-top: 32px;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
-<div class="table-wrapper" style="border-color: rgba(255,215,0,0.2);">
-<table>
-<thead>
-<tr>
-<th class="col-ap-id">ID Apelacji</th>
-<th class="col-ap-case">ID Zgłoszenia</th>
-<th class="col-ap-driver">Apelujący kierowca</th>
-<th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
-<th class="col-ap-ev">Nowe Dowody</th>
-<th class="col-ap-actions">Decyzja Sędziowska</th>
-</tr>
-</thead>
-<tbody id="adminAppealsTableBody"></tbody>
-</table>
-</div>
-<div class="verdict-panel">
-<h2 class="section-title" data-key="verdictMainTitle" style="margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">Odpowiedź Sędziowska (Wydaj Werdykt)</h2>
-<div style="background: var(--bg-deep); border: 1px solid var(--border); padding: 14px 18px; border-radius: 4px; margin-bottom: 16px;">
-<div class="field" style="margin-bottom: 10px;">
-<label data-key="lblPreviewDesc" style="color: var(--text-dim);">Podgląd: Opis zdarzenia</label>
-<div id="verdictPreviewDesc" style="background: var(--bg-input); padding: 10px 14px; border-radius: 3px; font-size: 13px; white-space: pre-wrap; color: var(--text); border: 1px solid var(--border); max-height: 120px; overflow-y: auto;">-</div>
-</div>
-<div class="field" style="margin-bottom: 0;">
-<label data-key="lblPreviewEvidence" id="lblPreviewEvidence" style="color: var(--text-dim);">Link do dowodu</label>
-<div id="verdictPreviewEvidence" style="background: var(--bg-input); padding: 12px 14px; border-radius: 3px; font-size: 13px; color: var(--text); border: 1px solid var(--border);">-</div>
-</div>
-</div>
-<form id="responseForm">
-<div class="row">
-<div class="field">
-<label data-key="caseIdLabel" for="caseId">ID sprawy</label>
-<input id="caseId" placeholder="np. #2024-118" required="" type="text">
-</input></div>
-<div class="field">
-<label data-key="accusedIdLabel" for="accusedId">Discord ID winnego (do pingowania)</label>
-<input id="accusedId" placeholder="np. 123456789012345678" required="" type="text"/>
-</div>
-</div>
-<div class="field">
-<label data-key="decisionLabel" for="decision">Decyzja</label>
-<select id="decision" onchange="handleDecisionChange()" required="">
-<option data-key="optDefault" value="">Wybierz...</option>
-<option data-key="opt1" value="Brak naruszenia">Brak naruszenia</option>
-<option data-key="opt2" value="Naruszenie – ostrzeżenie">Naruszenie – ostrzeżenie</option>
-<option data-key="opt3" value="Naruszenie – kara czasowa">Naruszenie – kara czasowa</option>
-<option data-key="opt4" value="Naruszenie – dyskwalifikacja">Naruszenie – dyskwalifikacja</option>
-<option data-key="opt5" value="Anulowanie kary">Anulowanie kary</option>
-<option data-key="optAppealChanged" value="Apelacja rozpatrzona – Zmiana werdyktu">Apelacja rozpatrzona – Zmiana werdyktu</option>
-<option data-key="optAppealMaintained" value="Apelacja odrzucona – Werdykt podtrzymany">Apelacja odrzucona – Werdykt podtrzymany</option>
-</select>
-</div>
-<div class="row" id="penaltyFields">
-<div class="field">
-<label data-key="timeLabel" for="timePenalty">Kara czasowa</label>
-<input id="timePenalty" placeholder="np. +5s / brak" type="text"/>
-</div>
-<div class="field">
-<label data-key="pointsLabel" for="pointsPenalty">Punkty karne</label>
-<input id="pointsPenalty" placeholder="np. 2 pkt" type="text"/>
-</div>
-</div>
-<div class="field">
-<label data-key="detailsLabel" for="verdictDetails">Uzasadnienie</label>
-<textarea id="verdictDetails" placeholder="Opisz decyzję..." required="" style="min-height:80px; max-height:200px;"></textarea>
-</div><div class="field"><label for="verdictDetailsEN">Uzasadnienie (EN) / Justification (EN)</label><textarea id="verdictDetailsEN" placeholder="Describe the decision in English..." required="" style="min-height:80px; max-height:200px;"></textarea></div>
-<div class="field">
-<label data-key="judgeLabel" for="judge">Sędzia prowadzący</label>
-<input id="judge" placeholder="np. A. Nowak" required="" type="text">
-</input></div>
-<button data-key="sendBtn" style="width: 100%; box-shadow: 0 10px 25px rgba(59,130,246,0.4);" type="submit">Wyślij decyzję</button>
-<div class="status-msg" id="status"></div>
-</form>
-</div>
-</div>
-<div class="section" id="usersSection">
-<div class="section-title">Zarządzanie Użytkownikami i Uprawnieniami</div>
-<div class="stats-container-grid">
-<div class="stats-group-box">
-<div class="stats-group-title">Kolegium Sędziowskie (Stewardzi)</div>
-<div class="admin-stats">
-<div class="stat-box">
-<span>Łącznie Stewardów</span>
-<strong id="totalStewardsCount">0</strong>
-</div>
-<div class="stat-box">
-<span>Główni Sędziowie (Lead)</span>
-<strong id="leadStewardsCount">0</strong>
-</div>
-</div>
-</div>
-<div class="stats-group-box" id="systemLogsStatBox" style="display:none;">
-<div class="stats-group-title">Dziennik Zdarzeń Systemowych</div>
-<div class="admin-stats">
-<div class="stat-box">
-<span>Zarejestrowane Logi Akcji</span>
-<strong id="totalLogsCount">0</strong>
-</div>
-</div>
-</div>
-</div>
-<div class="row" style="align-items: flex-start; gap: 20px;">
-<div style="flex: 1; max-width: 420px; background: var(--bg-panel); padding: 24px; border: 1px solid var(--border); border-radius: 4px; border-top: 2px solid var(--red);">
-<div class="stats-group-title" style="margin-bottom: 16px; color: var(--red); font-size: 13px;">Profil i Rola Sędziego</div>
-<form id="stewardForm" onsubmit="saveSteward(event)">
-<div class="field">
-<label for="stewardNick">Pseudonim (Nick)</label>
-<input id="stewardNick" placeholder="np. Steward_Alek" required="" type="text"/>
-</div>
-<div class="field">
-<label for="stewardDiscord">Discord ID</label>
-<input id="stewardDiscord" placeholder="np. 294330293281161634" required="" type="text"/>
-</div>
-<div class="field">
-<label for="stewardPassword">Hasło logowania do panelu</label>
-<input id="stewardPassword" placeholder="Ustaw hasło dla tego stewarda..." type="text"/>
-<small style="color: var(--text-dim); font-size: 11px;">Tym Discord ID + hasłem steward zaloguje się w oknie logowania. Przy edycji zostaw puste, aby nie zmieniać obecnego hasła.</small>
-</div>
-<div class="field">
-<label for="stewardRole">Oficjalna Rola FIA</label>
-<select id="stewardRole" onchange="autoAssignPermissions()">
-<option value="Główny Steward">Główny Steward (Lead Steward)</option>
-<option value="Steward">Steward Wyścigowy</option>
-<option value="Junior Steward">Młodszy Steward (Junior)</option>
-<option value="Asystent">Sędzia Asystent</option>
-</select>
-</div>
-<div class="field">
-<label style="margin-bottom: 8px;">Dedykowane Uprawnienia</label>
-<div style="display: flex; flex-direction: column; gap: 8px; background: var(--bg-deep); padding: 12px; border-radius: 3px; border: 1px solid var(--border);">
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_review" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Rozpatrywanie zgłoszeń (INC)
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Typ</th>
+              <th>Opis</th>
+              <th>Usunięto</th>
+              <th>Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="trashTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="adminSection" class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+        <h2 class="section-title" data-key="adminSecTitle" style="margin-bottom: 0;">Zarządzanie Zgłoszeniami</h2>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button style="font-size:11px; padding: 6px 14px;" onclick="showSection('chatSection')" data-key="btnOpenChat">💬 CZAT SĘDZIÓW</button>
+          <button id="openTrashBtn" style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;" onclick="openTrash()">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
+          <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportDatabase()">⬇ EKSPORTUJ</button>
+          <button class="btn-danger" style="padding: 6px 14px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">↺ RESETUJ ID</button>
+          <button style="background:#4c1d95; border: 1px solid #6d28d9; padding: 6px 14px; font-size: 11px; border-radius:2px; font-weight:700; cursor:pointer; color:white; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;" onclick="resetAppealIDCounter()">↺ ID APELACJI</button>
+          <button class="btn-danger" style="padding: 6px 14px; font-size: 11px; border-color: #ef4444;" onclick="adminLogout()">🔒 WYLOGUJ</button>
+        </div>
+      </div>
+
+      <div class="stats-container-grid">
+        <div class="stats-group-box">
+          <div class="stats-group-title">📊 Incydenty główne</div>
+          <div class="admin-stats">
+            <div class="stat-box"><span id="lblStatAll">Wszystkie</span><strong id="statAll">0</strong></div>
+            <div class="stat-box"><span id="lblStatPending" style="color:var(--amber-text);">Oczekujące</span><strong id="statPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAccepted" style="color:var(--green-text);">Przyjęte</span><strong id="statAccepted">0</strong></div>
+            <div class="stat-box"><span id="lblStatAgainst" style="color:var(--red-text);">Odrzucone</span><strong id="statRejected">0</strong></div>
+          </div>
+        </div>
+
+        <div class="stats-group-box" style="border-color: #eab308;">
+          <div class="stats-group-title" style="color: var(--amber-text);">⚖️ Statystyki Odwołań (Apelacji)</div>
+          <div class="admin-stats">
+            <div class="stat-box"><span id="lblStatAppAll">Złożone</span><strong id="statAppAll">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppPending" style="color:var(--amber-text);">Nowe</span><strong id="statAppPending">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppChanged" style="color:var(--purple-text);">Przyjęte</span><strong id="statAppChanged">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppMaintained" style="color:var(--text-dim);">Podtrzymane</span><strong id="statAppMaintained">0</strong></div>
+            <div class="stat-box"><span id="lblStatAppClosed" style="color:#3b82f6;">Zakończone</span><strong id="statAppClosed">0</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-controls">
+        <input id="adminSearch" type="text" class="search-input" placeholder="Szukaj po nicku, oskarżonym, torze..." oninput="renderAdmin()">
+        
+        <select id="adminFilterStatus" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Status: Wszystkie</option>
+          <option value="Oczekuje">Oczekujące</option>
+          <option value="Przyjęte">Przyjęte</option>
+          <option value="Odrzucone">Odrzucone</option>
+          <option value="W apelacji">W apelacji</option>
+          <option value="Werdykt wydany">Werdykt wydany</option>
+        </select>
+
+        <select id="adminFilterTrack" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wszystkie tory</option>
+        </select>
+
+        <select id="adminFilterCategory" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wszystkie kategorie</option>
+          <option value="Incydenty Wyścigowe">Incydenty Wyścigowe</option>
+          <option value="Procedury i VSC/SC">Procedury i VSC/SC</option>
+          <option value="Niesportowe">Niesportowe</option>
+        </select>
+      </div>
+
+      <div id="bulkBar" class="bulk-actions-bar">
+        <span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: var(--text);">Wybrano: 0 zgłoszeń</span>
+        <div class="btns">
+          <button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
+          <button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
+          <button id="bulkDeleteBtn" style="background: #64748b;" onclick="bulkDelete()">Masowo Usuń</button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
+              <th class="col-id">ID</th>
+              <th class="col-rep" data-key="thReporter">Zgłaszający</th>
+              <th class="col-track">Tor / Kategoria</th>
+              <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
+              <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
+              <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
+              <th class="col-ev" data-key="labelEvidence">Dowody</th>
+              <th class="col-stat" data-key="thStatus">Status / Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+
+      <h2 class="section-title appeal-title" style="margin-top: 32px;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
+      <div class="table-wrapper" style="border-color: rgba(255,215,0,0.2);">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-ap-id">ID Apelacji</th>
+              <th class="col-ap-case">ID Zgłoszenia</th>
+              <th class="col-ap-driver">Apelujący kierowca</th>
+              <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
+              <th class="col-ap-ev">Nowe Dowody</th>
+              <th class="col-ap-actions">Decyzja Sędziowska</th>
+            </tr>
+          </thead>
+          <tbody id="adminAppealsTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="verdict-panel">
+        <h2 class="section-title" data-key="verdictMainTitle" style="margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">Odpowiedź Sędziowska (Wydaj Werdykt)</h2>
+        
+        <div style="background: var(--bg-deep); border: 1px solid var(--border); padding: 14px 18px; border-radius: 4px; margin-bottom: 16px;">
+          <div class="field" style="margin-bottom: 10px;">
+            <label style="color: var(--text-dim);" data-key="lblPreviewDesc">Podgląd: Opis zdarzenia</label>
+            <div id="verdictPreviewDesc" style="background: var(--bg-input); padding: 10px 14px; border-radius: 3px; font-size: 13px; white-space: pre-wrap; color: var(--text); border: 1px solid var(--border); max-height: 120px; overflow-y: auto;">-</div>
+          </div>
+          <div class="field" style="margin-bottom: 0;">
+            <label style="color: var(--text-dim);" id="lblPreviewEvidence" data-key="lblPreviewEvidence">Link do dowodu</label>
+            <div id="verdictPreviewEvidence" style="background: var(--bg-input); padding: 12px 14px; border-radius: 3px; font-size: 13px; color: var(--text); border: 1px solid var(--border);">-</div>
+          </div>
+        </div>
+
+        <form id="responseForm">
+          <div class="row">
+            <div class="field">
+              <label for="caseId" data-key="caseIdLabel">ID sprawy</label>
+              <input id="caseId" type="text" placeholder="np. #2024-118" required />
+            </div>
+            <div class="field">
+              <label for="accusedId" data-key="accusedIdLabel">Discord ID winnego (do pingowania)</label>
+              <input id="accusedId" type="text" placeholder="np. 123456789012345678" required>
+            </div>
+          </div>
+  
+          <div class="field">
+            <label for="decision" data-key="decisionLabel">Decyzja</label>
+            <select id="decision" required onchange="handleDecisionChange()">
+              <option value="" data-key="optDefault">Wybierz...</option>
+              <option value="Brak naruszenia" data-key="opt1">Brak naruszenia</option>
+              <option value="Naruszenie – ostrzeżenie" data-key="opt2">Naruszenie – ostrzeżenie</option>
+              <option value="Naruszenie – kara czasowa" data-key="opt3">Naruszenie – kara czasowa</option>
+              <option value="Naruszenie – dyskwalifikacja" data-key="opt4">Naruszenie – dyskwalifikacja</option>
+              <option value="Anulowanie kary">Anulowanie kary</option>
+              <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
+              <option value="Apelacja odrzucona – Werdykt podtrzymany" data-key="optAppealMaintained">Apelacja odrzucona – Werdykt podtrzymany</option>
+            </select>
+          </div>
+  
+          <div class="row" id="penaltyFields">
+            <div class="field">
+              <label for="timePenalty" data-key="timeLabel">Kara czasowa</label>
+              <input id="timePenalty" type="text" placeholder="np. +5s / brak">
+            </div>
+            <div class="field">
+              <label for="pointsPenalty" data-key="pointsLabel">Punkty karne</label>
+              <input id="pointsPenalty" type="text" placeholder="np. 2 pkt">
+            </div>
+          </div>
+  
+          <div class="field">
+            <label for="verdictDetails" data-key="detailsLabel">Uzasadnienie</label>
+            <textarea id="verdictDetails" placeholder="Opisz decyzję..." required style="min-height:80px; max-height:200px;"></textarea>
+          </div>
+  
+          <div class="field">
+            <label for="judge" data-key="judgeLabel">Sędzia prowadzący</label>
+            <input id="judge" type="text" placeholder="np. A. Nowak" required />
+          </div>
+  
+          <button type="submit" data-key="sendBtn" style="width: 100%; box-shadow: 0 10px 25px rgba(59,130,246,0.4);">Wyślij decyzję</button>
+          <div id="status" class="status-msg"></div>
+        </form>
+      </div>
+
+    </div>
+
+    <div id="usersSection" class="section">
+        <div class="section-title">Zarządzanie Użytkownikami i Uprawnieniami</div>
+        
+        <div class="stats-container-grid">
+            <div class="stats-group-box">
+                <div class="stats-group-title">Kolegium Sędziowskie (Stewardzi)</div>
+                <div class="admin-stats">
+                    <div class="stat-box">
+                        <span>Łącznie Stewardów</span>
+                        <strong id="totalStewardsCount">0</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span>Główni Sędziowie (Lead)</span>
+                        <strong id="leadStewardsCount">0</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-group-box" id="systemLogsStatBox" style="display:none;">
+                <div class="stats-group-title">Dziennik Zdarzeń Systemowych</div>
+                <div class="admin-stats">
+                    <div class="stat-box">
+                        <span>Zarejestrowane Logi Akcji</span>
+                        <strong id="totalLogsCount">0</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="align-items: flex-start; gap: 20px;">
+            <div style="flex: 1; max-width: 420px; background: var(--bg-panel); padding: 24px; border: 1px solid var(--border); border-radius: 4px; border-top: 2px solid var(--red);">
+                <div class="stats-group-title" style="margin-bottom: 16px; color: var(--red); font-size: 13px;">Profil i Rola Sędziego</div>
+                <form id="stewardForm" onsubmit="saveSteward(event)">
+                    <div class="field">
+                        <label for="stewardNick">Pseudonim (Nick)</label>
+                        <input type="text" id="stewardNick" required placeholder="np. Steward_Alek">
+                    </div>
+                    <div class="field">
+                        <label for="stewardDiscord">Discord ID</label>
+                        <input type="text" id="stewardDiscord" required placeholder="np. 294330293281161634">
+                    </div>
+                    <div class="field">
+                        <label for="stewardPassword">Hasło logowania do panelu</label>
+                        <input type="text" id="stewardPassword" placeholder="Ustaw hasło dla tego stewarda...">
+                        <small style="color: var(--text-dim); font-size: 11px;">Tym Discord ID + hasłem steward zaloguje się w oknie logowania. Przy edycji zostaw puste, aby nie zmieniać obecnego hasła.</small>
+                    </div>
+                    <div class="field">
+                        <label for="stewardRole">Oficjalna Rola FIA</label>
+                        <select id="stewardRole" onchange="autoAssignPermissions()">
+                            <option value="Główny Steward">Główny Steward (Lead Steward)</option>
+                            <option value="Steward">Steward Wyścigowy</option>
+                            <option value="Junior Steward">Młodszy Steward (Junior)</option>
+                            <option value="Asystent">Sędzia Asystent</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label style="margin-bottom: 8px;">Dedykowane Uprawnienia</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px; background: var(--bg-deep); padding: 12px; border-radius: 3px; border: 1px solid var(--border);">
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_review" style="width: auto; margin: 0; cursor: pointer;"> Rozpatrywanie zgłoszeń (INC)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_appeals" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Rozpatrywanie apelacji (APP)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_appeals" style="width: auto; margin: 0; cursor: pointer;"> Rozpatrywanie apelacji (APP)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_users" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Zarządzanie użytkownikami (USR)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_users" style="width: auto; margin: 0; cursor: pointer;"> Zarządzanie użytkownikami (USR)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_trash" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Stały dostęp do Kosza (TRSH)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_trash" style="width: auto; margin: 0; cursor: pointer;"> Stały dostęp do Kosza (TRSH)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
-<input id="perm_edit" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Pełna edycja treści graczy (EDIT)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
+                                <input type="checkbox" id="perm_edit" style="width: auto; margin: 0; cursor: pointer;"> Pełna edycja treści graczy (EDIT)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_notes" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Edycja notatek sędziowskich (NOTES)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_notes" style="width: auto; margin: 0; cursor: pointer;"> Edycja notatek sędziowskich (NOTES)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_chat" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Czyszczenie historii czatu (CHAT)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_chat" style="width: auto; margin: 0; cursor: pointer;"> Czyszczenie historii czatu (CHAT)
                             </label>
-<label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-<input id="perm_settings" style="width: auto; margin: 0; cursor: pointer;" type="checkbox"/> Zarządzanie systemem (Reset ID, Eksport) (SYS)
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_settings" style="width: auto; margin: 0; cursor: pointer;"> Zarządzanie systemem (Reset ID, Eksport) (SYS)
                             </label>
-</div>
-</div>
-<button class="btn-success" style="width: 100%; margin-top: 10px;" type="submit">Zapisz i Autoryzuj</button>
-<button class="btn-secondary" onclick="resetStewardForm()" style="width: 100%; margin-top: 8px;" type="button">Wyczyść formularz</button>
-</form>
-</div>
-<div style="flex: 2;">
-<div class="stats-group-title" style="margin-bottom: 12px;">Aktywny Personel Sędziowski</div>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr>
-<th style="width: 25%;">Steward</th>
-<th style="width: 25%;">Discord ID</th>
-<th style="width: 20%;">Rola</th>
-<th style="width: 18%;">Uprawnienia</th>
-<th style="width: 12%;">Akcje</th>
-</tr>
-</thead>
-<tbody id="stewardsTableBody">
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<div id="systemLogsPanel" style="margin-top: 40px; display:none;">
-<div class="section-title appeal-title">Logi Akcji Sędziowskich (Audit Trail)</div>
-<div class="admin-controls">
-<input class="search-input" id="logSearch" oninput="renderLogsTable()" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." type="text"/>
-<select class="filter-select" id="logFilterAction" onchange="renderLogsTable()">
-<option value="ALL">Wszystkie kategorie</option>
-<option value="VERDICT">Werdykty i kary</option>
-<option value="APPEAL">Apelacje kierowców</option>
-<option value="USER_MGMT">Zarządzanie sędziami</option>
-<option value="TRASH">Operacje na Koszu</option>
-<option value="SYSTEM">Systemowe</option>
-</select>
-<button class="btn-danger" onclick="clearAllLogs()" style="margin-left:auto; white-space:nowrap;" type="button">🗑 Wyczyść wszystkie logi</button>
-</div>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr>
-<th style="width: 16%;">Data i godzina</th>
-<th style="width: 16%;">Steward (Operator)</th>
-<th style="width: 12%;">Kategoria</th>
-<th style="width: 10%;">Powiązane ID</th>
-<th style="width: 36%;">Szczegóły operacji</th>
-<th style="width: 10%;">Akcje</th>
-</tr>
-</thead>
-<tbody id="logsTableBody">
-</tbody>
-</table>
-</div>
-</div>
-<div id="systemLogsRestricted" style="margin-top: 40px; display:none; padding: 20px; border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 4px; background: var(--bg-panel); color: var(--text-dim); font-size: 13px;">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-success" style="width: 100%; margin-top: 10px;">Zapisz i Autoryzuj</button>
+                    <button type="button" class="btn-secondary" onclick="resetStewardForm()" style="width: 100%; margin-top: 8px;">Wyczyść formularz</button>
+                </form>
+            </div>
+
+            <div style="flex: 2;">
+                <div class="stats-group-title" style="margin-bottom: 12px;">Aktywny Personel Sędziowski</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Steward</th>
+                                <th style="width: 25%;">Discord ID</th>
+                                <th style="width: 20%;">Rola</th>
+                                <th style="width: 18%;">Uprawnienia</th>
+                                <th style="width: 12%;">Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stewardsTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="systemLogsPanel" style="margin-top: 40px; display:none;">
+            <div class="section-title appeal-title">Logi Akcji Sędziowskich (Audit Trail)</div>
+            <div class="admin-controls">
+                <input type="text" id="logSearch" class="search-input" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." oninput="renderLogsTable()">
+                <select id="logFilterAction" class="filter-select" onchange="renderLogsTable()">
+                    <option value="ALL">Wszystkie kategorie</option>
+                    <option value="VERDICT">Werdykty i kary</option>
+                    <option value="APPEAL">Apelacje kierowców</option>
+                    <option value="USER_MGMT">Zarządzanie sędziami</option>
+                    <option value="TRASH">Operacje na Koszu</option>
+                    <option value="SYSTEM">Systemowe</option>
+                </select>
+                <button type="button" class="btn-danger" style="margin-left:auto; white-space:nowrap;" onclick="clearAllLogs()">🗑 Wyczyść wszystkie logi</button>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 16%;">Data i godzina</th>
+                            <th style="width: 16%;">Steward (Operator)</th>
+                            <th style="width: 12%;">Kategoria</th>
+                            <th style="width: 10%;">Powiązane ID</th>
+                            <th style="width: 36%;">Szczegóły operacji</th>
+                            <th style="width: 10%;">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="systemLogsRestricted" style="margin-top: 40px; display:none; padding: 20px; border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 4px; background: var(--bg-panel); color: var(--text-dim); font-size: 13px;">
             🔒 Dziennik Zdarzeń Systemowych (Audit Trail) jest dostępny wyłącznie dla roli <strong style="color: var(--text);">Główny Steward</strong>.
         </div>
-</div>
-</div>
+    </div>
+  </div>
+
 <script>
 let loggedInSteward = null;
 let globalStewards = [];
@@ -2137,7 +2189,7 @@ const langData = {
         dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
         dcMsgDecision: "Twoje zgłoszenie zostało", evidenceNone: "Brak", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Odpowiedź Sędziowska (Wydaj Werdykt)", caseIdLabel: "ID sprawy", accusedIdLabel: "Discord ID winnego",
-        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt4: "Dyskwalifikacja", opt5: "Anulowanie kary",
+        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
         sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
@@ -2174,7 +2226,7 @@ const langData = {
         dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
         dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
-        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt4: "Disqualification", opt5: "Penalty cancelled",
+        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt4: "Disqualification",
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
         sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
@@ -2185,72 +2237,6 @@ const langData = {
         btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type chat message..."
     }
 };
-
-// Słownik tłumaczeń wartości zapisanych w bazie (status/decyzja), używany gdy
-// currentLang === 'en', żeby surowe polskie stringi z Firebase nie wyciekały do UI.
-const dynamicTranslations = {
-    en: {
-        "Oczekuje": "Pending",
-        "Oczekujące": "Pending",
-        "Przyjęte": "Accepted",
-        "Odrzucone": "Rejected",
-        "W apelacji": "Under Appeal",
-        "Werdykt wydany": "Verdict Issued",
-        "Podtrzymana": "Maintained",
-        "Podtrzymany": "Maintained",
-        "Zakończona": "Closed",
-        "Brak naruszenia": "No further action",
-        "Naruszenie – ostrzeżenie": "Breach – Warning",
-        "Naruszenie – kara czasowa": "Breach – Time Penalty",
-        "Naruszenie – dyskwalifikacja": "Breach – Disqualification",
-        "Anulowanie kary": "Penalty Cancelled",
-        "Apelacja rozpatrzona – Zmiana werdyktu": "Appeal successful – Verdict changed",
-        "Apelacja odrzucona – Werdykt podtrzymany": "Appeal rejected – Verdict maintained"
-    }
-};
-
-function translateDynamic(text) {
-    if (!text) return text;
-    if (currentLang === 'en' && dynamicTranslations.en[text]) {
-        return dynamicTranslations.en[text];
-    }
-    return text;
-}
-
-// === AUTOMATYCZNE TŁUMACZENIE WOLNEGO TEKSTU WERDYKTU (uzasadnienie sędziego) ===
-// Sędziowie piszą uzasadnienie werdyktu po polsku jako dowolny tekst, więc nie da się
-// go przetłumaczyć słownikiem (jak translateDynamic). Zamiast tego, gdy widok jest
-// w j. angielskim, tekst jest tłumaczony "na żywo" przez darmowe API MyMemory i cache'owany,
-// żeby nie tłumaczyć tego samego tekstu wielokrotnie.
-const verdictTranslationCache = {};
-const verdictTranslationPending = new Set();
-
-function getTranslatedVerdictText(text, onDone) {
-    if (!text) return text;
-    if (currentLang !== 'en') return text;
-    if (verdictTranslationCache[text] !== undefined) return verdictTranslationCache[text];
-
-    if (!verdictTranslationPending.has(text)) {
-        verdictTranslationPending.add(text);
-        fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=pl|en`)
-            .then(res => res.json())
-            .then(data => {
-                const translated = (data && data.responseData && data.responseData.translatedText)
-                    ? data.responseData.translatedText
-                    : text;
-                verdictTranslationCache[text] = translated;
-            })
-            .catch(() => {
-                verdictTranslationCache[text] = text; // fallback: pokaż oryginał, jeśli tłumaczenie się nie uda
-            })
-            .finally(() => {
-                verdictTranslationPending.delete(text);
-                if (typeof onDone === 'function') onDone();
-            });
-    }
-    // Dopóki tłumaczenie nie wróci z API, pokaż oryginalny tekst z małą etykietą ładowania
-    return `${text} <span style="opacity:0.6; font-style:normal; font-size:10px;">(translating…)</span>`;
-}
 
 const categoriesStructure = {
     pl: {
@@ -2464,9 +2450,16 @@ function toggleLang() {
         filterStatus.options[3].textContent = currentLang === 'pl' ? "Odrzucone" : "Rejected";
     }
 
-    // Uwaga: opcje selecta #decision (łącznie z "Anulowanie kary" / opt5) mają teraz
-    // wszystkie atrybut data-key, więc są już poprawnie tłumaczone w pętli powyżej —
-    // nie trzeba (i nie należy) nadpisywać ich tutaj po indeksie.
+    const decisionSelect = document.getElementById("decision");
+    if (decisionSelect) {
+        decisionSelect.options[0].textContent = langData[currentLang].optDefault;
+        decisionSelect.options[1].textContent = langData[currentLang].opt1;
+        decisionSelect.options[2].textContent = langData[currentLang].opt2;
+        decisionSelect.options[3].textContent = langData[currentLang].opt3;
+        decisionSelect.options[4].textContent = langData[currentLang].opt4;
+        decisionSelect.options[5].textContent = currentLang === 'pl' ? "Apelacja rozpatrzona – Zmiana werdyktu" : "Appeal resolved – Verdict changed";
+        decisionSelect.options[6].textContent = currentLang === 'pl' ? "Apelacja odrzucona – Werdykt podtrzymany" : "Appeal dismissed – Verdict maintained";
+    }
 
     initFormDropdowns();
     initAdminTrackFilter();
@@ -2478,7 +2471,6 @@ function toggleLang() {
 function showSection(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
-    if (id === 'appealSection') populateAppealCaseOptions();
 }
 
 function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminLoginId").focus(); }
@@ -2665,49 +2657,6 @@ function applyComplaintFormLock() {
     }
 }
 
-function populateAppealCaseOptions() {
-    const select = document.getElementById("appealCaseId");
-    const note = document.getElementById("appealCaseIdNote");
-    if (!select) return;
-
-    if (!discordDriverAuth) {
-        select.innerHTML = `<option value="">${currentLang === 'pl' ? '— Zaloguj się przez Discord —' : '— Log in with Discord —'}</option>`;
-        select.disabled = true;
-        if (note) note.textContent = "";
-        return;
-    }
-
-    const eligible = globalIncidents.filter(r =>
-        r.accusedDiscordId === discordDriverAuth.id && r.status === "Werdykt wydany"
-    );
-
-    if (!eligible.length) {
-        select.innerHTML = `<option value="">${currentLang === 'pl' ? 'Brak spraw dostępnych do apelacji' : 'No cases available for appeal'}</option>`;
-        select.disabled = true;
-        if (note) {
-            note.textContent = currentLang === 'pl'
-                ? "Nie masz obecnie żadnej sprawy z wydanym werdyktem, od którego możesz się odwołać."
-                : "You currently have no case with an issued verdict that can be appealed.";
-        }
-        return;
-    }
-
-    select.disabled = false;
-    select.innerHTML = eligible.map(r =>
-        `<option value="${r.id}">${r.id} — ${r.track || ""}${r.sessionType ? " (" + r.sessionType + ")" : ""}</option>`
-    ).join("");
-
-    if (note) {
-        note.textContent = eligible.length === 1
-            ? (currentLang === 'pl'
-                ? "✅ Sprawa wykryta automatycznie na podstawie Twojego Discord ID."
-                : "✅ Case detected automatically from your Discord ID.")
-            : (currentLang === 'pl'
-                ? "Wybierz jedną ze swoich spraw z wydanym werdyktem."
-                : "Choose one of your cases with an issued verdict.");
-    }
-}
-
 function applyAppealFormLock() {
     const overlay = document.getElementById("appealLockOverlay");
     const form = document.getElementById("appealForm");
@@ -2743,7 +2692,6 @@ function applyDriverAuthUI() {
 
         lockFieldWithDiscordId("discordId", "discordIdDiscordNote");
         lockFieldWithDiscordId("appealDiscordId", "appealDiscordIdNote");
-        populateAppealCaseOptions();
         // Uwaga: pole "Discord ID osoby zgłaszanej" (accusedDiscordId) NIE jest blokowane —
         // dotyczy innej osoby (oskarżonego), nie zalogowanego kierowcy.
 
@@ -2770,7 +2718,6 @@ function applyDriverAuthUI() {
 
         unlockField("discordId", "discordIdDiscordNote");
         unlockField("appealDiscordId", "appealDiscordIdNote");
-        populateAppealCaseOptions();
 
         const authBox = document.getElementById("historyAuthBox");
         const discordBar = document.getElementById("historyDiscordAuthBar");
@@ -3004,11 +2951,11 @@ function fetchAndRenderHistory(discordId) {
                 <div style="margin-top:10px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #3b82f6;">
                     <strong style="color:#fff; font-size:12px;">⚖️ ${currentLang === 'pl' ? 'Oficjalny Werdykt Sędziowski' : 'Official Stewards Verdict'}:</strong>
                     <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
-                        <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${translateDynamic(r.decisionData.decision)}<br>
-                        <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> ${currentLang === 'pl' ? 'Czasowa' : 'Time'}: ${r.decisionData.timePenalty || (currentLang === 'pl' ? 'brak' : 'none')}, ${currentLang === 'pl' ? 'Punkty' : 'Points'}: ${r.decisionData.pointsPenalty || '0'}<br>
-                        <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${getTranslatedVerdictText(r.decisionData.verdictDetails, () => { if (document.getElementById("historyList")) fetchAndRenderHistory(discordId); })}"</span><br>
+                        <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${r.decisionData.decision}<br>
+                        <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${r.decisionData.timePenalty || 'brak'}, Punkty: ${r.decisionData.pointsPenalty || '0'}<br>
+                        <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
                         ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
-                        <small style="color:#64748b;">${currentLang === 'pl' ? 'Sędzia' : 'Judge'}: ${r.decisionData.judge}</small>
+                        <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
                     </div>
                 </div>
             `;
@@ -3019,7 +2966,7 @@ function fetchAndRenderHistory(discordId) {
                 <span style="font-weight:bold; color:var(--text); font-size:14px;">${r.id}</span>
                 <div style="display:flex; gap:6px;">
                     <span style="background:${roleBg}; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${roleLabel}</span>
-                    <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${translateDynamic(r.status)}</span>
+                    <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${r.status}</span>
                 </div>
             </div>
             <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track} | <strong>Sesja:</strong> ${r.sessionType}</p>
@@ -3061,7 +3008,7 @@ function fetchAndRenderHistory(discordId) {
                     <span style="font-weight:bold; color:var(--text); font-size:14px;">${a.appealId}</span>
                     <div style="display:flex; gap:6px;">
                         <span style="background:#4c1d95; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${currentLang === 'pl' ? 'Dot. sprawy' : 'Re. case'}: ${a.caseId}</span>
-                        <span style="background:${appStatusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${translateDynamic(a.status)}</span>
+                        <span style="background:${appStatusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${a.status}</span>
                     </div>
                 </div>
                 <p style="margin:2px 0; font-size:12px;"><strong>${currentLang === 'pl' ? 'Apelujący' : 'Appellant'}:</strong> ${a.nick}</p>
@@ -3258,22 +3205,22 @@ function renderAdmin() {
                 <td><strong>${r.accusedNick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
                 <td>
                     <div class="cell-wrap">${r.details}</div>
-                    <button class="btn-view" onclick="openDescModal('${r.id}')">${currentLang === 'pl' ? 'Zobacz / Notatki' : 'View / Notes'} 📑</button>
+                    <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
                     ${r.decisionData ? `
                         <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
-                                <strong style="color:#fff;">⚖️ ${currentLang === 'pl' ? 'Werdykt' : 'Verdict'}:</strong>
-                                ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ ${currentLang === 'pl' ? 'Usuń werdykt' : 'Delete verdict'}</button>` : ''}
+                                <strong style="color:#fff;">⚖️ Werdykt:</strong>
+                                ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
                             </div>
-                            ${translateDynamic(r.decisionData.decision)}<br>
-                            <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> ${r.decisionData.timePenalty || (currentLang === 'pl' ? 'brak' : 'none')} / ${r.decisionData.pointsPenalty || '0'} ${currentLang === 'pl' ? 'pkt' : 'pts'}<br>
-                            <span style="font-style:italic; color:#94a3b8;">"${getTranslatedVerdictText(r.decisionData.verdictDetails, () => { if (document.getElementById("adminTableBody")) renderAdmin(); })}"</span><br>
-                            ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
-                            <small style="color:#64748b;">${currentLang === 'pl' ? 'Sędzia' : 'Judge'}: ${r.decisionData.judge}</small>
+                            ${r.decisionData.decision}<br>
+                            <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
+                            <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                            ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
+                            <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
                         </div>
                     ` : ''}
                 </td>
-                <td>${renderEvidenceHtml(r, t.evidenceBtn, `<span>${currentLang === 'pl' ? 'Brak' : 'None'}</span>`)}</td>
+                <td>${renderEvidenceHtml(r, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
                     <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>
                     <div class="action-btns">
@@ -3316,7 +3263,7 @@ function renderAdmin() {
                 <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
                 <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
                 <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
-                <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>${currentLang === 'pl' ? 'Brak' : 'None'}</span>`)}</td>
+                <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
                     <span style="background:${appBadgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${appStatusText}</span>
                     <div class="action-btns">
@@ -4657,7 +4604,6 @@ window.addEventListener("DOMContentLoaded", () => {
         globalIncidents = [];
         snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
-        populateAppealCaseOptions();
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
@@ -4852,126 +4798,5 @@ window.addEventListener("DOMContentLoaded", () => {
     setupMultiFileInput('playerChatFile', 'playerChatFileList', 'playerChatFileError');
 });
 </script>
-<script>// Podpięcie obsługi wysyłania formularza decyzji sędziowskiej
-document.getElementById('responseForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const statusDiv = document.getElementById('status');
-    statusDiv.className = "status-msg";
-    statusDiv.innerText = "Wysyłanie werdyktu...";
-
-    // Pobranie wartości z pól formularza
-    const caseId = document.getElementById('caseId').value.trim();
-    const accusedId = document.getElementById('accusedId').value.trim();
-    const decision = document.getElementById('decision').value;
-    const timePenalty = document.getElementById('timePenalty').value.trim() || "brak / none";
-    const pointsPenalty = document.getElementById('pointsPenalty').value.trim() || "0 pkt";
-    const verdictDetailsPL = document.getElementById('verdictDetails').value.trim();
-    const verdictDetailsEN = document.getElementById('verdictDetailsEN').value.trim(); // Nowe pole EN
-    const judge = document.getElementById('judge').value.trim();
-
-    const verdictData = {
-        caseId,
-        accusedId,
-        decision,
-        timePenalty,
-        pointsPenalty,
-        verdictDetailsPL,
-        verdictDetailsEN,
-        judge,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    };
-
-    try {
-        // 1. Zapis do Firebase (w węźle verdicts/caseId)
-        await database.ref('verdicts/' + caseId.replace('#', '')).set(verdictData);
-
-        // 2. Aktualizacja statusu zgłoszenia głównego (opcjonalnie, jeśli używasz systemu statusów)
-        await database.ref('incidents/' + caseId.replace('#', '')).update({
-            status: "Werdykt wydany"
-        });
-
-        // 3. Wysyłka rozbudowanego, dwujęzycznego powiadomienia na Discord
-        await sendVerdictToDiscord(verdictData);
-
-        statusDiv.className = "status-msg ok";
-        statusDiv.innerText = "✅ Werdykt został pomyślnie zapisany i wysłany na Discord!";
-        
-        // Czyszczenie pól po udanej operacji
-        document.getElementById('responseForm').reset();
-        if (typeof renderAdmin === "function") renderAdmin(); // Odświeżenie widoku admina, jeśli istnieje
-
-    } catch (error) {
-        console.error("Błąd podczas zapisywania werdyktu:", error);
-        statusDiv.className = "status-msg err";
-        statusDiv.innerText = "❌ Wystąpił błąd: " + error.message;
-    }
-});
-
-// Funkcja odpowiedzialna wyłącznie za budowanie i pushowanie Embedu do Discord Webhook
-async function sendVerdictToDiscord(data) {
-    // Sprawdzenie, czy adres webhooka jest zdefiniowany
-    if (!DECISION_WEBHOOK) {
-        console.warn("DECISION_WEBHOOK nie jest ustawiony.");
-        return;
-    }
-
-    // Struktura bogatej wiadomości (Embed) dla Discorda
-    const discordPayload = {
-        content: `🔔 **Oficjalny werdykt dla kierowcy / Official verdict for:** <@${data.accusedId}>`,
-        embeds: [{
-            title: `🏁 WERDYKT SĘDZIOWSKI / OFFICIAL VERDICT: ${data.caseId}`,
-            color: 14747136, // Kolor zbliżony do czerwieni/złota systemu FIA (w formacie DEC)
-            fields: [
-                {
-                    name: "⚖️ Decyzja / Decision",
-                    value: `**${data.decision}**`,
-                    inline: false
-                },
-                {
-                    name: "⏱️ Kara czasowa / Time Penalty",
-                    value: data.timePenalty,
-                    inline: true
-                },
-                {
-                    name: "🫵 Punkty karne / Penalty Points",
-                    value: data.pointsPenalty,
-                    inline: true
-                },
-                {
-                    name: "📋 Sędzia / Steward",
-                    value: data.judge,
-                    inline: true
-                },
-                {
-                    name: "🇵🇱 Uzasadnienie (PL)",
-                    value: data.verdictDetailsPL,
-                    inline: false
-                },
-                {
-                    name: "🇬🇧 Justification (EN)",
-                    value: data.verdictDetailsEN,
-                    inline: false
-                }
-            ],
-            footer: {
-                text: "FIA Reporting System — Panel Sędziowski"
-            },
-            timestamp: new Date().toISOString()
-        }]
-    };
-
-    // Wykonanie żądania POST do API Discorda
-    const response = await fetch(DECISION_WEBHOOK, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(discordPayload)
-    });
-
-    if (!response.ok) {
-        throw new Error(`Discord Webhook odpowiedział statusem ${response.status}`);
-    }
-}</script></body>
+</body>
 </html>
