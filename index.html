@@ -1399,11 +1399,7 @@
 
       <form id="appealForm">
         <div class="row">
-          <div class="field">
-            <label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label>
-            <select id="appealCaseId" required></select>
-            <small id="appealCaseIdNote" style="display:block; margin-top:4px; font-size:11px; color: var(--text-dim);"></small>
-          </div>
+          <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
           <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
           <div class="field">
             <label data-key="labelDiscord">Twoje Discord ID</label>
@@ -1716,7 +1712,7 @@
                     </div>
                 </div>
             </div>
-            <div class="stats-group-box" id="systemLogsStatBox" style="display:none;">
+            <div class="stats-group-box">
                 <div class="stats-group-title">Dziennik Zdarzeń Systemowych</div>
                 <div class="admin-stats">
                     <div class="stat-box">
@@ -1807,7 +1803,7 @@
             </div>
         </div>
 
-        <div id="systemLogsPanel" style="margin-top: 40px; display:none;">
+        <div style="margin-top: 40px;">
             <div class="section-title appeal-title">Logi Akcji Sędziowskich (Audit Trail)</div>
             <div class="admin-controls">
                 <input type="text" id="logSearch" class="search-input" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." oninput="renderLogsTable()">
@@ -1817,29 +1813,23 @@
                     <option value="APPEAL">Apelacje kierowców</option>
                     <option value="USER_MGMT">Zarządzanie sędziami</option>
                     <option value="TRASH">Operacje na Koszu</option>
-                    <option value="SYSTEM">Systemowe</option>
                 </select>
-                <button type="button" class="btn-danger" style="margin-left:auto; white-space:nowrap;" onclick="clearAllLogs()">🗑 Wyczyść wszystkie logi</button>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 16%;">Data i godzina</th>
-                            <th style="width: 16%;">Steward (Operator)</th>
-                            <th style="width: 12%;">Kategoria</th>
-                            <th style="width: 10%;">Powiązane ID</th>
-                            <th style="width: 36%;">Szczegóły operacji</th>
-                            <th style="width: 10%;">Akcje</th>
+                            <th style="width: 18%;">Data i godzina</th>
+                            <th style="width: 18%;">Steward (Operator)</th>
+                            <th style="width: 14%;">Kategoria</th>
+                            <th style="width: 12%;">Powiązane ID</th>
+                            <th style="width: 38%;">Szczegóły operacji</th>
                         </tr>
                     </thead>
                     <tbody id="logsTableBody">
                         </tbody>
                 </table>
             </div>
-        </div>
-        <div id="systemLogsRestricted" style="margin-top: 40px; display:none; padding: 20px; border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: 4px; background: var(--bg-panel); color: var(--text-dim); font-size: 13px;">
-            🔒 Dziennik Zdarzeń Systemowych (Audit Trail) jest dostępny wyłącznie dla roli <strong style="color: var(--text);">Główny Steward</strong>.
         </div>
     </div>
   </div>
@@ -2475,7 +2465,6 @@ function toggleLang() {
 function showSection(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
-    if (id === 'appealSection') populateAppealCaseOptions();
 }
 
 function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminLoginId").focus(); }
@@ -2662,49 +2651,6 @@ function applyComplaintFormLock() {
     }
 }
 
-function populateAppealCaseOptions() {
-    const select = document.getElementById("appealCaseId");
-    const note = document.getElementById("appealCaseIdNote");
-    if (!select) return;
-
-    if (!discordDriverAuth) {
-        select.innerHTML = `<option value="">${currentLang === 'pl' ? '— Zaloguj się przez Discord —' : '— Log in with Discord —'}</option>`;
-        select.disabled = true;
-        if (note) note.textContent = "";
-        return;
-    }
-
-    const eligible = globalIncidents.filter(r =>
-        r.accusedDiscordId === discordDriverAuth.id && r.status === "Werdykt wydany"
-    );
-
-    if (!eligible.length) {
-        select.innerHTML = `<option value="">${currentLang === 'pl' ? 'Brak spraw dostępnych do apelacji' : 'No cases available for appeal'}</option>`;
-        select.disabled = true;
-        if (note) {
-            note.textContent = currentLang === 'pl'
-                ? "Nie masz obecnie żadnej sprawy z wydanym werdyktem, od którego możesz się odwołać."
-                : "You currently have no case with an issued verdict that can be appealed.";
-        }
-        return;
-    }
-
-    select.disabled = false;
-    select.innerHTML = eligible.map(r =>
-        `<option value="${r.id}">${r.id} — ${r.track || ""}${r.sessionType ? " (" + r.sessionType + ")" : ""}</option>`
-    ).join("");
-
-    if (note) {
-        note.textContent = eligible.length === 1
-            ? (currentLang === 'pl'
-                ? "✅ Sprawa wykryta automatycznie na podstawie Twojego Discord ID."
-                : "✅ Case detected automatically from your Discord ID.")
-            : (currentLang === 'pl'
-                ? "Wybierz jedną ze swoich spraw z wydanym werdyktem."
-                : "Choose one of your cases with an issued verdict.");
-    }
-}
-
 function applyAppealFormLock() {
     const overlay = document.getElementById("appealLockOverlay");
     const form = document.getElementById("appealForm");
@@ -2740,7 +2686,6 @@ function applyDriverAuthUI() {
 
         lockFieldWithDiscordId("discordId", "discordIdDiscordNote");
         lockFieldWithDiscordId("appealDiscordId", "appealDiscordIdNote");
-        populateAppealCaseOptions();
         // Uwaga: pole "Discord ID osoby zgłaszanej" (accusedDiscordId) NIE jest blokowane —
         // dotyczy innej osoby (oskarżonego), nie zalogowanego kierowcy.
 
@@ -2767,7 +2712,6 @@ function applyDriverAuthUI() {
 
         unlockField("discordId", "discordIdDiscordNote");
         unlockField("appealDiscordId", "appealDiscordIdNote");
-        populateAppealCaseOptions();
 
         const authBox = document.getElementById("historyAuthBox");
         const discordBar = document.getElementById("historyDiscordAuthBar");
@@ -4507,12 +4451,6 @@ function renderLogsTable() {
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    if (!isGlownySteward()) {
-        // Dziennik Zdarzeń Systemowych jest zastrzeżony dla roli Główny Steward —
-        // dla pozostałych ról tabela pozostaje pusta, niezależnie skąd wywołano render.
-        return;
-    }
-
     const searchVal = document.getElementById("logSearch").value.toLowerCase();
     const filterAction = document.getElementById("logFilterAction").value;
 
@@ -4527,7 +4465,7 @@ function renderLogsTable() {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim);">Brak logów pasujących do kryteriów wyszukiwania.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-dim);">Brak logów pasujących do kryteriów wyszukiwania.</td></tr>`;
         return;
     }
 
@@ -4540,7 +4478,6 @@ function renderLogsTable() {
         else if (log.category === "APPEAL") catBadge = `<span class="badge badge-appeal">APELACJA</span>`;
         else if (log.category === "USER_MGMT") catBadge = `<span class="badge badge-pending">ROLE</span>`;
         else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
-        else if (log.category === "SYSTEM") catBadge = `<span class="badge" style="background:#6366f1; color:white; border:1px solid #4338ca;">SYSTEM</span>`;
         else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
 
         tr.innerHTML = `
@@ -4549,7 +4486,6 @@ function renderLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td><button class="btn-danger" style="padding:3px 8px; margin:0; font-size:10px;" onclick="deleteLog('${log.id}')">✕ Usuń</button></td>
         `;
         tbody.appendChild(tr);
     });
@@ -4562,68 +4498,9 @@ function updateUsersStats() {
     document.getElementById("totalLogsCount").textContent = globalLogs.length;
 }
 
-function isGlownySteward() {
-    // Dostęp do Dziennika Zdarzeń Systemowych mają wyłącznie zalogowani
-    // stewardzi z oficjalną rolą "Główny Steward" (posiadanie samej flagi
-    // uprawnień manage_users nie jest tu wystarczające).
-    return !!loggedInSteward && loggedInSteward.role === "Główny Steward";
-}
-
-async function deleteLog(logId) {
-    if (!isGlownySteward()) {
-        alert(currentLang === 'pl' ? "Brak uprawnień. Tylko Główny Steward może usuwać logi." : "Not authorized. Only the Head Steward can delete logs.");
-        return;
-    }
-    const confirmMsg = currentLang === 'pl'
-        ? "Czy na pewno chcesz trwale usunąć ten wpis z Dziennika Zdarzeń Systemowych? Tej operacji nie można cofnąć."
-        : "Are you sure you want to permanently delete this System Event Log entry? This cannot be undone.";
-    if (!confirm(confirmMsg)) return;
-
-    try {
-        await database.ref("action_logs/" + logId).remove();
-        const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
-        await logAction(stewardName, "SYSTEM", logId, `Usunięto pojedynczy wpis z Dziennika Zdarzeń Systemowych (ID logu: ${logId}).`);
-    } catch (err) {
-        alert(currentLang === 'pl' ? "Nie udało się usunąć logu." : "Failed to delete log.");
-    }
-}
-
-async function clearAllLogs() {
-    if (!isGlownySteward()) {
-        alert(currentLang === 'pl' ? "Brak uprawnień. Tylko Główny Steward może czyścić Dziennik Zdarzeń Systemowych." : "Not authorized. Only the Head Steward can clear the System Event Log.");
-        return;
-    }
-    const confirmMsg = currentLang === 'pl'
-        ? `Czy na pewno chcesz trwale usunąć WSZYSTKIE (${globalLogs.length}) wpisy z Dziennika Zdarzeń Systemowych? Tej operacji nie można cofnąć.`
-        : `Are you sure you want to permanently delete ALL (${globalLogs.length}) entries from the System Event Log? This cannot be undone.`;
-    if (!confirm(confirmMsg)) return;
-
-    try {
-        await database.ref("action_logs").remove();
-        const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
-        await logAction(stewardName, "SYSTEM", "ALL", "Wyczyszczono cały Dziennik Zdarzeń Systemowych (Audit Trail).");
-    } catch (err) {
-        alert(currentLang === 'pl' ? "Nie udało się wyczyścić dziennika." : "Failed to clear the log.");
-    }
-}
-
-function applySystemLogsAccess() {
-    const statBox = document.getElementById("systemLogsStatBox");
-    const panel = document.getElementById("systemLogsPanel");
-    const restricted = document.getElementById("systemLogsRestricted");
-    const allowed = isGlownySteward();
-
-    if (statBox) statBox.style.display = allowed ? "block" : "none";
-    if (panel) panel.style.display = allowed ? "block" : "none";
-    if (restricted) restricted.style.display = allowed ? "none" : "block";
-}
-
 function renderUsersAndLogs() {
     renderStewardsTable();
-    applySystemLogsAccess();
-    if (isGlownySteward()) {
-        renderLogsTable();
-    }
+    renderLogsTable();
     updateUsersStats();
 }
 
@@ -4654,7 +4531,6 @@ window.addEventListener("DOMContentLoaded", () => {
         globalIncidents = [];
         snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
-        populateAppealCaseOptions();
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
