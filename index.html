@@ -1820,7 +1820,10 @@
         </div>
 
         <div style="margin-top: 40px;">
-            <div class="section-title appeal-title">Logi Akcji Sędziowskich (Audit Trail)</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div class="section-title appeal-title" style="margin-bottom:0;">Logi Akcji Sędziowskich (Audit Trail)</div>
+                <button id="clearAllLogsBtn" type="button" class="btn-danger" style="padding:6px 14px; font-size:11px; display:none;" onclick="clearAllLogs()">🗑 WYCZYŚĆ WSZYSTKIE LOGI</button>
+            </div>
             <div class="admin-controls">
                 <input type="text" id="logSearch" class="search-input" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." oninput="renderLogsTable()">
                 <select id="logFilterAction" class="filter-select" onchange="renderLogsTable()">
@@ -1835,11 +1838,12 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 18%;">Data i godzina</th>
-                            <th style="width: 18%;">Steward (Operator)</th>
-                            <th style="width: 14%;">Kategoria</th>
-                            <th style="width: 12%;">Powiązane ID</th>
-                            <th style="width: 38%;">Szczegóły operacji</th>
+                            <th style="width: 16%;">Data i godzina</th>
+                            <th style="width: 16%;">Steward (Operator)</th>
+                            <th style="width: 12%;">Kategoria</th>
+                            <th style="width: 11%;">Powiązane ID</th>
+                            <th style="width: 33%;">Szczegóły operacji</th>
+                            <th style="width: 12%;">Akcje</th>
                         </tr>
                     </thead>
                     <tbody id="logsTableBody">
@@ -3721,23 +3725,29 @@ async function editIncidentId(oldId) {
 }
 
 async function deleteReport(id) {
-    if (confirm(langData[currentLang].confirmDelete)) {
+    if (!confirm(langData[currentLang].confirmDelete)) return;
+    try {
         const report = globalIncidents.find(r => r.id === id);
         if (report) {
             const { id: _drop, ...data } = report;
             await moveToTrash("incident", id, data);
         }
         await database.ref("incidents/" + id).remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania zgłoszenia: " : "Error deleting report: ") + err.message);
     }
 }
 async function deleteAppeal(id) {
-    if (confirm("Czy na pewno chcesz usunąć tę apelację z bazy danych?")) {
+    if (!confirm("Czy na pewno chcesz usunąć tę apelację z bazy danych?")) return;
+    try {
         const appeal = globalAppeals.find(a => a.id === id);
         if (appeal) {
             const { id: _drop, ...data } = appeal;
             await moveToTrash("appeal", id, data);
         }
         await database.ref("appeals/" + id).remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania apelacji: " : "Error deleting appeal: ") + err.message);
     }
 }
 
@@ -3754,11 +3764,14 @@ async function adminDeleteSingleReport(id, discordId) {
         : `Are you sure you want to delete report ${id} from this user's history?\n\nIt will be moved to Trash.`;
     if (!confirm(confirmMsg)) return;
 
-    const { id: _drop, ...data } = report;
-    await moveToTrash("incident", id, data);
-    await database.ref("incidents/" + id).remove();
-
-    if (discordId) fetchAndRenderHistory(discordId);
+    try {
+        const { id: _drop, ...data } = report;
+        await moveToTrash("incident", id, data);
+        await database.ref("incidents/" + id).remove();
+        if (discordId) fetchAndRenderHistory(discordId);
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania: " : "Error deleting: ") + err.message);
+    }
 }
 
 async function adminDeleteSingleAppeal(id, discordId) {
@@ -3774,11 +3787,14 @@ async function adminDeleteSingleAppeal(id, discordId) {
         : `Are you sure you want to delete appeal ${appeal.appealId || id} from this user's history?\n\nIt will be moved to Trash.`;
     if (!confirm(confirmMsg)) return;
 
-    const { id: _drop, ...data } = appeal;
-    await moveToTrash("appeal", id, data);
-    await database.ref("appeals/" + id).remove();
-
-    if (discordId) fetchAndRenderHistory(discordId);
+    try {
+        const { id: _drop, ...data } = appeal;
+        await moveToTrash("appeal", id, data);
+        await database.ref("appeals/" + id).remove();
+        if (discordId) fetchAndRenderHistory(discordId);
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania: " : "Error deleting: ") + err.message);
+    }
 }
 
 async function adminDeleteAllHistory(discordId) {
@@ -3799,28 +3815,32 @@ async function adminDeleteAllHistory(discordId) {
 
     if (!confirm(confirmMsg)) return;
 
-    const updates = {};
+    try {
+        const updates = {};
 
-    for (const r of reports) {
-        const { id: _drop, ...data } = r;
-        await moveToTrash("incident", r.id, data);
-        updates[`incidents/${r.id}`] = null;
+        for (const r of reports) {
+            const { id: _drop, ...data } = r;
+            await moveToTrash("incident", r.id, data);
+            updates[`incidents/${r.id}`] = null;
+        }
+        for (const a of appeals) {
+            const { id: _drop, ...data } = a;
+            await moveToTrash("appeal", a.id, data);
+            updates[`appeals/${a.id}`] = null;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await database.ref().update(updates);
+        }
+
+        alert(currentLang === 'pl'
+            ? "Cała historia użytkownika została usunięta. Możesz ją przywrócić z Kosza."
+            : "The user's entire history has been deleted. You can restore it from Trash.");
+
+        fetchAndRenderHistory(discordId);
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania historii: " : "Error deleting history: ") + err.message);
     }
-    for (const a of appeals) {
-        const { id: _drop, ...data } = a;
-        await moveToTrash("appeal", a.id, data);
-        updates[`appeals/${a.id}`] = null;
-    }
-
-    if (Object.keys(updates).length > 0) {
-        await database.ref().update(updates);
-    }
-
-    alert(currentLang === 'pl'
-        ? "Cała historia użytkownika została usunięta. Możesz ją przywrócić z Kosza."
-        : "The user's entire history has been deleted. You can restore it from Trash.");
-
-    fetchAndRenderHistory(discordId);
 }
 
 function toggleSelectAll(master) {
@@ -3869,7 +3889,8 @@ async function bulkStatusUpdate(newStatus) {
 async function bulkDelete() {
     const selected = document.querySelectorAll(".admin-row-cb:checked");
     if (selected.length === 0) return;
-    if (confirm(langData[currentLang].confirmDelete)) {
+    if (!confirm(langData[currentLang].confirmDelete)) return;
+    try {
         const updates = {};
         for (const cb of selected) {
             const id = cb.getAttribute("data-id");
@@ -3884,6 +3905,8 @@ async function bulkDelete() {
         document.getElementById("selectAllCheckboxes").checked = false;
         updateBulkActionsBar();
         alert(`Usunięto ${selected.length} zgłoszeń. Możesz je przywrócić z Kosza.`);
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania zbiorczego: " : "Error during bulk delete: ") + err.message);
     }
 }
 
@@ -4055,12 +4078,17 @@ async function restoreTrashItem(trashId) {
 
 async function permanentlyDeleteTrashItem(trashId) {
     if (!confirm(currentLang === 'pl' ? "Usunąć TRWALE ten element z kosza? Tej operacji NIE MOŻNA cofnąć." : "Permanently delete this item from trash? This CANNOT be undone.")) return;
-    await database.ref("trash/" + trashId).remove();
+    try {
+        await database.ref("trash/" + trashId).remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania: " : "Error while deleting: ") + err.message);
+    }
 }
 
 async function restoreAllTrash() {
     if (globalTrash.length === 0) return;
     if (!confirm(currentLang === 'pl' ? `Przywrócić WSZYSTKIE (${globalTrash.length}) elementy z kosza?` : `Restore ALL (${globalTrash.length}) items from trash?`)) return;
+    let failCount = 0;
     for (const item of globalTrash) {
         try {
             if (item.type === "incident") {
@@ -4074,15 +4102,25 @@ async function restoreAllTrash() {
                 await database.ref("incidents/" + item.originalId + "/status").set("Werdykt wydany");
             }
             await database.ref("trash/" + item.id).remove();
-        } catch (err) { console.error("Błąd przywracania elementu kosza:", err); }
+        } catch (err) { failCount++; console.error("Błąd przywracania elementu kosza:", err); }
     }
-    alert(currentLang === 'pl' ? "Wszystkie elementy zostały przywrócone." : "All items have been restored.");
+    if (failCount > 0) {
+        alert(currentLang === 'pl'
+            ? `Przywrócono ${globalTrash.length - failCount} z ${globalTrash.length} elementów. ${failCount} nie udało się przywrócić (błąd zapisu do bazy — sprawdź konsolę/reguły Firebase).`
+            : `Restored ${globalTrash.length - failCount} of ${globalTrash.length} items. ${failCount} failed (database write error — check console/Firebase rules).`);
+    } else {
+        alert(currentLang === 'pl' ? "Wszystkie elementy zostały przywrócone." : "All items have been restored.");
+    }
 }
 
-function emptyTrash() {
+async function emptyTrash() {
     if (globalTrash.length === 0) return;
     if (!confirm(currentLang === 'pl' ? "Czy na pewno chcesz TRWALE opróżnić kosz? Tej operacji NIE MOŻNA cofnąć — dane przepadną bezpowrotnie." : "Are you sure you want to PERMANENTLY empty the trash? This CANNOT be undone.")) return;
-    database.ref("trash").remove();
+    try {
+        await database.ref("trash").remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas opróżniania kosza: " : "Error while emptying trash: ") + err.message);
+    }
 }
 
 function renderTrash() {
@@ -4256,7 +4294,9 @@ async function clearChat() {
             if (data) await moveToTrash("chat_bulk", null, data);
             await database.ref("chat").remove();
             alert(currentLang === 'pl' ? "Czat został pomyślnie wyczyszczony. Historię możesz przywrócić z Kosza." : "Chat has been successfully cleared. You can restore the history from Trash.");
-        } catch (error) { console.error("Błąd podczas czyszczenia czatu:", error); }
+        } catch (error) {
+            alert((currentLang === 'pl' ? "Błąd podczas czyszczenia czatu: " : "Error clearing chat: ") + error.message);
+        }
     }
 }
 
@@ -4505,11 +4545,14 @@ function editSteward(discordId) {
 
 async function deleteSteward(discordId, nick) {
     if (!confirm(`Czy na pewno chcesz odebrać uprawnienia i usunąć sędziego ${nick}?`)) return;
-    await database.ref("stewards/" + discordId).remove();
-    
-    const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
-    await logAction(stewardName, "USER_MGMT", discordId, `Usunięto sędziego z personelu ligi: ${nick}`);
-    alert("Użytkownik został usunięty z systemu FIA.");
+    try {
+        await database.ref("stewards/" + discordId).remove();
+        const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+        await logAction(stewardName, "USER_MGMT", discordId, `Usunięto sędziego z personelu ligi: ${nick}`);
+        alert("Użytkownik został usunięty z systemu FIA.");
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania sędziego: " : "Error deleting steward: ") + err.message);
+    }
 }
 
 async function logAction(steward, category, targetId, details) {
@@ -4573,6 +4616,13 @@ function renderLogsTable() {
     if (!tbody) return;
     tbody.innerHTML = "";
 
+    const perms = loggedInSteward?.permissions || {};
+    const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+    const canManageLogs = isRoot || !!perms.manage_settings;
+
+    const clearAllBtn = document.getElementById("clearAllLogsBtn");
+    if (clearAllBtn) clearAllBtn.style.display = (canManageLogs && globalLogs.length > 0) ? "inline-flex" : "none";
+
     const searchVal = document.getElementById("logSearch").value.toLowerCase();
     const filterAction = document.getElementById("logFilterAction").value;
 
@@ -4587,7 +4637,7 @@ function renderLogsTable() {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-dim);">Brak logów pasujących do kryteriów wyszukiwania.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim);">Brak logów pasujących do kryteriów wyszukiwania.</td></tr>`;
         return;
     }
 
@@ -4608,9 +4658,31 @@ function renderLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
+            <td>${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
+}
+
+async function deleteLogEntry(logId) {
+    if (!confirm(currentLang === 'pl' ? "Usunąć ten wpis z logu akcji? Tej operacji nie można cofnąć." : "Delete this log entry? This cannot be undone.")) return;
+    try {
+        await database.ref("action_logs/" + logId).remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania wpisu: " : "Error deleting entry: ") + err.message);
+    }
+}
+
+async function clearAllLogs() {
+    if (globalLogs.length === 0) return;
+    if (!confirm(currentLang === 'pl'
+        ? `Czy na pewno chcesz TRWALE usunąć wszystkie (${globalLogs.length}) wpisy z logu akcji? Tej operacji NIE MOŻNA cofnąć.`
+        : `Are you sure you want to PERMANENTLY delete all (${globalLogs.length}) action log entries? This CANNOT be undone.`)) return;
+    try {
+        await database.ref("action_logs").remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas czyszczenia logów: " : "Error clearing logs: ") + err.message);
+    }
 }
 
 function updateUsersStats() {
