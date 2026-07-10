@@ -2555,6 +2555,7 @@ async function checkAdminAuth() {
     applyStewardPermissions();
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
+    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loginId, `Zalogowano do panelu administracyjnego (hasło).`);
 
     showSection("adminSection");
     renderAdmin();
@@ -2858,6 +2859,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     }
 
     await database.ref("incidents/" + fiaId).set(newReport);
+    await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${sessionType}).`);
     alert(langData[currentLang].alertSent + " ID: " + fiaId);
     e.target.reset();
     const evidenceFileListEl = document.getElementById("evidenceFileList");
@@ -2937,6 +2939,7 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
 
     await database.ref("appeals/" + appealId).set(newAppeal);
     await database.ref("incidents/" + caseId + "/status").set("W apelacji");
+    await logAction(nick || discordId || "Kierowca", "APPEAL", caseId, `Złożono apelację ${appealId} od decyzji w sprawie ${caseId}.`);
 
     alert(langData[currentLang].alertAppealSent + " ID: " + appealId);
     e.target.reset();
@@ -3424,6 +3427,7 @@ async function saveModalNotes() {
     }
     
     await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(document.getElementById("modalNotesField").value);
+    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", currentlyEditedReportId, `Zaktualizowano notatki wewnętrzne do zgłoszenia.`);
     alert(currentLang === 'pl' ? "Zapisano." : "Saved.");
     closeDescModal();
 }
@@ -3553,6 +3557,9 @@ async function updateStatus(id, newStatus) {
     updates[`incidents/${id}/status`] = newStatus;
     if (reason) updates[`incidents/${id}/notes`] = reason;
     await database.ref().update(updates);
+
+    const stewardNameUS = loggedInSteward ? loggedInSteward.nick : "System";
+    await logAction(stewardNameUS, "VERDICT", id, `Zmieniono status zgłoszenia na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""));
 
     const embed = {
         title: langData[currentLang].dcDecisionTitle,
@@ -3881,6 +3888,8 @@ async function bulkStatusUpdate(newStatus) {
         if (reason) updates[`incidents/${id}/notes`] = `Odrzucono masowo: ${reason}`;
     }
     await database.ref().update(updates);
+    const stewardNameBulk = loggedInSteward ? loggedInSteward.nick : "System";
+    await logAction(stewardNameBulk, "VERDICT", `${selected.length} zgłoszeń`, `Zbiorczo zmieniono status ${selected.length} zgłoszeń na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""));
     document.getElementById("selectAllCheckboxes").checked = false;
     updateBulkActionsBar();
     alert(`Zaktualizowano status ${selected.length} zgłoszeń.`);
@@ -3912,6 +3921,9 @@ async function bulkDelete() {
 
 function adminLogout() {
     if (confirm("Czy na pewno chcesz się wylogować z panelu administratora?")) {
+        const stewardNameOut = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+        const stewardIdOut = loggedInSteward ? loggedInSteward.id : "N/A";
+        logAction(stewardNameOut, "AUTH", stewardIdOut, `Wylogowano z panelu administracyjnego.`);
         isAdminAuthenticated = false;
         loggedInSteward = null;
         isTrashAuthenticated = false;
@@ -3939,6 +3951,7 @@ function resetIDCounter() {
     if (confirm(langData[currentLang].confirmReset)) {
         database.ref("counters").set({ incidents: 0, appeals: 0 });
         database.ref("incident_counter").set(0);
+        logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SYSTEM", "incident_counter", `Zresetowano licznik ID zgłoszeń.`);
         alert("Licznik ID zgłoszeń został zresetowany.");
     }
 }
@@ -3951,6 +3964,7 @@ function resetAppealIDCounter() {
     }
     if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz zresetować licznik ID apelacji do 0?" : "Reset appeal ID counter to 0?")) {
         database.ref("appeal_counter").set(0).then(() => {
+            logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SYSTEM", "appeal_counter", `Zresetowano licznik ID apelacji.`);
             alert(currentLang === 'pl' ? "Licznik ID apelacji został zresetowany." : "Appeal ID counter has been reset.");
         }).catch(err => {
             alert("Błąd: " + err.message);
@@ -4070,6 +4084,7 @@ async function restoreTrashItem(trashId) {
             await database.ref("incidents/" + item.originalId + "/status").set("Werdykt wydany");
         }
         await database.ref("trash/" + trashId).remove();
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", item.originalId || trashId, `Przywrócono z Kosza obiekt typu [${item.type}].`);
         alert(currentLang === 'pl' ? "Element został przywrócony." : "Item restored.");
     } catch (err) {
         alert("Błąd: " + err.message);
@@ -4079,7 +4094,9 @@ async function restoreTrashItem(trashId) {
 async function permanentlyDeleteTrashItem(trashId) {
     if (!confirm(currentLang === 'pl' ? "Usunąć TRWALE ten element z kosza? Tej operacji NIE MOŻNA cofnąć." : "Permanently delete this item from trash? This CANNOT be undone.")) return;
     try {
+        const item = globalTrash.find(t => t.id === trashId);
         await database.ref("trash/" + trashId).remove();
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", item ? (item.originalId || trashId) : trashId, `Trwale usunięto element z Kosza${item ? ` (typ: ${item.type})` : ""}.`);
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas usuwania: " : "Error while deleting: ") + err.message);
     }
@@ -4104,6 +4121,7 @@ async function restoreAllTrash() {
             await database.ref("trash/" + item.id).remove();
         } catch (err) { failCount++; console.error("Błąd przywracania elementu kosza:", err); }
     }
+    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", `${globalTrash.length} elementów`, `Przywrócono zbiorczo wszystkie elementy z Kosza (${globalTrash.length - failCount} udanych, ${failCount} błędów).`);
     if (failCount > 0) {
         alert(currentLang === 'pl'
             ? `Przywrócono ${globalTrash.length - failCount} z ${globalTrash.length} elementów. ${failCount} nie udało się przywrócić (błąd zapisu do bazy — sprawdź konsolę/reguły Firebase).`
@@ -4117,7 +4135,9 @@ async function emptyTrash() {
     if (globalTrash.length === 0) return;
     if (!confirm(currentLang === 'pl' ? "Czy na pewno chcesz TRWALE opróżnić kosz? Tej operacji NIE MOŻNA cofnąć — dane przepadną bezpowrotnie." : "Are you sure you want to PERMANENTLY empty the trash? This CANNOT be undone.")) return;
     try {
+        const trashCount = globalTrash.length;
         await database.ref("trash").remove();
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", `${trashCount} elementów`, `Trwale opróżniono Kosz (${trashCount} elementów).`);
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas opróżniania kosza: " : "Error while emptying trash: ") + err.message);
     }
@@ -4275,6 +4295,7 @@ async function sendChatMessage() {
     }
     const newMsgRef = database.ref("chat").push();
     await newMsgRef.set(msgData);
+    await logAction(loggedInSteward ? loggedInSteward.nick : (msgData.nick || "Steward"), "CHAT", selectedCaseId || "Ogólny", `Wysłano wiadomość na czacie sprawy.`);
     msgInput.value = "";
     if (fileInput) fileInput.value = "";
     const chatFileListEl = document.getElementById("chatFileList");
@@ -4352,6 +4373,7 @@ async function sendPlayerChatMessage() {
     }
     const newMsgRef = database.ref("chat").push();
     await newMsgRef.set(msgData);
+    await logAction(playerNick || authorizedHistoryDiscordId || "Gracz", "CHAT", selectedPlayerCaseId, `Wysłano wiadomość na czacie sprawy (gracz).`);
     msgInput.value = "";
     if (fileInput) fileInput.value = "";
     const playerChatFileListEl = document.getElementById("playerChatFileList");
@@ -4444,6 +4466,7 @@ function finalizeAutoLogin() {
     applyStewardPermissions();
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
+    logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loggedInSteward ? loggedInSteward.id : "N/A", `Zalogowano do panelu administracyjnego przez Discord.`);
     showSection("adminSection");
     renderAdmin();
 }
