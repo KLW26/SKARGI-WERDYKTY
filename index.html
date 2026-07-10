@@ -1886,6 +1886,7 @@
                     <option value="APPEAL">Apelacje kierowców</option>
                     <option value="USER_MGMT">Zarządzanie sędziami</option>
                     <option value="TRASH">Operacje na Koszu</option>
+                    <option value="RESTORE">Przywracanie danych</option>
                 </select>
             </div>
             <div class="table-wrapper">
@@ -3491,7 +3492,7 @@ async function saveModalNotes() {
     const truncateNotes = (s, n = 300) => (s && s.length > n) ? s.slice(0, n) + "…" : (s || "(puste)");
 
     await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(newNotes);
-    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", currentlyEditedReportId, `Zaktualizowano notatki wewnętrzne do zgłoszenia. Przed: "${truncateNotes(oldNotes)}" → Po: "${truncateNotes(newNotes)}"`);
+    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", currentlyEditedReportId, `Zaktualizowano notatki wewnętrzne do zgłoszenia. Przed: "${truncateNotes(oldNotes)}" → Po: "${truncateNotes(newNotes)}"`, { items: [{ path: `incidents/${currentlyEditedReportId}/notes`, data: oldNotes || null }] });
     alert(currentLang === 'pl' ? "Zapisano." : "Saved.");
     closeDescModal();
 }
@@ -3552,24 +3553,29 @@ async function saveEditedReport() {
         const changes = [];
         const truncate = (s, n = 200) => (s && s.length > n) ? s.slice(0, n) + "…" : (s || "(puste)");
 
+        const restoreItemsEdit = [];
+
         if (newReporterNick !== (report.nick || "")) {
             changes.push(`Nick zgłaszającego: "${truncate(report.nick)}" → "${truncate(newReporterNick)}"`);
             updates[`incidents/${currentlyEditedReportId}/nick`] = newReporterNick;
+            restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/nick`, data: report.nick || null });
         }
         if (newAccusedNick !== (report.accusedNick || "")) {
             changes.push(`Nick oskarżonego: "${truncate(report.accusedNick)}" → "${truncate(newAccusedNick)}"`);
             updates[`incidents/${currentlyEditedReportId}/accusedNick`] = newAccusedNick;
+            restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/accusedNick`, data: report.accusedNick || null });
         }
         if (newDescription !== (report.details || "")) {
             changes.push(`Opis zgłoszenia: "${truncate(report.details)}" → "${truncate(newDescription)}"`);
             updates[`incidents/${currentlyEditedReportId}/details`] = newDescription;
+            restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/details`, data: report.details || null });
         }
 
         await database.ref().update(updates);
 
         const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
         const changeDetails = changes.length ? changes.join(" | ") : "Zapisano bez wykrytych zmian treści.";
-        await logAction(stewardName, "VERDICT", currentlyEditedReportId, `Steward użył narzędzi edycji, zmieniając oryginalne dane zgłoszenia. ${changeDetails}`);
+        await logAction(stewardName, "VERDICT", currentlyEditedReportId, `Steward użył narzędzi edycji, zmieniając oryginalne dane zgłoszenia. ${changeDetails}`, restoreItemsEdit.length ? { items: restoreItemsEdit } : null);
 
         alert(currentLang === 'pl' ? "Zmiany zostały pomyślnie zapisane." : "Changes saved successfully.");
 
@@ -3659,7 +3665,9 @@ async function deleteVerdict(id) {
     try {
         const report = globalIncidents.find(r => r.id === id);
         if (report && report.decisionData) {
-            await moveToTrash("verdict", id, report.decisionData);
+            await moveToTrash("verdict", id, report.decisionData, [
+                { path: `incidents/${id}/status`, data: report.status || "Werdykt wydany" }
+            ]);
         }
         await database.ref("incidents/" + id + "/decisionData").remove();
         await database.ref("incidents/" + id + "/status").set("Przyjęte");
@@ -3677,13 +3685,17 @@ async function updateStatus(id, newStatus) {
         reason = prompt(langData[currentLang].promptReject);
         if (reason === null) return; 
     }
+    const oldStatus = item.status || null;
+    const oldNotes = item.notes || null;
     const updates = {};
     updates[`incidents/${id}/status`] = newStatus;
     if (reason) updates[`incidents/${id}/notes`] = reason;
     await database.ref().update(updates);
 
     const stewardNameUS = loggedInSteward ? loggedInSteward.nick : "System";
-    await logAction(stewardNameUS, "VERDICT", id, `Zmieniono status zgłoszenia z "${item.status || "brak"}" na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""));
+    const restoreItemsUS = [{ path: `incidents/${id}/status`, data: oldStatus }];
+    if (reason) restoreItemsUS.push({ path: `incidents/${id}/notes`, data: oldNotes });
+    await logAction(stewardNameUS, "VERDICT", id, `Zmieniono status zgłoszenia z "${item.status || "brak"}" na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""), { items: restoreItemsUS });
 
     const embed = {
         title: langData[currentLang].dcDecisionTitle,
@@ -3698,13 +3710,19 @@ async function updateStatus(id, newStatus) {
 }
 
 async function acceptAppeal(appealId, caseId, discordId) {
+    const oldAppeal = globalAppeals.find(a => a.appealId === appealId);
+    const oldReport = globalIncidents.find(r => r.id === caseId);
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Przyjęte";
     updates[`incidents/${caseId}/status`] = "Przyjęte";
     await database.ref().update(updates);
     
     const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
-    await logAction(stewardName, "APPEAL", caseId, `Zaakceptowano apelację ${appealId} i zmieniono pierwotną decyzję.`);
+    const restoreItemsAcc = [
+        { path: `appeals/${appealId}/status`, data: oldAppeal ? (oldAppeal.status || null) : null },
+        { path: `incidents/${caseId}/status`, data: oldReport ? (oldReport.status || null) : null }
+    ];
+    await logAction(stewardName, "APPEAL", caseId, `Zaakceptowano apelację ${appealId} i zmieniono pierwotną decyzję.`, { items: restoreItemsAcc });
 
     const isPl = (currentLang === 'pl');
     const appealObj = globalAppeals.find(a => a.appealId === appealId);
@@ -3723,6 +3741,7 @@ async function acceptAppeal(appealId, caseId, discordId) {
 }
 
 async function rejectAppeal(appealId, caseId, discordId) {
+    const oldAppealRej = globalAppeals.find(a => a.appealId === appealId);
     const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Podtrzymany";
@@ -3730,7 +3749,11 @@ async function rejectAppeal(appealId, caseId, discordId) {
     await database.ref().update(updates);
     
     const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
-    await logAction(stewardName, "APPEAL", caseId, `Odrzucono apelację ${appealId}. Podtrzymano pierwotny werdykt sędziowski. Uzasadnienie: ${reason}`);
+    const restoreItemsRej = [
+        { path: `appeals/${appealId}/status`, data: oldAppealRej ? (oldAppealRej.status || null) : null },
+        { path: `appeals/${appealId}/rejectReason`, data: oldAppealRej ? (oldAppealRej.rejectReason || null) : null }
+    ];
+    await logAction(stewardName, "APPEAL", caseId, `Odrzucono apelację ${appealId}. Podtrzymano pierwotny werdykt sędziowski. Uzasadnienie: ${reason}`, { items: restoreItemsRej });
 
     const isPl = (currentLang === 'pl');
     const appealObj = globalAppeals.find(a => a.appealId === appealId);
@@ -3772,7 +3795,17 @@ async function openTrash() {
     }
 }
 
-async function moveToTrash(type, originalId, data) {
+// Zwraca ścieżkę w bazie, pod którą obiekt danego typu żył przed przeniesieniem do Kosza —
+// używane do zbudowania danych przywracania w logu akcji.
+function trashRestorePathFor(type, originalId) {
+    if (!originalId) return null;
+    if (type === "incident") return `incidents/${originalId}`;
+    if (type === "appeal") return `appeals/${originalId}`;
+    if (type === "verdict") return `incidents/${originalId}/decisionData`;
+    return null;
+}
+
+async function moveToTrash(type, originalId, data, extraRestoreItems = []) {
     if (!data) return;
     const trashRef = database.ref("trash").push();
     await trashRef.set({
@@ -3782,7 +3815,14 @@ async function moveToTrash(type, originalId, data) {
         deletedAt: firebase.database.ServerValue.TIMESTAMP
     });
     const stewardName = loggedInSteward ? loggedInSteward.nick : "System/Steward";
-    await logAction(stewardName, "TRASH", originalId, `Przeniesiono obiekt typu [${type}] do Kosza systemowego.`);
+
+    const restoreItems = [];
+    const restorePath = trashRestorePathFor(type, originalId);
+    if (restorePath) restoreItems.push({ path: restorePath, data: cloneForRestore(data) });
+    if (Array.isArray(extraRestoreItems)) restoreItems.push(...extraRestoreItems);
+    const restoreInfo = restoreItems.length > 0 ? { items: restoreItems } : null;
+
+    await logAction(stewardName, "TRASH", originalId, `Przeniesiono obiekt typu [${type}] do Kosza systemowego.`, restoreInfo);
 }
 
 async function editIncidentId(oldId) {
@@ -3942,14 +3982,15 @@ async function saveEditedAppeal() {
     try {
         const updates = {};
         const changes = [];
-        const truncate = (s, n = 200) => (s && s.length > n) ? s.slice(0, n) + "…" : (s || "(puste)");
+        const fmt = (s) => (s && s.length) ? `"${s}"` : "(puste)";
 
-        if (newNick !== (appeal.nick || "")) { changes.push(`Nick: "${truncate(appeal.nick)}" → "${truncate(newNick)}"`); updates[`appeals/${currentlyEditedAppealId}/nick`] = newNick; }
-        if (newDiscordId !== (appeal.discordId || "")) { changes.push(`Discord ID: "${truncate(appeal.discordId)}" → "${truncate(newDiscordId)}"`); updates[`appeals/${currentlyEditedAppealId}/discordId`] = newDiscordId; }
-        if (newCaseId !== (appeal.caseId || "")) { changes.push(`ID sprawy: "${truncate(appeal.caseId)}" → "${truncate(newCaseId)}"`); updates[`appeals/${currentlyEditedAppealId}/caseId`] = newCaseId; }
-        if (newStatus !== (appeal.status || "")) { changes.push(`Status: "${truncate(appeal.status)}" → "${truncate(newStatus)}"`); updates[`appeals/${currentlyEditedAppealId}/status`] = newStatus; }
-        if (newReason !== (appeal.reason || "")) { changes.push(`Uzasadnienie: "${truncate(appeal.reason)}" → "${truncate(newReason)}"`); updates[`appeals/${currentlyEditedAppealId}/reason`] = newReason; }
-        if (newEvidence !== (appeal.evidence || "")) { changes.push(`Dowód: "${truncate(appeal.evidence)}" → "${truncate(newEvidence)}"`); updates[`appeals/${currentlyEditedAppealId}/evidence`] = newEvidence; }
+        const restoreItemsAppeal = [];
+        if (newNick !== (appeal.nick || "")) { changes.push(`Nick: ${fmt(appeal.nick)} → ${fmt(newNick)}`); updates[`appeals/${currentlyEditedAppealId}/nick`] = newNick; restoreItemsAppeal.push({ path: `appeals/${currentlyEditedAppealId}/nick`, data: appeal.nick || null }); }
+        if (newDiscordId !== (appeal.discordId || "")) { changes.push(`Discord ID: ${fmt(appeal.discordId)} → ${fmt(newDiscordId)}`); updates[`appeals/${currentlyEditedAppealId}/discordId`] = newDiscordId; restoreItemsAppeal.push({ path: `appeals/${currentlyEditedAppealId}/discordId`, data: appeal.discordId || null }); }
+        if (newCaseId !== (appeal.caseId || "")) { changes.push(`ID sprawy: ${fmt(appeal.caseId)} → ${fmt(newCaseId)}`); updates[`appeals/${currentlyEditedAppealId}/caseId`] = newCaseId; restoreItemsAppeal.push({ path: `appeals/${currentlyEditedAppealId}/caseId`, data: appeal.caseId || null }); }
+        if (newStatus !== (appeal.status || "")) { changes.push(`Status: ${fmt(appeal.status)} → ${fmt(newStatus)}`); updates[`appeals/${currentlyEditedAppealId}/status`] = newStatus; restoreItemsAppeal.push({ path: `appeals/${currentlyEditedAppealId}/status`, data: appeal.status || null }); }
+        if (newReason !== (appeal.reason || "")) { changes.push(`Uzasadnienie:\nPrzed: ${fmt(appeal.reason)}\nPo: ${fmt(newReason)}`); updates[`appeals/${currentlyEditedAppealId}/reason`] = newReason; restoreItemsAppeal.push({ path: `appeals/${currentlyEditedAppealId}/reason`, data: appeal.reason || null }); }
+        if (newEvidence !== (appeal.evidence || "")) { changes.push(`Dowód: ${fmt(appeal.evidence)} → ${fmt(newEvidence)}`); updates[`appeals/${currentlyEditedAppealId}/evidence`] = newEvidence; restoreItemsAppeal.push({ path: `appeals/${currentlyEditedAppealId}/evidence`, data: appeal.evidence || null }); }
 
         if (Object.keys(updates).length === 0) {
             alert(currentLang === 'pl' ? "Nie wykryto żadnych zmian." : "No changes detected.");
@@ -3959,7 +4000,7 @@ async function saveEditedAppeal() {
         await database.ref().update(updates);
 
         const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
-        await logAction(stewardName, "APPEAL", currentlyEditedAppealId, `Steward edytował dane apelacji. ${changes.join(" | ")}`);
+        await logAction(stewardName, "APPEAL", currentlyEditedAppealId, `Steward edytował dane apelacji. ${changes.join(" | ")}`, restoreItemsAppeal.length ? { items: restoreItemsAppeal } : null);
 
         alert(currentLang === 'pl' ? "Zmiany w apelacji zostały zapisane." : "Appeal changes saved.");
         closeAppealEditModal();
@@ -4162,16 +4203,19 @@ async function bulkStatusUpdate(newStatus) {
     }
     const updates = {};
     const changedIds = [];
+    const restoreItemsBulk = [];
     for (const cb of selected) {
         const id = cb.getAttribute("data-id");
         const report = globalIncidents.find(r => r.id === id);
         changedIds.push(`${id} (${report ? (report.status || "brak") : "?"}→${newStatus})`);
+        restoreItemsBulk.push({ path: `incidents/${id}/status`, data: report ? (report.status || null) : null });
+        if (reason) restoreItemsBulk.push({ path: `incidents/${id}/notes`, data: report ? (report.notes || null) : null });
         updates[`incidents/${id}/status`] = newStatus;
         if (reason) updates[`incidents/${id}/notes`] = `Odrzucono masowo: ${reason}`;
     }
     await database.ref().update(updates);
     const stewardNameBulk = loggedInSteward ? loggedInSteward.nick : "System";
-    await logAction(stewardNameBulk, "VERDICT", `${selected.length} zgłoszeń`, `Zbiorczo zmieniono status ${selected.length} zgłoszeń na "${newStatus}": ${changedIds.join(", ")}.` + (reason ? ` Uzasadnienie: ${reason}` : ""));
+    await logAction(stewardNameBulk, "VERDICT", `${selected.length} zgłoszeń`, `Zbiorczo zmieniono status ${selected.length} zgłoszeń na "${newStatus}": ${changedIds.join(", ")}.` + (reason ? ` Uzasadnienie: ${reason}` : ""), { items: restoreItemsBulk });
     document.getElementById("selectAllCheckboxes").checked = false;
     updateBulkActionsBar();
     alert(`Zaktualizowano status ${selected.length} zgłoszeń.`);
@@ -4286,7 +4330,13 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     }
 
     const mainReport = globalIncidents.find(r => r.id === originalCaseId);
+    const restoreItemsVerdict = [];
     if (mainReport) {
+        restoreItemsVerdict.push(
+            { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
+            { path: `incidents/${originalCaseId}/notes`, data: mainReport.notes || null },
+            { path: `incidents/${originalCaseId}/decisionData`, data: cloneForRestore(mainReport.decisionData) }
+        );
         await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
         await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
         await database.ref("incidents/" + originalCaseId + "/decisionData").set({
@@ -4300,7 +4350,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     }
 
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
-    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`);
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
@@ -4377,8 +4427,9 @@ async function permanentlyDeleteTrashItem(trashId) {
     if (!confirm(currentLang === 'pl' ? "Usunąć TRWALE ten element z kosza? Tej operacji NIE MOŻNA cofnąć." : "Permanently delete this item from trash? This CANNOT be undone.")) return;
     try {
         const item = globalTrash.find(t => t.id === trashId);
+        const itemSnapshot = item ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(item) : null;
         await database.ref("trash/" + trashId).remove();
-        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", item ? (item.originalId || trashId) : trashId, `Trwale usunięto element z Kosza${item ? ` (typ: ${item.type})` : ""}.`);
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", item ? (item.originalId || trashId) : trashId, `Trwale usunięto element z Kosza${item ? ` (typ: ${item.type})` : ""}.`, itemSnapshot ? { items: [{ path: `trash/${trashId}`, data: itemSnapshot }] } : null);
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas usuwania: " : "Error while deleting: ") + err.message);
     }
@@ -4418,8 +4469,13 @@ async function emptyTrash() {
     if (!confirm(currentLang === 'pl' ? "Czy na pewno chcesz TRWALE opróżnić kosz? Tej operacji NIE MOŻNA cofnąć — dane przepadną bezpowrotnie." : "Are you sure you want to PERMANENTLY empty the trash? This CANNOT be undone.")) return;
     try {
         const trashCount = globalTrash.length;
+        const trashSnapshot = {};
+        globalTrash.forEach(t => {
+            const { id: _dropId, ...rest } = t;
+            trashSnapshot[t.id] = cloneForRestore(rest);
+        });
         await database.ref("trash").remove();
-        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", `${trashCount} elementów`, `Trwale opróżniono Kosz (${trashCount} elementów).`);
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "TRASH", `${trashCount} elementów`, `Trwale opróżniono Kosz (${trashCount} elementów).`, trashCount > 0 ? { items: [{ path: "trash", data: trashSnapshot }] } : null);
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas opróżniania kosza: " : "Error while emptying trash: ") + err.message);
     }
@@ -4814,12 +4870,16 @@ async function saveSteward(event) {
         manage_settings: document.getElementById("perm_settings").checked
     };
 
+    const oldStewardSnapshot = existing ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(existing) : null;
+
     await database.ref("stewards/" + discordId).set({
         nick, role, password, permissions, lastUpdated: Date.now()
     });
 
     const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
-    await logAction(stewardName, "USER_MGMT", discordId, `Zapisano sędziego: ${nick} z przypisaną rolą "${role}"`);
+    // Jeśli steward istniał wcześniej — przywrócenie cofa do poprzednich danych; jeśli był nowo
+    // utworzony — przywrócenie usuwa jego konto (cofnięcie utworzenia).
+    await logAction(stewardName, "USER_MGMT", discordId, `Zapisano sędziego: ${nick} z przypisaną rolą "${role}"`, { items: [{ path: `stewards/${discordId}`, data: oldStewardSnapshot }] });
 
     alert("Dane stewarda i uprawnienia zostały zaktualizowane pomyślnie.");
     resetStewardForm();
@@ -4851,27 +4911,88 @@ function editSteward(discordId) {
 async function deleteSteward(discordId, nick) {
     if (!confirm(`Czy na pewno chcesz odebrać uprawnienia i usunąć sędziego ${nick}?`)) return;
     try {
+        const stewardToDelete = globalStewards.find(s => s.id === discordId);
+        const stewardSnapshot = stewardToDelete ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(stewardToDelete) : null;
         await database.ref("stewards/" + discordId).remove();
         const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
-        await logAction(stewardName, "USER_MGMT", discordId, `Usunięto sędziego z personelu ligi: ${nick}`);
+        await logAction(stewardName, "USER_MGMT", discordId, `Usunięto sędziego z personelu ligi: ${nick}`, stewardSnapshot ? { items: [{ path: `stewards/${discordId}`, data: stewardSnapshot }] } : null);
         alert("Użytkownik został usunięty z systemu FIA.");
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas usuwania sędziego: " : "Error deleting steward: ") + err.message);
     }
 }
 
-async function logAction(steward, category, targetId, details) {
+// Bezpieczne, głębokie sklonowanie obiektu na potrzeby zapisu w logu (usuwa `undefined`,
+// funkcje itp., które nie są akceptowane przez Firebase Realtime Database).
+function cloneForRestore(obj) {
+    if (obj === undefined || obj === null) return null;
+    try {
+        return JSON.parse(JSON.stringify(obj));
+    } catch (e) {
+        return null;
+    }
+}
+
+// `restoreInfo` (opcjonalne) ma postać: { items: [ { path: "incidents/FIA-1", data: {...} }, ... ] }
+// gdzie `data` to stan sprzed akcji (do zapisania z powrotem pod `path`), albo `null`,
+// jeśli akcja utworzyła coś, co przy przywracaniu należy usunąć.
+async function logAction(steward, category, targetId, details, restoreInfo = null) {
     try {
         const newLogRef = database.ref("action_logs").push();
-        await newLogRef.set({
+        const payload = {
             steward: steward || "System",
             category: category,
             targetId: targetId || "N/A",
             details: details,
             timestamp: Date.now()
-        });
+        };
+        if (restoreInfo && Array.isArray(restoreInfo.items) && restoreInfo.items.length > 0) {
+            payload.restore = { items: restoreInfo.items.map(it => ({ path: it.path, data: (it.data === undefined ? null : it.data) })) };
+        }
+        await newLogRef.set(payload);
     } catch(err) {
         console.error("Błąd zapisu logu systemowego:", err);
+    }
+}
+
+function canRestoreLogs() {
+    const perms = loggedInSteward?.permissions || {};
+    const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+    return isRoot || !!perms.manage_settings;
+}
+
+async function restoreFromLog(logId) {
+    const log = globalLogs.find(l => l.id === logId);
+    if (!log || !log.restore || !Array.isArray(log.restore.items) || log.restore.items.length === 0) {
+        alert(currentLang === 'pl' ? "Ten wpis logu nie zawiera danych umożliwiających przywrócenie." : "This log entry has no restorable data.");
+        return;
+    }
+    if (!canRestoreLogs()) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do przywracania danych z logów." : "Not authorized to restore data from logs.");
+        return;
+    }
+
+    const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
+    const confirmMsg = currentLang === 'pl'
+        ? `Czy na pewno chcesz przywrócić stan sprzed tej akcji (${dateStr})?\n\n"${log.details}"\n\nSpowoduje to nadpisanie aktualnych danych stanem zapisanym w logu.`
+        : `Are you sure you want to restore the state from before this action (${dateStr})?\n\n"${log.details}"\n\nThis will overwrite the current data with the state saved in the log.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const updates = {};
+        log.restore.items.forEach(it => {
+            updates[it.path] = (it.data === undefined) ? null : it.data;
+        });
+        await database.ref().update(updates);
+
+        const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+        await logAction(stewardName, "RESTORE", log.targetId, currentLang === 'pl'
+            ? `Przywrócono stan sprzed akcji z dnia ${dateStr} (log: "${log.details}").`
+            : `Restored state from before the action on ${dateStr} (log: "${log.details}").`);
+
+        alert(currentLang === 'pl' ? "Dane zostały przywrócone." : "Data has been restored.");
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas przywracania danych: " : "Error restoring data: ") + err.message);
     }
 }
 
@@ -4955,7 +5076,13 @@ function renderLogsTable() {
         else if (log.category === "APPEAL") catBadge = `<span class="badge badge-appeal">APELACJA</span>`;
         else if (log.category === "USER_MGMT") catBadge = `<span class="badge badge-pending">ROLE</span>`;
         else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
+        else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
         else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
+
+        const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
+        const restoreBtn = (hasRestore && canManageLogs)
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
+            : '';
 
         tr.innerHTML = `
             <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
@@ -4963,7 +5090,7 @@ function renderLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td>${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
+            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
