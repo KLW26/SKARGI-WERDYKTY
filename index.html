@@ -1224,7 +1224,16 @@
   <div id="adminLoginModal" class="login-modal">
     <div class="login-box">
       <h1 data-key="adminPanel">Panel FIA</h1>
-      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Zaloguj się swoim Discord ID i hasłem nadanym przez administratora.</p>
+      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Zaloguj się przez Discord albo swoim Discord ID i hasłem nadanym przez administratora.</p>
+      <button type="button" class="discord-login-btn" onclick="loginWithDiscordAdmin()" style="width:100%; justify-content:center; margin-bottom:16px;">
+        <svg width="18" height="18" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+        <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+      </button>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; color: var(--text-dim); font-size:11px;">
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+        <span data-key="orDivider">LUB</span>
+        <div style="flex:1; height:1px; background:var(--border);"></div>
+      </div>
       <div class="field">
         <label>Twoje Discord ID</label>
         <input id="adminLoginId" type="text" placeholder="np. 294330293281161634">
@@ -1238,6 +1247,7 @@
       <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
       <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
     </div>
+
   </div>
 
   <div id="descModal" class="desc-modal">
@@ -2151,6 +2161,15 @@ let globalIncidents = [];
 let globalAppeals = [];
 let globalTrash = [];
 let globalChatData = null;
+// Haszowanie haseł (SHA-256) — hasła nie są porównywane ani przechowywane jako jawny tekst
+async function hashPassword(plain) {
+    const enc = new TextEncoder().encode(plain);
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+// Hash SHA-256 hasła do sekcji "Użytkownicy i Role" — jawne hasło nie występuje już w kodzie
+const ADMIN_USERS_PASS_HASH = "64e48f3bf07307f751c02213b95e0b5e1e8351597dfbe12bce5cbf115591ce3f";
+
 let isAdminAuthenticated = false;
 let discordDriverAuth = null; // { id, username, globalName, avatarUrl } — kierowca zalogowany przez Discord
 let currentLang = 'pl';
@@ -2164,7 +2183,7 @@ let activeVerificationPin = null;
 const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
-        discordLoginBtn: "Zaloguj przez Discord", discordLoggedInAs: "Kierowca:", discordLogoutBtn: "Wyloguj",
+        discordLoginBtn: "Zaloguj przez Discord", discordLoggedInAs: "Kierowca:", discordLogoutBtn: "Wyloguj", orDivider: "LUB",
         formLockedMsg: "Aby złożyć zgłoszenie, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować Twoją tożsamość jako kierowcy.",
         historyVerifiedByDiscord: "Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.",
         historyRecommendDiscord: "Zalecane: zaloguj się przez Discord, aby bezpiecznie i automatycznie zobaczyć swoją historię.",
@@ -2203,7 +2222,7 @@ const langData = {
     },
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
-        discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout",
+        discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout", orDivider: "OR",
         formLockedMsg: "You must log in with Discord before submitting a report. This lets us verify your identity as a driver.",
         historyVerifiedByDiscord: "Verified via Discord — showing the history linked to your account.",
         historyRecommendDiscord: "Recommended: log in with Discord to securely and automatically see your history.",
@@ -2480,19 +2499,21 @@ function showSection(id) {
 function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminLoginId").focus(); }
 function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; document.getElementById("adminPass").value = ""; document.getElementById("adminLoginId").value = ""; }
 
-function openUsersSection() {
+async function openUsersSection() {
     if (isUsersAuth) {
         showSection('usersSection');
         renderUsersAndLogs();
         return;
     }
     const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Zarządzania Użytkownikami i Rolami:" : "Enter password for Users and Roles section:");
-    if (pass === "ADMIN2026") {
+    if (pass === null) return;
+    const passHash = await hashPassword(pass);
+    if (passHash === ADMIN_USERS_PASS_HASH) {
         isUsersAuth = true;
         sessionStorage.setItem("usersAuth", "1");
         showSection('usersSection');
         renderUsersAndLogs();
-    } else if (pass !== null) {
+    } else {
         alert(currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!");
     }
 }
@@ -2513,7 +2534,8 @@ async function checkAdminAuth() {
             statusEl.textContent = currentLang === 'pl' ? "Nie znaleziono stewarda o podanym Discord ID." : "No steward found with that Discord ID.";
             return;
         }
-        if (!steward.password || pass !== steward.password) {
+        const passHash = await hashPassword(pass);
+        if (!steward.password || passHash !== steward.password) {
             statusEl.textContent = currentLang === 'pl' ? "Nieprawidłowe hasło dla tego Discord ID!" : "Invalid password for this Discord ID!";
             return;
         }
@@ -2567,6 +2589,19 @@ function loginWithDiscord() {
     window.location.href = url;
 }
 
+function loginWithDiscordAdmin() {
+    if (!DISCORD_CLIENT_ID || DISCORD_CLIENT_ID === "TWOJE_DISCORD_CLIENT_ID") {
+        alert(currentLang === 'pl'
+            ? "Logowanie przez Discord nie zostało jeszcze skonfigurowane przez administratora strony (brak Client ID)."
+            : "Discord login has not been configured by the site admin yet (missing Client ID).");
+        return;
+    }
+    const redirectUri = encodeURIComponent(getDiscordRedirectUri());
+    // state=admin_panel odróżnia ten login (do panelu stewarda) od zwykłego logowania kierowcy przy powrocie z Discorda
+    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}&state=admin_panel`;
+    window.location.href = url;
+}
+
 function logoutDiscordDriver() {
     discordDriverAuth = null;
     localStorage.removeItem("driverDiscordAuth");
@@ -2574,10 +2609,11 @@ function logoutDiscordDriver() {
 }
 
 async function handleDiscordOAuthRedirect() {
-    // Discord (implicit grant) zwraca token we fragmencie URL: #access_token=...&token_type=Bearer...
+    // Discord (implicit grant) zwraca token we fragmencie URL: #access_token=...&token_type=Bearer...&state=...
     if (window.location.hash && window.location.hash.includes("access_token")) {
         const params = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = params.get("access_token");
+        const oauthState = params.get("state");
         // Usuwamy token z paska adresu, żeby nie został np. w historii przeglądarki
         history.replaceState(null, "", window.location.pathname + window.location.search);
 
@@ -2591,13 +2627,20 @@ async function handleDiscordOAuthRedirect() {
                     const avatarUrl = user.avatar
                         ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
                         : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.discriminator || "0") % 5n)}.png`;
-                    discordDriverAuth = {
-                        id: user.id,
-                        username: user.username,
-                        globalName: user.global_name || user.username,
-                        avatarUrl
-                    };
-                    localStorage.setItem("driverDiscordAuth", JSON.stringify(discordDriverAuth));
+
+                    if (oauthState === "admin_panel") {
+                        // Logowanie do panelu stewarda — tożsamość zweryfikowana przez Discord,
+                        // dostęp przyznawany tylko jeśli to Discord ID jest zarejestrowane jako steward.
+                        attemptDiscordAdminLogin(user.id);
+                    } else {
+                        discordDriverAuth = {
+                            id: user.id,
+                            username: user.username,
+                            globalName: user.global_name || user.username,
+                            avatarUrl
+                        };
+                        localStorage.setItem("driverDiscordAuth", JSON.stringify(discordDriverAuth));
+                    }
                 } else {
                     console.error("Discord API error:", res.status);
                 }
@@ -3567,10 +3610,11 @@ async function rejectAppeal(appealId, caseId, discordId) {
     alert(`Apelacja ${appealId} odrzucona.`);
 }
 
-const TRASH_PASSWORD = "FIAKLW2026";
+// Hash SHA-256 hasła do sekcji "Kosz" — jawne hasło nie występuje już w kodzie
+const TRASH_PASSWORD_HASH = "5ef1e98d8c89dd6154d3445c3cfc006b3aad0378b4c370e39a4a7a2e98864bb0";
 let isTrashAuthenticated = false;
 
-function openTrash() {
+async function openTrash() {
     if (isTrashAuthenticated) {
         showSection('trashSection');
         renderTrash();
@@ -3578,7 +3622,8 @@ function openTrash() {
     }
     const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Kosza:" : "Enter Trash access password:");
     if (pass === null) return;
-    if (pass === TRASH_PASSWORD) {
+    const passHash = await hashPassword(pass);
+    if (passHash === TRASH_PASSWORD_HASH) {
         isTrashAuthenticated = true;
         sessionStorage.setItem("trashAuth", "1");
         showSection('trashSection');
@@ -4310,7 +4355,22 @@ function listenToUsersAndLogs() {
 }
 
 let pendingAutoLoginId = null;
+let pendingAutoLoginIsDiscordAttempt = false;
 let stewardsFirstSnapshotReceived = false;
+
+function attemptDiscordAdminLogin(discordId) {
+    // Tożsamość jest już potwierdzona przez Discord (OAuth) — sprawdzamy tylko,
+    // czy to Discord ID jest zarejestrowane jako steward w bazie. Bez hasła.
+    pendingAutoLoginId = discordId;
+    pendingAutoLoginIsDiscordAttempt = true;
+    localStorage.setItem("adminAuthId", discordId);
+
+    if (stewardsFirstSnapshotReceived) {
+        tryAutoLogin();
+    }
+    // Jeśli lista stewardów jeszcze się nie załadowała, tryAutoLogin() i tak zostanie
+    // wywołane automatycznie przez listenToStewards() przy pierwszym snapshotcie z Firebase.
+}
 
 function tryAutoLogin() {
     stewardsFirstSnapshotReceived = true;
@@ -4321,10 +4381,17 @@ function tryAutoLogin() {
         loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
         finalizeAutoLogin();
         pendingAutoLoginId = null;
+        pendingAutoLoginIsDiscordAttempt = false;
     } else {
+        if (pendingAutoLoginIsDiscordAttempt) {
+            alert(currentLang === 'pl'
+                ? "To konto Discord nie jest zarejestrowane jako steward w tym systemie. Poproś administratora o dodanie Twojego Discord ID w sekcji Użytkownicy i Role."
+                : "This Discord account is not registered as a steward in this system. Ask an administrator to add your Discord ID in the Users and Roles section.");
+        }
         // Steward zapisany w localStorage już nie istnieje w bazie (np. usunięty) — czyścimy sesję.
         localStorage.removeItem("adminAuthId");
         pendingAutoLoginId = null;
+        pendingAutoLoginIsDiscordAttempt = false;
     }
 }
 
@@ -4379,11 +4446,13 @@ async function saveSteward(event) {
     let password = passwordInput;
     if (!password) {
         if (existing && existing.password) {
-            password = existing.password; // edycja bez zmiany hasła — zachowaj obecne
+            password = existing.password; // edycja bez zmiany hasła — zachowaj obecny hash
         } else {
             alert(currentLang === 'pl' ? "Ustaw hasło logowania dla tego stewarda (pole nie może być puste dla nowego konta)." : "Set a login password for this steward (required for a new account).");
             return;
         }
+    } else {
+        password = await hashPassword(password); // nowe/zmienione hasło — zapisz tylko jego hash SHA-256
     }
 
     const permissions = {
