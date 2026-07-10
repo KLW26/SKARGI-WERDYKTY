@@ -120,6 +120,51 @@
       background: rgba(225,6,0,0.1);
     }
 
+    .input-locked {
+      background: rgba(16,185,129,0.08) !important;
+      border-color: rgba(16,185,129,0.4) !important;
+      color: var(--text-dim) !important;
+      cursor: not-allowed;
+    }
+
+    .discord-login-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #5865F2;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .discord-login-btn:hover { background: #4752c4; }
+    .discord-status-bar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-left: auto;
+      margin-right: 14px;
+    }
+    .discord-status-bar img { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(88,101,242,0.5); }
+    .discord-status-bar .logout-x {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 2px;
+      padding: 2px 6px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    .discord-status-bar .logout-x:hover { border-color: var(--red); color: #fff; }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -1216,7 +1261,17 @@
       <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
       <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
       
-      <span id="loggedInAsLabel" style="display:none; align-items:center; margin-left:auto; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
+      <button id="driverDiscordLoginBtn" class="discord-login-btn" style="margin-left:auto;" onclick="loginWithDiscord()">
+        <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+        <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+      </button>
+      <span id="driverDiscordStatusBar" class="discord-status-bar">
+        <img id="driverDiscordAvatar" src="" alt="">
+        <span data-key="discordLoggedInAs">Kierowca:</span>&nbsp;<strong id="driverDiscordName" style="color: var(--text);"></strong>
+        <button type="button" class="logout-x" onclick="logoutDiscordDriver()" data-key="discordLogoutBtn">Wyloguj</button>
+      </span>
+
+      <span id="loggedInAsLabel" style="display:none; align-items:center; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
         <span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
         <span id="loggedInAsText">Zalogowano jako: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
       </span>
@@ -1309,7 +1364,22 @@
       <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
       <p class="subtitle" style="margin-bottom: 12px;">Bezpieczna autoryzacja panelu: Wygeneruj swój unikalny PIN dostępu bezpośrednio poniżej.</p>
       
+      <div id="historyDiscordAuthBar" style="display:none; align-items:center; justify-content:space-between; gap:12px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.35); border-radius: 4px; padding: 14px 18px; margin-bottom: 16px;">
+        <span style="font-size:12px; color: var(--text);">
+          ✅ <span data-key="historyVerifiedByDiscord">Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.</span>
+        </span>
+        <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:11px;" onclick="logoutDiscordDriver()" data-key="discordLogoutBtn">Wyloguj</button>
+      </div>
+
       <div id="historyAuthBox" style="background: var(--bg-panel); padding: 20px; border-radius: 4px; border: 1px solid var(--border); border-left: 3px solid var(--red); margin-bottom: 16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 14px; flex-wrap: wrap;">
+          <p style="font-size: 11px; color: var(--text-dim); margin: 0;" data-key="historyRecommendDiscord">Zalecane: zaloguj się przez Discord, aby bezpiecznie i automatycznie zobaczyć swoją historię.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()">
+            <svg width="14" height="14" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+            <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+          </button>
+        </div>
+        <p class="subtitle" style="margin-bottom: 12px;" data-key="historyPinFallback">Ewentualnie, jeśli nie możesz użyć Discorda: wygeneruj kod dostępu ręcznie (mniej bezpieczna metoda).</p>
         <div class="row" style="align-items: flex-end;">
           <div class="field" style="margin-bottom: 0;">
             <label>Wprowadź swoje Discord ID</label>
@@ -1736,6 +1806,15 @@ const database = firebase.database();
 
 const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev";
 
+// === LOGOWANIE KIEROWCÓW PRZEZ DISCORD (OAuth2) ===
+// 1. Utwórz aplikację na https://discord.com/developers/applications
+// 2. W zakładce OAuth2 dodaj Redirect URL DOKŁADNIE równy adresowi, pod którym
+//    hostujesz tę stronę (np. https://twojadomena.pl/index.html). OAuth Discorda
+//    NIE zadziała, jeśli otwierasz plik lokalnie (file://) — strona musi być hostowana pod http(s).
+// 3. Wklej poniżej swoje Client ID (zakładka "OAuth2" -> "General" w Discord Developer Portal).
+const DISCORD_CLIENT_ID = "1511745302657241258";
+const DISCORD_OAUTH_SCOPE = "identify";
+
 const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
@@ -2025,6 +2104,7 @@ let globalAppeals = [];
 let globalTrash = [];
 let globalChatData = null;
 let isAdminAuthenticated = false;
+let discordDriverAuth = null; // { id, username, globalName, avatarUrl } — kierowca zalogowany przez Discord
 let currentLang = 'pl';
 let currentlyEditedReportId = null;
 let isUsersAuth = false;
@@ -2036,6 +2116,10 @@ let activeVerificationPin = null;
 const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
+        discordLoginBtn: "Zaloguj przez Discord", discordLoggedInAs: "Kierowca:", discordLogoutBtn: "Wyloguj",
+        historyVerifiedByDiscord: "Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.",
+        historyRecommendDiscord: "Zalecane: zaloguj się przez Discord, aby bezpiecznie i automatycznie zobaczyć swoją historię.",
+        historyPinFallback: "Ewentualnie, jeśli nie możesz użyć Discorda: wygeneruj kod dostępu ręcznie (mniej bezpieczna metoda).",
         mainTitle: "System Zgłoszeń FIA", mainSubtitle: "Zarządzanie incydentami wyścigowymi",
         navNew: "Nowe Zgłoszenie", navHistory: "Globalna Historia", navAdmin: "Panel Administracyjny", navAppeal: "Złóż Apelację",
         secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
@@ -2068,6 +2152,10 @@ const langData = {
     },
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
+        discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout",
+        historyVerifiedByDiscord: "Verified via Discord — showing the history linked to your account.",
+        historyRecommendDiscord: "Recommended: log in with Discord to securely and automatically see your history.",
+        historyPinFallback: "Alternatively, if you can't use Discord: generate an access code manually (less secure method).",
         mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
         navNew: "New Report", navHistory: "Global History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
         secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
@@ -2403,6 +2491,149 @@ function updateLoggedInAsLabel() {
     } else {
         label.style.display = "none";
         nickEl.textContent = "";
+    }
+}
+
+// ============ LOGOWANIE KIEROWCÓW PRZEZ DISCORD (OAuth2) ============
+
+function getDiscordRedirectUri() {
+    // Redirect URI musi być zarejestrowany 1:1 w ustawieniach aplikacji Discorda.
+    return window.location.origin + window.location.pathname;
+}
+
+function loginWithDiscord() {
+    if (!DISCORD_CLIENT_ID || DISCORD_CLIENT_ID === "TWOJE_DISCORD_CLIENT_ID") {
+        alert(currentLang === 'pl'
+            ? "Logowanie przez Discord nie zostało jeszcze skonfigurowane przez administratora strony (brak Client ID)."
+            : "Discord login has not been configured by the site admin yet (missing Client ID).");
+        return;
+    }
+    const redirectUri = encodeURIComponent(getDiscordRedirectUri());
+    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}`;
+    window.location.href = url;
+}
+
+function logoutDiscordDriver() {
+    discordDriverAuth = null;
+    localStorage.removeItem("driverDiscordAuth");
+    applyDriverAuthUI();
+}
+
+async function handleDiscordOAuthRedirect() {
+    // Discord (implicit grant) zwraca token we fragmencie URL: #access_token=...&token_type=Bearer...
+    if (window.location.hash && window.location.hash.includes("access_token")) {
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = params.get("access_token");
+        // Usuwamy token z paska adresu, żeby nie został np. w historii przeglądarki
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+
+        if (accessToken) {
+            try {
+                const res = await fetch("https://discord.com/api/users/@me", {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                if (res.ok) {
+                    const user = await res.json();
+                    const avatarUrl = user.avatar
+                        ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+                        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.discriminator || "0") % 5n)}.png`;
+                    discordDriverAuth = {
+                        id: user.id,
+                        username: user.username,
+                        globalName: user.global_name || user.username,
+                        avatarUrl
+                    };
+                    localStorage.setItem("driverDiscordAuth", JSON.stringify(discordDriverAuth));
+                } else {
+                    console.error("Discord API error:", res.status);
+                }
+            } catch (err) {
+                console.error("Błąd logowania przez Discord:", err);
+            }
+        }
+    } else {
+        const saved = localStorage.getItem("driverDiscordAuth");
+        if (saved) {
+            try { discordDriverAuth = JSON.parse(saved); } catch (e) { discordDriverAuth = null; }
+        }
+    }
+    applyDriverAuthUI();
+}
+
+function lockFieldWithDiscordId(inputId, noteId) {
+    const input = document.getElementById(inputId);
+    if (!input || !discordDriverAuth) return;
+    input.value = discordDriverAuth.id;
+    input.readOnly = true;
+    input.classList.add("input-locked");
+    if (input._validateDiscordId) input._validateDiscordId();
+    let note = document.getElementById(noteId);
+    if (!note) {
+        note = document.createElement("small");
+        note.id = noteId;
+        note.style.cssText = "display:block; margin-top:4px; color:#10b981; font-size:11px;";
+        input.insertAdjacentElement("afterend", note);
+    }
+    note.textContent = currentLang === 'pl'
+        ? "✅ Zweryfikowano przez Discord — pole zablokowane."
+        : "✅ Verified via Discord — field locked.";
+}
+
+function unlockField(inputId, noteId) {
+    const input = document.getElementById(inputId);
+    if (input) {
+        input.readOnly = false;
+        input.classList.remove("input-locked");
+    }
+    const note = document.getElementById(noteId);
+    if (note) note.remove();
+}
+
+function applyDriverAuthUI() {
+    const loginBtn = document.getElementById("driverDiscordLoginBtn");
+    const statusBar = document.getElementById("driverDiscordStatusBar");
+    const nameEl = document.getElementById("driverDiscordName");
+    const avatarEl = document.getElementById("driverDiscordAvatar");
+
+    if (discordDriverAuth) {
+        if (loginBtn) loginBtn.style.display = "none";
+        if (statusBar) statusBar.style.display = "flex";
+        if (nameEl) nameEl.textContent = discordDriverAuth.globalName || discordDriverAuth.username;
+        if (avatarEl) avatarEl.src = discordDriverAuth.avatarUrl;
+
+        lockFieldWithDiscordId("discordId", "discordIdDiscordNote");
+        lockFieldWithDiscordId("appealDiscordId", "appealDiscordIdNote");
+        // Uwaga: pole "Discord ID osoby zgłaszanej" (accusedDiscordId) NIE jest blokowane —
+        // dotyczy innej osoby (oskarżonego), nie zalogowanego kierowcy.
+
+        const nickInput = document.getElementById("nick");
+        if (nickInput && !nickInput.value) nickInput.value = discordDriverAuth.username;
+        const appealNickInput = document.getElementById("appealNick");
+        if (appealNickInput && !appealNickInput.value) appealNickInput.value = discordDriverAuth.username;
+
+        // Historia — automatyczna autoryzacja, bez PIN-u
+        const authBox = document.getElementById("historyAuthBox");
+        const discordBar = document.getElementById("historyDiscordAuthBar");
+        if (authBox) authBox.style.display = "none";
+        if (discordBar) discordBar.style.display = "block";
+        if (authorizedHistoryDiscordId !== discordDriverAuth.id) {
+            authorizedHistoryDiscordId = discordDriverAuth.id;
+            selectedPlayerCaseId = null;
+            document.getElementById("playerChatBoxContainer") && (document.getElementById("playerChatBoxContainer").style.display = "block");
+            fetchAndRenderHistory(authorizedHistoryDiscordId);
+            updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
+        }
+    } else {
+        if (loginBtn) loginBtn.style.display = "inline-flex";
+        if (statusBar) statusBar.style.display = "none";
+
+        unlockField("discordId", "discordIdDiscordNote");
+        unlockField("appealDiscordId", "appealDiscordIdNote");
+
+        const authBox = document.getElementById("historyAuthBox");
+        const discordBar = document.getElementById("historyDiscordAuthBar");
+        if (authBox) authBox.style.display = "block";
+        if (discordBar) discordBar.style.display = "none";
     }
 }
 
@@ -4226,6 +4457,10 @@ window.addEventListener("DOMContentLoaded", () => {
     // Lista stewardów musi być dostępna od startu strony, żeby logowanie mogło
     // zidentyfikować, KTO się loguje (po Discord ID) i wczytać jego uprawnienia.
     listenToStewards();
+
+    // Obsługa logowania kierowców przez Discord (OAuth2) — sprawdza token w URL
+    // po powrocie z Discorda, albo wczytuje zapisaną wcześniej sesję.
+    handleDiscordOAuthRedirect();
 
     pendingAutoLoginId = localStorage.getItem("adminAuthId");
     // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
