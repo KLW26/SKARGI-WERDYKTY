@@ -3426,8 +3426,13 @@ async function saveModalNotes() {
         return;
     }
     
-    await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(document.getElementById("modalNotesField").value);
-    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", currentlyEditedReportId, `Zaktualizowano notatki wewnętrzne do zgłoszenia.`);
+    const report = globalIncidents.find(r => r.id === currentlyEditedReportId);
+    const oldNotes = report ? (report.notes || "") : "";
+    const newNotes = document.getElementById("modalNotesField").value;
+    const truncateNotes = (s, n = 300) => (s && s.length > n) ? s.slice(0, n) + "…" : (s || "(puste)");
+
+    await database.ref("incidents/" + currentlyEditedReportId + "/notes").set(newNotes);
+    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", currentlyEditedReportId, `Zaktualizowano notatki wewnętrzne do zgłoszenia. Przed: "${truncateNotes(oldNotes)}" → Po: "${truncateNotes(newNotes)}"`);
     alert(currentLang === 'pl' ? "Zapisano." : "Saved.");
     closeDescModal();
 }
@@ -3482,14 +3487,27 @@ async function saveEditedReport() {
 
     try {
         const updates = {};
-        updates[`incidents/${currentlyEditedReportId}/nick`] = newReporterNick;
-        updates[`incidents/${currentlyEditedReportId}/accusedNick`] = newAccusedNick;
-        updates[`incidents/${currentlyEditedReportId}/details`] = newDescription;
+        const changes = [];
+        const truncate = (s, n = 200) => (s && s.length > n) ? s.slice(0, n) + "…" : (s || "(puste)");
+
+        if (newReporterNick !== (report.nick || "")) {
+            changes.push(`Nick zgłaszającego: "${truncate(report.nick)}" → "${truncate(newReporterNick)}"`);
+            updates[`incidents/${currentlyEditedReportId}/nick`] = newReporterNick;
+        }
+        if (newAccusedNick !== (report.accusedNick || "")) {
+            changes.push(`Nick oskarżonego: "${truncate(report.accusedNick)}" → "${truncate(newAccusedNick)}"`);
+            updates[`incidents/${currentlyEditedReportId}/accusedNick`] = newAccusedNick;
+        }
+        if (newDescription !== (report.details || "")) {
+            changes.push(`Opis zgłoszenia: "${truncate(report.details)}" → "${truncate(newDescription)}"`);
+            updates[`incidents/${currentlyEditedReportId}/details`] = newDescription;
+        }
 
         await database.ref().update(updates);
 
         const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
-        await logAction(stewardName, "VERDICT", currentlyEditedReportId, `Steward użył narzędzi edycji, zmieniając oryginalne dane zgłoszenia.`);
+        const changeDetails = changes.length ? changes.join(" | ") : "Zapisano bez wykrytych zmian treści.";
+        await logAction(stewardName, "VERDICT", currentlyEditedReportId, `Steward użył narzędzi edycji, zmieniając oryginalne dane zgłoszenia. ${changeDetails}`);
 
         alert(currentLang === 'pl' ? "Zmiany zostały pomyślnie zapisane." : "Changes saved successfully.");
 
@@ -3559,7 +3577,7 @@ async function updateStatus(id, newStatus) {
     await database.ref().update(updates);
 
     const stewardNameUS = loggedInSteward ? loggedInSteward.nick : "System";
-    await logAction(stewardNameUS, "VERDICT", id, `Zmieniono status zgłoszenia na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""));
+    await logAction(stewardNameUS, "VERDICT", id, `Zmieniono status zgłoszenia z "${item.status || "brak"}" na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""));
 
     const embed = {
         title: langData[currentLang].dcDecisionTitle,
@@ -3882,14 +3900,17 @@ async function bulkStatusUpdate(newStatus) {
         reason = prompt(langData[currentLang].promptReject) || "";
     }
     const updates = {};
+    const changedIds = [];
     for (const cb of selected) {
         const id = cb.getAttribute("data-id");
+        const report = globalIncidents.find(r => r.id === id);
+        changedIds.push(`${id} (${report ? (report.status || "brak") : "?"}→${newStatus})`);
         updates[`incidents/${id}/status`] = newStatus;
         if (reason) updates[`incidents/${id}/notes`] = `Odrzucono masowo: ${reason}`;
     }
     await database.ref().update(updates);
     const stewardNameBulk = loggedInSteward ? loggedInSteward.nick : "System";
-    await logAction(stewardNameBulk, "VERDICT", `${selected.length} zgłoszeń`, `Zbiorczo zmieniono status ${selected.length} zgłoszeń na "${newStatus}".` + (reason ? ` Uzasadnienie: ${reason}` : ""));
+    await logAction(stewardNameBulk, "VERDICT", `${selected.length} zgłoszeń`, `Zbiorczo zmieniono status ${selected.length} zgłoszeń na "${newStatus}": ${changedIds.join(", ")}.` + (reason ? ` Uzasadnienie: ${reason}` : ""));
     document.getElementById("selectAllCheckboxes").checked = false;
     updateBulkActionsBar();
     alert(`Zaktualizowano status ${selected.length} zgłoszeń.`);
