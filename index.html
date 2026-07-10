@@ -1399,7 +1399,11 @@
 
       <form id="appealForm">
         <div class="row">
-          <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
+          <div class="field">
+            <label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label>
+            <select id="appealCaseId" required></select>
+            <small id="appealCaseIdNote" style="display:block; margin-top:4px; font-size:11px; color: var(--text-dim);"></small>
+          </div>
           <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
           <div class="field">
             <label data-key="labelDiscord">Twoje Discord ID</label>
@@ -2471,6 +2475,7 @@ function toggleLang() {
 function showSection(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    if (id === 'appealSection') populateAppealCaseOptions();
 }
 
 function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminLoginId").focus(); }
@@ -2657,6 +2662,49 @@ function applyComplaintFormLock() {
     }
 }
 
+function populateAppealCaseOptions() {
+    const select = document.getElementById("appealCaseId");
+    const note = document.getElementById("appealCaseIdNote");
+    if (!select) return;
+
+    if (!discordDriverAuth) {
+        select.innerHTML = `<option value="">${currentLang === 'pl' ? '— Zaloguj się przez Discord —' : '— Log in with Discord —'}</option>`;
+        select.disabled = true;
+        if (note) note.textContent = "";
+        return;
+    }
+
+    const eligible = globalIncidents.filter(r =>
+        r.accusedDiscordId === discordDriverAuth.id && r.status === "Werdykt wydany"
+    );
+
+    if (!eligible.length) {
+        select.innerHTML = `<option value="">${currentLang === 'pl' ? 'Brak spraw dostępnych do apelacji' : 'No cases available for appeal'}</option>`;
+        select.disabled = true;
+        if (note) {
+            note.textContent = currentLang === 'pl'
+                ? "Nie masz obecnie żadnej sprawy z wydanym werdyktem, od którego możesz się odwołać."
+                : "You currently have no case with an issued verdict that can be appealed.";
+        }
+        return;
+    }
+
+    select.disabled = false;
+    select.innerHTML = eligible.map(r =>
+        `<option value="${r.id}">${r.id} — ${r.track || ""}${r.sessionType ? " (" + r.sessionType + ")" : ""}</option>`
+    ).join("");
+
+    if (note) {
+        note.textContent = eligible.length === 1
+            ? (currentLang === 'pl'
+                ? "✅ Sprawa wykryta automatycznie na podstawie Twojego Discord ID."
+                : "✅ Case detected automatically from your Discord ID.")
+            : (currentLang === 'pl'
+                ? "Wybierz jedną ze swoich spraw z wydanym werdyktem."
+                : "Choose one of your cases with an issued verdict.");
+    }
+}
+
 function applyAppealFormLock() {
     const overlay = document.getElementById("appealLockOverlay");
     const form = document.getElementById("appealForm");
@@ -2692,6 +2740,7 @@ function applyDriverAuthUI() {
 
         lockFieldWithDiscordId("discordId", "discordIdDiscordNote");
         lockFieldWithDiscordId("appealDiscordId", "appealDiscordIdNote");
+        populateAppealCaseOptions();
         // Uwaga: pole "Discord ID osoby zgłaszanej" (accusedDiscordId) NIE jest blokowane —
         // dotyczy innej osoby (oskarżonego), nie zalogowanego kierowcy.
 
@@ -2718,6 +2767,7 @@ function applyDriverAuthUI() {
 
         unlockField("discordId", "discordIdDiscordNote");
         unlockField("appealDiscordId", "appealDiscordIdNote");
+        populateAppealCaseOptions();
 
         const authBox = document.getElementById("historyAuthBox");
         const discordBar = document.getElementById("historyDiscordAuthBar");
@@ -4604,6 +4654,7 @@ window.addEventListener("DOMContentLoaded", () => {
         globalIncidents = [];
         snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        populateAppealCaseOptions();
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
