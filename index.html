@@ -2777,15 +2777,18 @@ function applyDriverAuthUI() {
 
 function applyStewardPermissions() {
     const perms = loggedInSteward?.permissions || {};
-    
+    // Główny Steward (i ROOT) mają pełny dostęp niezależnie od pojedynczych checkboxów
+    // uprawnień w bazie — tak samo jak przy przyciskach usuwania w tabeli zgłoszeń.
+    const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+
     const usersBtn = document.getElementById("usersMenuBtn");
-    if (usersBtn) usersBtn.style.display = perms.manage_users ? "block" : "none";
+    if (usersBtn) usersBtn.style.display = (isRoot || perms.manage_users) ? "block" : "none";
 
     const trashBtn = document.getElementById("openTrashBtn");
-    if (trashBtn) trashBtn.style.display = perms.access_trash ? "inline-block" : "none";
+    if (trashBtn) trashBtn.style.display = (isRoot || perms.access_trash) ? "inline-block" : "none";
 
     const bulkBar = document.getElementById("bulkBar");
-    if (bulkBar && !perms.review_incidents) bulkBar.style.display = "none";
+    if (bulkBar && !isRoot && !perms.review_incidents) bulkBar.style.display = "none";
 }
 
 document.getElementById("complaintForm").addEventListener("submit", async e => {
