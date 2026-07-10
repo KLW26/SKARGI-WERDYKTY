@@ -165,6 +165,48 @@
     }
     .discord-status-bar .logout-x:hover { border-color: var(--red); color: #fff; }
 
+    /* === BLOKADA FORMULARZY / SEKCJI DO CZASU LOGOWANIA PRZEZ DISCORD === */
+    #formSection, #appealSection, #historySection { position: relative; }
+    .lock-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: rgba(4,5,10,0.88);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    html[data-theme="light"] .lock-overlay {
+      background: rgba(242,243,247,0.92);
+    }
+    .lock-overlay.active { display: flex; }
+    .discord-required-box {
+      text-align: center;
+      max-width: 360px;
+      padding: 32px 28px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-hot);
+      border-radius: 4px;
+      box-shadow: 0 0 40px rgba(88,101,242,0.15);
+    }
+    .discord-required-box svg.lock-icon { color: var(--text-dim); margin-bottom: 14px; }
+    .discord-required-box p {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 18px;
+      letter-spacing: 0.3px;
+    }
+    #complaintForm.form-locked,
+    #appealForm.form-locked,
+    #historyContent.form-locked {
+      filter: blur(2px);
+      pointer-events: none;
+      user-select: none;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -1261,11 +1303,7 @@
       <button class="btn-warning" onclick="showSection('appealSection')" data-key="navAppeal">Złóż Apelację</button>
       <button class="btn-secondary" onclick="showSection('historySection')" data-key="navHistory">Globalna Historia</button>
       
-      <button id="driverDiscordLoginBtn" class="discord-login-btn" style="margin-left:auto;" onclick="loginWithDiscord()">
-        <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
-        <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
-      </button>
-      <span id="driverDiscordStatusBar" class="discord-status-bar">
+      <span id="driverDiscordStatusBar" class="discord-status-bar" style="margin-left:auto;">
         <img id="driverDiscordAvatar" src="" alt="">
         <span data-key="discordLoggedInAs">Kierowca:</span>&nbsp;<strong id="driverDiscordName" style="color: var(--text);"></strong>
         <button type="button" class="logout-x" onclick="logoutDiscordDriver()" data-key="discordLogoutBtn">Wyloguj</button>
@@ -1281,6 +1319,18 @@
 
     <div id="formSection" class="section active">
       <h2 class="section-title" data-key="secDetails">Szczegóły Incydentu</h2>
+
+      <div id="formLockOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <p data-key="formLockedMsg">Aby złożyć zgłoszenie, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować Twoją tożsamość jako kierowcy.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;">
+            <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+            <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+          </button>
+        </div>
+      </div>
+
       <form id="complaintForm">
         <div class="progress-container">
           <div id="progress-bar" style="width: 0%;"></div>
@@ -1335,6 +1385,18 @@
     <div id="appealSection" class="section">
       <h2 class="section-title appeal-title" data-key="appealSecTitle">Formularz Apelacyjny</h2>
       <p class="subtitle" data-key="appealSubtitle" style="color: var(--text-dim); margin-bottom: 16px; font-size: 12px; letter-spacing: 1px;">Nie zgadzasz się z decyzją sędziów? Odwołaj się, podając precyzyjne argumenty lub nowe dowody.</p>
+
+      <div id="appealLockOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <p data-key="appealLockedMsg">Aby złożyć apelację, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować, że apelację składa faktyczny kierowca sprawy.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;">
+            <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+            <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
+          </button>
+        </div>
+      </div>
+
       <form id="appealForm">
         <div class="row">
           <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
@@ -1362,8 +1424,8 @@
 
     <div id="historySection" class="section">
       <h2 class="section-title" data-key="navHistory">Twoja Historia</h2>
-      <p class="subtitle" style="margin-bottom: 12px;">Bezpieczna autoryzacja panelu: Wygeneruj swój unikalny PIN dostępu bezpośrednio poniżej.</p>
-      
+      <p class="subtitle" style="margin-bottom: 12px;" data-key="historySubtitleDiscordOnly">Zaloguj się przez Discord, aby zobaczyć historię swoich zgłoszeń i apelacji.</p>
+
       <div id="historyDiscordAuthBar" style="display:none; align-items:center; justify-content:space-between; gap:12px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.35); border-radius: 4px; padding: 14px 18px; margin-bottom: 16px;">
         <span style="font-size:12px; color: var(--text);">
           ✅ <span data-key="historyVerifiedByDiscord">Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.</span>
@@ -1371,58 +1433,38 @@
         <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:11px;" onclick="logoutDiscordDriver()" data-key="discordLogoutBtn">Wyloguj</button>
       </div>
 
-      <div id="historyAuthBox" style="background: var(--bg-panel); padding: 20px; border-radius: 4px; border: 1px solid var(--border); border-left: 3px solid var(--red); margin-bottom: 16px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 14px; flex-wrap: wrap;">
-          <p style="font-size: 11px; color: var(--text-dim); margin: 0;" data-key="historyRecommendDiscord">Zalecane: zaloguj się przez Discord, aby bezpiecznie i automatycznie zobaczyć swoją historię.</p>
-          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()">
-            <svg width="14" height="14" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+      <div id="historyLockOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <p data-key="historyLockedMsg">Aby zobaczyć historię swoich zgłoszeń i apelacji, musisz zalogować się przez Discord.</p>
+          <button type="button" class="discord-login-btn" onclick="loginWithDiscord()" style="margin:0 auto;">
+            <svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
             <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
           </button>
         </div>
-        <p class="subtitle" style="margin-bottom: 12px;" data-key="historyPinFallback">Ewentualnie, jeśli nie możesz użyć Discorda: wygeneruj kod dostępu ręcznie (mniej bezpieczna metoda).</p>
-        <div class="row" style="align-items: flex-end;">
-          <div class="field" style="margin-bottom: 0;">
-            <label>Wprowadź swoje Discord ID</label>
-            <input id="historyDiscordInput" type="text" placeholder="np. 44123456789101112">
-          </div>
-          <button type="button" onclick="requestVerificationPin()" style="background: #2563eb; margin-bottom: 0; height: 38px;">Wygeneruj kod dostępu</button>
-        </div>
-        
-        <div id="pvRedirectRow" style="margin-top: 14px; display: none; text-align: center; background: var(--bg-deep); padding: 16px; border-radius: 4px; border: 1px solid rgba(225,6,0,0.3);">
-          <p style="margin: 0 0 8px 0; font-size: 12px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;" id="pinInfoLabel">Twój wygenerowany kod PIN autoryzacji to:</p>
-          <div id="generatedPinDisplay" style="font-family: 'Barlow Condensed', sans-serif; font-size: 36px; font-weight: 900; color: var(--green); letter-spacing: 8px; background: var(--bg-input); display: inline-block; padding: 8px 24px; border-radius: 3px; border: 1px solid rgba(0,200,83,0.3); margin-bottom: 6px;">0000</div>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: var(--text-dim); letter-spacing: 0.5px;">Przepisz powyższy kod do pola weryfikacji poniżej.</p>
-        </div>
-
-        <div class="row" id="pinVerificationRow" style="margin-top: 14px; display: none; align-items: flex-end; border-top: 1px dashed #374151; padding-top: 14px;">
-          <div class="field" style="margin-bottom: 0;">
-            <label style="color: var(--amber-text); font-weight: bold;">Wprowadź 4-cyfrowy kod PIN wyświetlony powyżej</label>
-            <input id="historyPinInput" type="text" placeholder="np. 1234" maxlength="4">
-          </div>
-          <button type="button" class="btn-success" onclick="verifyHistoryPin()" style="margin-bottom: 0; height: 38px;">Zatwierdź i wejdź</button>
-        </div>
-        <p id="authBoxStatus" style="font-size: 12px; margin: 8px 0 0 0; color: var(--text-dim); min-height: 15px;"></p>
       </div>
 
-      <div id="historyList"></div>
+      <div id="historyContent">
+        <div id="historyList"></div>
 
-      <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
-        <h3 class="section-title" style="font-size: 16px; border-left-color: #00c853;">💬 Czat na Żywo ze Stewardami</h3>
-        <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie powyżej (przycisk "💬 Czatuj o tej sprawie"), aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
-        <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
-          <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
-          <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
-        </div>
-        <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
-        <div id="playerChatBox" style="display:none;"></div>
-        <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
-        <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
-        <div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
-        <div class="row" id="playerChatInputRow" style="display:none;">
-          <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
-          <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
-          <input id="playerChatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
-          <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+        <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
+          <h3 class="section-title" style="font-size: 16px; border-left-color: #00c853;">💬 Czat na Żywo ze Stewardami</h3>
+          <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie powyżej (przycisk "💬 Czatuj o tej sprawie"), aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
+          <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
+            <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
+            <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
+          </div>
+          <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
+          <div id="playerChatBox" style="display:none;"></div>
+          <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
+          <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+          <div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
+          <div class="row" id="playerChatInputRow" style="display:none;">
+            <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
+            <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
+            <input id="playerChatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
+            <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2117,6 +2159,7 @@ const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
         discordLoginBtn: "Zaloguj przez Discord", discordLoggedInAs: "Kierowca:", discordLogoutBtn: "Wyloguj",
+        formLockedMsg: "Aby złożyć zgłoszenie, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować Twoją tożsamość jako kierowcy.",
         historyVerifiedByDiscord: "Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.",
         historyRecommendDiscord: "Zalecane: zaloguj się przez Discord, aby bezpiecznie i automatycznie zobaczyć swoją historię.",
         historyPinFallback: "Ewentualnie, jeśli nie możesz użyć Discorda: wygeneruj kod dostępu ręcznie (mniej bezpieczna metoda).",
@@ -2153,6 +2196,7 @@ const langData = {
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
         discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout",
+        formLockedMsg: "You must log in with Discord before submitting a report. This lets us verify your identity as a driver.",
         historyVerifiedByDiscord: "Verified via Discord — showing the history linked to your account.",
         historyRecommendDiscord: "Recommended: log in with Discord to securely and automatically see your history.",
         historyPinFallback: "Alternatively, if you can't use Discord: generate an access code manually (less secure method).",
@@ -2589,11 +2633,50 @@ function unlockField(inputId, noteId) {
     if (note) note.remove();
 }
 
+function applyComplaintFormLock() {
+    const overlay = document.getElementById("formLockOverlay");
+    const form = document.getElementById("complaintForm");
+    const submitBtn = document.getElementById("reportSubmitBtn");
+    const locked = !discordDriverAuth;
+
+    if (overlay) overlay.classList.toggle("active", locked);
+    if (form) form.classList.toggle("form-locked", locked);
+    if (submitBtn) submitBtn.disabled = locked;
+
+    if (form) {
+        form.querySelectorAll("input, select, textarea, button").forEach(el => {
+            if (el.id === "reportSubmitBtn") return;
+            el.disabled = locked;
+        });
+    }
+}
+
+function applyAppealFormLock() {
+    const overlay = document.getElementById("appealLockOverlay");
+    const form = document.getElementById("appealForm");
+    const submitBtn = document.getElementById("appealSubmitBtn");
+    const locked = !discordDriverAuth;
+
+    if (overlay) overlay.classList.toggle("active", locked);
+    if (form) form.classList.toggle("form-locked", locked);
+    if (submitBtn) submitBtn.disabled = locked;
+
+    if (form) {
+        form.querySelectorAll("input, select, textarea, button").forEach(el => {
+            if (el.id === "appealSubmitBtn") return;
+            el.disabled = locked;
+        });
+    }
+}
+
 function applyDriverAuthUI() {
     const loginBtn = document.getElementById("driverDiscordLoginBtn");
     const statusBar = document.getElementById("driverDiscordStatusBar");
     const nameEl = document.getElementById("driverDiscordName");
     const avatarEl = document.getElementById("driverDiscordAvatar");
+
+    applyComplaintFormLock();
+    applyAppealFormLock();
 
     if (discordDriverAuth) {
         if (loginBtn) loginBtn.style.display = "none";
@@ -2652,6 +2735,13 @@ function applyStewardPermissions() {
 
 document.getElementById("complaintForm").addEventListener("submit", async e => {
     e.preventDefault();
+    if (!discordDriverAuth) {
+        alert(currentLang === 'pl'
+            ? "Musisz zalogować się przez Discord, aby złożyć zgłoszenie."
+            : "You must log in via Discord to submit a report.");
+        applyComplaintFormLock();
+        return;
+    }
     const submitBtn = document.getElementById("reportSubmitBtn");
     if (submitBtn) submitBtn.disabled = true;
     try {
@@ -2730,6 +2820,13 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
 
 document.getElementById("appealForm").addEventListener("submit", async e => {
     e.preventDefault();
+    if (!discordDriverAuth) {
+        alert(currentLang === 'pl'
+            ? "Musisz zalogować się przez Discord, aby złożyć apelację."
+            : "You must log in via Discord to submit an appeal.");
+        applyAppealFormLock();
+        return;
+    }
     const submitBtn = document.getElementById("appealSubmitBtn");
     if (submitBtn) submitBtn.disabled = true;
     try {
@@ -2800,49 +2897,6 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
         if (submitBtn) submitBtn.disabled = false;
     }
 });
-
-function requestVerificationPin() {
-    const discordId = document.getElementById("historyDiscordInput").value.trim();
-    const statusEl = document.getElementById("authBoxStatus");
-    if (!discordId) { statusEl.textContent = currentLang === 'pl' ? "Wprowadź poprawne Discord ID!" : "Enter valid Discord ID!"; statusEl.style.color = "#f97373"; return; }
-
-    activeVerificationPin = String(Math.floor(1000 + Math.random() * 9000));
-    document.getElementById("generatedPinDisplay").textContent = activeVerificationPin;
-    document.getElementById("pvRedirectRow").style.display = "block";
-    document.getElementById("pinVerificationRow").style.display = "flex";
-
-    statusEl.textContent = currentLang === 'pl' ? "Kod autoryzacji został wygenerowany!" : "Authorization PIN generated!";
-    statusEl.style.color = "#4ade80";
-}
-
-function verifyHistoryPin() {
-    const enteredPin = document.getElementById("historyPinInput").value.trim();
-    const discordId = document.getElementById("historyDiscordInput").value.trim();
-    const statusEl = document.getElementById("authBoxStatus");
-
-    if (activeVerificationPin && enteredPin === activeVerificationPin) {
-        authorizedHistoryDiscordId = discordId;
-        selectedPlayerCaseId = null;
-        statusEl.textContent = currentLang === 'pl' ? "Autoryzacja udana! Ładowanie danych..." : "Authorization successful! Loading...";
-        statusEl.style.color = "#4ade80";
-        
-        document.getElementById("historyAuthBox").style.borderColor = "#10b981";
-        document.getElementById("pvRedirectRow").style.display = "none";
-        document.getElementById("pinVerificationRow").style.display = "none";
-        document.getElementById("playerChatBoxContainer").style.display = "block";
-
-        database.ref("incidents").on("value", snapshot => {
-            globalIncidents = [];
-            snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
-            if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
-        });
-
-        updatePlayerChatCaseSelectOptions(discordId);
-    } else {
-        statusEl.textContent = currentLang === 'pl' ? "Niepoprawny kod PIN! Spróbuj ponownie." : "Invalid PIN code! Try again.";
-        statusEl.style.color = "#f97373";
-    }
-}
 
 function fetchAndRenderHistory(discordId) {
     const container = document.getElementById("historyList");
@@ -4131,7 +4185,7 @@ async function sendPlayerChatMessage() {
     }
     const relatedAppeal = globalAppeals.find(a => a.appealId === selectedPlayerCaseId);
     const relatedReport = globalIncidents.find(r => r.id === selectedPlayerCaseId);
-    let playerNick = document.getElementById("historyDiscordInput").value.trim();
+    let playerNick = discordDriverAuth ? (discordDriverAuth.globalName || discordDriverAuth.username) : (authorizedHistoryDiscordId || "");
     if (relatedAppeal && relatedAppeal.discordId === authorizedHistoryDiscordId && relatedAppeal.nick) {
         playerNick = relatedAppeal.nick;
     } else if (relatedReport) {
