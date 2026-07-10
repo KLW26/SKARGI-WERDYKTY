@@ -1399,7 +1399,13 @@
 
       <form id="appealForm">
         <div class="row">
-          <div class="field"><label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label><input id="appealCaseId" type="text" required placeholder="FIA-..." /></div>
+          <div class="field">
+            <label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label>
+            <select id="appealCaseId" required>
+              <option value="" data-key="optNoAppealCases">Brak spraw dostępnych do apelacji</option>
+            </select>
+            <small style="color: var(--text-dim); font-size: 11px;" data-key="appealCaseHint">Nie masz obecnie żadnych spraw z wydanym werdyktem, od którego możesz się odwołać.</small>
+          </div>
           <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
           <div class="field">
             <label data-key="labelDiscord">Twoje Discord ID</label>
@@ -2178,6 +2184,8 @@ const langData = {
         statusPending: "Oczekuje", statusAccepted: "Przyjęte", statusRejected: "Odrzucone", statusAppeal: "W apelacji", statusVerdictIssued: "Werdykt wydany",
         promptReject: "Podaj powód odrzucenia:", alertSent: "Zgłoszono!", confirmDelete: "Usunąć?", confirmReset: "Zresetować licznik?",
         optChooseTrack: "Wybierz tor...", optChooseCat: "Wybierz przewinienie...",
+        optChooseAppealCase: "Wybierz sprawę...", optNoAppealCases: "Brak spraw dostępnych do apelacji",
+        appealCaseHint: "Nie masz obecnie żadnych spraw z wydanym werdyktem, od którego możesz się odwołać.",
         sessions: ["Wyścig Główny", "Sprint", "Kwalifikacje", "Trening"],
         dcReportTitle: "🚩 NOWE ZGŁOSZENIE", dcDecisionTitle: "📢 STATUS ZGŁOSZENIA",
         dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
@@ -2215,6 +2223,8 @@ const langData = {
         statusPending: "Pending", statusAccepted: "Accepted", statusRejected: "Rejected", statusAppeal: "In Appeal", statusVerdictIssued: "Verdict issued",
         promptReject: "Enter rejection reason:", alertSent: "Report sent!", confirmDelete: "Delete?", confirmReset: "Reset counter?",
         optChooseTrack: "Choose track...", optChooseCat: "Choose violation...",
+        optChooseAppealCase: "Choose case...", optNoAppealCases: "No cases available for appeal",
+        appealCaseHint: "You don't currently have any cases with an issued verdict that you can appeal.",
         sessions: ["Main Race", "Sprint", "Qualifying", "Practice"],
         dcReportTitle: "🚩 NEW REPORT", dcDecisionTitle: "📢 REPORT STATUS",
         dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
@@ -2706,12 +2716,14 @@ function applyDriverAuthUI() {
             fetchAndRenderHistory(authorizedHistoryDiscordId);
             updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
         }
+        populateAppealCaseOptions(discordDriverAuth.id);
     } else {
         if (loginBtn) loginBtn.style.display = "inline-flex";
         if (statusBar) statusBar.style.display = "none";
 
         unlockField("discordId", "discordIdDiscordNote");
         unlockField("appealDiscordId", "appealDiscordIdNote");
+        populateAppealCaseOptions(null);
 
         const authBox = document.getElementById("historyAuthBox");
         const discordBar = document.getElementById("historyDiscordAuthBar");
@@ -3021,6 +3033,44 @@ function fetchAndRenderHistory(discordId) {
 }
 
 function updatePlayerChatCaseSelectOptions(userDiscordId) {}
+
+function populateAppealCaseOptions(discordId) {
+    const select = document.getElementById("appealCaseId");
+    if (!select) return;
+
+    const previousValue = select.value;
+    const eligibleCases = globalIncidents.filter(r => r.accusedDiscordId === discordId && r.status === "Werdykt wydany");
+
+    select.innerHTML = "";
+
+    if (eligibleCases.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.setAttribute("data-key", "optNoAppealCases");
+        opt.textContent = langData[currentLang].optNoAppealCases;
+        select.appendChild(opt);
+        select.disabled = true;
+        return;
+    }
+
+    select.disabled = !discordDriverAuth;
+
+    const placeholderOpt = document.createElement("option");
+    placeholderOpt.value = "";
+    placeholderOpt.setAttribute("data-key", "optChooseAppealCase");
+    placeholderOpt.textContent = langData[currentLang].optChooseAppealCase;
+    select.appendChild(placeholderOpt);
+
+    eligibleCases.sort((a,b) => b.timestamp - a.timestamp);
+    eligibleCases.forEach(r => {
+        const opt = document.createElement("option");
+        opt.value = r.id;
+        opt.textContent = `${r.id} — ${r.track} (${r.sessionType})`;
+        select.appendChild(opt);
+    });
+
+    if (eligibleCases.some(r => r.id === previousValue)) select.value = previousValue;
+}
 
 function selectPlayerChatCase(caseId) {
     selectedPlayerCaseId = caseId;
@@ -4531,6 +4581,7 @@ window.addEventListener("DOMContentLoaded", () => {
         globalIncidents = [];
         snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        if (discordDriverAuth) populateAppealCaseOptions(discordDriverAuth.id);
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
