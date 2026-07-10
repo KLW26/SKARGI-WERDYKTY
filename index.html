@@ -1295,6 +1295,60 @@
     </div>
   </div>
 
+  <div id="appealEditModal" class="desc-modal">
+    <div class="desc-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 class="section-title" id="appealEditModalTitle" style="margin-bottom: 0;">Edycja apelacji</h2>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--gold);">
+        <p style="font-size: 11px; color: var(--gold); margin-bottom: 4px;">Edytujesz pełne dane apelacji złożonej przez kierowcę.</p>
+
+        <div class="row">
+          <div class="field">
+            <label>Nick apelującego</label>
+            <input type="text" id="editAppealNick">
+          </div>
+          <div class="field">
+            <label>Discord ID apelującego</label>
+            <input type="text" id="editAppealDiscordId">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label>ID powiązanej sprawy</label>
+            <input type="text" id="editAppealCaseId">
+          </div>
+          <div class="field">
+            <label>Status apelacji</label>
+            <select id="editAppealStatus">
+              <option value="Nowa">Nowa</option>
+              <option value="Przyjęte">Przyjęte</option>
+              <option value="Podtrzymany">Podtrzymany</option>
+              <option value="Zakończona">Zakończona</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Uzasadnienie / treść apelacji</label>
+          <textarea id="editAppealReason" style="min-height: 100px;"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Link do dowodu</label>
+          <input type="text" id="editAppealEvidence">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn-success" onclick="saveEditedAppeal()" style="flex:1;">💾 Zapisz Zmiany w Apelacji</button>
+        <button class="btn-secondary" onclick="closeAppealEditModal()" style="flex:1;">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="top-bar">
       <div class="race-flag-deco" aria-hidden="true"></div>
@@ -3351,6 +3405,8 @@ function renderAdmin() {
                     <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}')">Rozpatrz werdykt</button>
                     <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
                     <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
+                    <button style="background:#6d28d9;" onclick="openAppealEditModal('${a.appealId}')">✎ Edytuj</button>
+                    ${ a.status && a.status !== "Nowa" ? `<button style="background:#1565c0;" onclick="resendAppealVerdict('${a.appealId}')">🔁 Wyślij ponownie</button>` : '' }
                 `;
             }
             if (perms.access_trash || isRoot) {
@@ -3478,6 +3534,9 @@ async function saveEditedReport() {
         alert(currentLang === 'pl' ? "Brak dedykowanych uprawnień (EDIT) do modyfikacji zgłoszeń!" : "Unauthorized to edit content!");
         return;
     }
+
+    const report = globalIncidents.find(r => r.id === currentlyEditedReportId);
+    if (!report) return;
 
     const newReporterNick = document.getElementById("editReporterNick").value.trim();
     const newAccusedNick = document.getElementById("editAccusedNick").value.trim();
@@ -3667,6 +3726,7 @@ async function rejectAppeal(appealId, caseId, discordId) {
     const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Podtrzymany";
+    updates[`appeals/${appealId}/rejectReason`] = reason;
     await database.ref().update(updates);
     
     const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
@@ -3822,6 +3882,160 @@ async function deleteAppeal(id) {
         alert((currentLang === 'pl' ? "Błąd podczas usuwania apelacji: " : "Error deleting appeal: ") + err.message);
     }
 }
+
+let currentlyEditedAppealId = null;
+
+function openAppealEditModal(appealId) {
+    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.review_appeals));
+    if (!canEdit) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do edycji apelacji." : "Not authorized to edit appeals.");
+        return;
+    }
+    const appeal = globalAppeals.find(a => a.appealId === appealId);
+    if (!appeal) return;
+
+    currentlyEditedAppealId = appealId;
+    document.getElementById("appealEditModalTitle").textContent = `${currentLang === 'pl' ? 'Apelacja' : 'Appeal'} ${appealId}`;
+    document.getElementById("editAppealNick").value = appeal.nick || "";
+    document.getElementById("editAppealDiscordId").value = appeal.discordId || "";
+    document.getElementById("editAppealCaseId").value = appeal.caseId || "";
+    document.getElementById("editAppealStatus").value = appeal.status || "Nowa";
+    document.getElementById("editAppealReason").value = appeal.reason || "";
+    document.getElementById("editAppealEvidence").value = appeal.evidence || "";
+
+    document.getElementById("appealEditModal").style.display = "flex";
+}
+
+function closeAppealEditModal() {
+    document.getElementById("appealEditModal").style.display = "none";
+    currentlyEditedAppealId = null;
+}
+
+async function saveEditedAppeal() {
+    if (!currentlyEditedAppealId) return;
+
+    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.review_appeals));
+    if (!canEdit) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do edycji apelacji." : "Not authorized to edit appeals.");
+        return;
+    }
+
+    const appeal = globalAppeals.find(a => a.appealId === currentlyEditedAppealId);
+    if (!appeal) return;
+
+    const newNick = document.getElementById("editAppealNick").value.trim();
+    const newDiscordId = document.getElementById("editAppealDiscordId").value.trim();
+    const newCaseId = document.getElementById("editAppealCaseId").value.trim().toUpperCase();
+    const newStatus = document.getElementById("editAppealStatus").value;
+    const newReason = document.getElementById("editAppealReason").value.trim();
+    const newEvidence = document.getElementById("editAppealEvidence").value.trim();
+
+    if (!newNick || !newDiscordId || !newCaseId || !newReason) {
+        alert(currentLang === 'pl' ? "Pola Nick, Discord ID, ID sprawy oraz uzasadnienie nie mogą być puste!" : "Nick, Discord ID, Case ID and reason cannot be empty!");
+        return;
+    }
+    if (!/^\d+$/.test(newDiscordId)) {
+        alert(currentLang === 'pl' ? "Discord ID musi składać się wyłącznie z cyfr." : "Discord ID must contain digits only.");
+        return;
+    }
+
+    try {
+        const updates = {};
+        const changes = [];
+        const truncate = (s, n = 200) => (s && s.length > n) ? s.slice(0, n) + "…" : (s || "(puste)");
+
+        if (newNick !== (appeal.nick || "")) { changes.push(`Nick: "${truncate(appeal.nick)}" → "${truncate(newNick)}"`); updates[`appeals/${currentlyEditedAppealId}/nick`] = newNick; }
+        if (newDiscordId !== (appeal.discordId || "")) { changes.push(`Discord ID: "${truncate(appeal.discordId)}" → "${truncate(newDiscordId)}"`); updates[`appeals/${currentlyEditedAppealId}/discordId`] = newDiscordId; }
+        if (newCaseId !== (appeal.caseId || "")) { changes.push(`ID sprawy: "${truncate(appeal.caseId)}" → "${truncate(newCaseId)}"`); updates[`appeals/${currentlyEditedAppealId}/caseId`] = newCaseId; }
+        if (newStatus !== (appeal.status || "")) { changes.push(`Status: "${truncate(appeal.status)}" → "${truncate(newStatus)}"`); updates[`appeals/${currentlyEditedAppealId}/status`] = newStatus; }
+        if (newReason !== (appeal.reason || "")) { changes.push(`Uzasadnienie: "${truncate(appeal.reason)}" → "${truncate(newReason)}"`); updates[`appeals/${currentlyEditedAppealId}/reason`] = newReason; }
+        if (newEvidence !== (appeal.evidence || "")) { changes.push(`Dowód: "${truncate(appeal.evidence)}" → "${truncate(newEvidence)}"`); updates[`appeals/${currentlyEditedAppealId}/evidence`] = newEvidence; }
+
+        if (Object.keys(updates).length === 0) {
+            alert(currentLang === 'pl' ? "Nie wykryto żadnych zmian." : "No changes detected.");
+            return;
+        }
+
+        await database.ref().update(updates);
+
+        const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+        await logAction(stewardName, "APPEAL", currentlyEditedAppealId, `Steward edytował dane apelacji. ${changes.join(" | ")}`);
+
+        alert(currentLang === 'pl' ? "Zmiany w apelacji zostały zapisane." : "Appeal changes saved.");
+        closeAppealEditModal();
+        renderAdmin();
+    } catch (err) {
+        console.error("Błąd podczas zapisu apelacji:", err);
+        alert("Błąd: " + err.message);
+    }
+}
+
+async function resendAppealVerdict(appealId) {
+    const appeal = globalAppeals.find(a => a.appealId === appealId);
+    if (!appeal) return;
+
+    // Apelacja rozpatrzona przez pełny panel werdyktu — dane siedzą w decisionData powiązanej sprawy.
+    if (appeal.status === "Zakończona") {
+        const relatedCase = globalIncidents.find(r => r.id === appeal.caseId);
+        if (!relatedCase || !relatedCase.decisionData) {
+            alert(currentLang === 'pl' ? "Brak zapisanego werdyktu do ponownego wysłania dla powiązanej sprawy." : "No saved verdict to resend for the related case.");
+            return;
+        }
+        await resendVerdict(appeal.caseId);
+        return;
+    }
+
+    // Szybka decyzja Przyjmij/Odrzuć — odtwarzamy dokładnie ten sam embed co przy pierwszym wysłaniu.
+    if (appeal.status === "Przyjęte" || appeal.status === "Podtrzymany") {
+        if (!confirm(currentLang === 'pl' ? "Wysłać ponownie powiadomienie o decyzji apelacyjnej na Discord?" : "Resend the appeal decision notification to Discord?")) return;
+
+        const btn = (typeof event !== "undefined" && event && event.target) ? event.target : null;
+        const originalBtnText = btn ? btn.textContent : "";
+        if (btn) { btn.disabled = true; btn.textContent = currentLang === 'pl' ? "Wysyłanie..." : "Sending..."; }
+
+        try {
+            const isPl = (currentLang === 'pl');
+            const appellantNick = appeal.nick || (isPl ? "Nieznany" : "Unknown");
+            let embed;
+            if (appeal.status === "Przyjęte") {
+                embed = {
+                    title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", color: 10540247,
+                    description: isPl ? `Decyzja sędziowska została zmieniona w wyniku apelacji **${appealId}** dla sprawy **${appeal.caseId}**.` : `The decision has been modified following appeal **${appealId}** for case **${appeal.caseId}**.`,
+                    fields: [
+                        { name: "🆔 ID Zgłoszenia", value: `\`${appeal.caseId}\``, inline: true },
+                        { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+                        { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${appeal.discordId}>)`, inline: false }
+                    ], timestamp: new Date().toISOString()
+                };
+            } else {
+                embed = {
+                    title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL DISMISSED", color: 10040084,
+                    fields: [
+                        { name: "🆔 ID Zgłoszenia", value: `\`${appeal.caseId}\``, inline: true },
+                        { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
+                        { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${appeal.discordId}>)`, inline: false },
+                        { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
+                        { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: appeal.rejectReason || (isPl ? "Brak podanego uzasadnienia." : "No reason provided."), inline: false }
+                    ], timestamp: new Date().toISOString()
+                };
+            }
+
+            const res = await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${appeal.discordId}>`, embeds: [embed] }) });
+            if (!res.ok) throw new Error();
+
+            await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "APPEAL", appealId, `Ponownie wysłano powiadomienie o decyzji apelacyjnej na Discord.`);
+            alert(currentLang === 'pl' ? "Powiadomienie zostało wysłane ponownie." : "Notification has been resent.");
+        } catch (err) {
+            alert(currentLang === 'pl' ? "Błąd podczas ponownego wysyłania: " + err.message : "Error resending: " + err.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = originalBtnText || "🔁 Wyślij ponownie"; }
+        }
+        return;
+    }
+
+    alert(currentLang === 'pl' ? "Ta apelacja nie ma jeszcze wydanej decyzji do ponownego wysłania." : "This appeal doesn't have an issued decision to resend yet.");
+}
+
 
 async function adminDeleteSingleReport(id, discordId) {
     if (!isAdminAuthenticated) {
