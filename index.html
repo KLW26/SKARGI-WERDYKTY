@@ -3307,7 +3307,10 @@ function renderAdmin() {
                         <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
                                 <strong style="color:#fff;">⚖️ Werdykt:</strong>
-                                ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
+                                <div style="display:flex; gap:4px;">
+                                    <button style="background:#1565c0; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="resendVerdict('${r.id}')">🔁 Wyślij ponownie</button>
+                                    ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
+                                </div>
                             </div>
                             ${r.decisionData.decision}<br>
                             <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
@@ -3541,6 +3544,50 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
         document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
         document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${renderEvidenceHtml(foundCase, "Link", "Brak")}<br>Nowy dowód: ${renderEvidenceHtml(foundAppeal, "Link", "Brak")}`;
         document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
+    }
+}
+
+async function resendVerdict(id) {
+    const report = globalIncidents.find(r => r.id === id);
+    if (!report || !report.decisionData) {
+        alert(currentLang === 'pl' ? "Brak wydanego werdyktu do ponownego wysłania." : "No issued verdict to resend.");
+        return;
+    }
+    if (!confirm(currentLang === 'pl' ? "Wysłać ponownie powiadomienie o werdykcie na Discord dla tej sprawy?" : "Resend the verdict notification to Discord for this case?")) return;
+
+    const btn = event && event.target ? event.target : null;
+    if (btn) { btn.disabled = true; btn.textContent = currentLang === 'pl' ? "Wysyłanie..." : "Sending..."; }
+
+    try {
+        const t = langData[currentLang];
+        const d = report.decisionData;
+        const mainEvidence = await buildDiscordEvidenceValue(report);
+        const winnerNick = report.accusedNick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
+
+        const embed = {
+            title: t.embedTitle, color: 3447003,
+            fields: [
+                { name: t.fieldCase, value: `\`${id}\``, inline: true },
+                { name: t.fieldWinner, value: `${winnerNick} (<@${report.accusedDiscordId}>)`, inline: true },
+                { name: t.fieldEvidence, value: mainEvidence, inline: false },
+                { name: t.fieldDecision, value: `**${d.decision}**`, inline: false },
+                { name: t.fieldTime, value: d.timePenalty || "brak", inline: true },
+                { name: t.fieldPoints, value: d.pointsPenalty || "0 pkt", inline: true },
+                { name: t.fieldDetails, value: `\`\`\`text\n${d.verdictDetails}\n\`\`\``, inline: false },
+                { name: t.fieldJudge, value: d.judge, inline: false }
+            ],
+            timestamp: new Date().toISOString()
+        };
+
+        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${report.accusedDiscordId}>`, embeds: [embed] }) });
+        if (!res.ok) throw new Error();
+
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", id, `Ponownie wysłano powiadomienie o werdykcie na Discord.`);
+        alert(currentLang === 'pl' ? "Werdykt został wysłany ponownie." : "Verdict has been resent.");
+    } catch (err) {
+        alert(currentLang === 'pl' ? "Błąd podczas ponownego wysyłania werdyktu: " + err.message : "Error resending verdict: " + err.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "🔁 Wyślij ponownie"; }
     }
 }
 
