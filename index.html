@@ -3575,15 +3575,12 @@ async function resendVerdict(id) {
         const d = report.decisionData;
         const mainEvidence = await buildDiscordEvidenceValue(report);
         const winnerNick = report.accusedNick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
-        const reporterNick = report.nick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
-        const reporterDiscordId = report.discordId || null;
 
         const embed = {
             title: t.embedTitle, color: 3447003,
             fields: [
                 { name: t.fieldCase, value: `\`${id}\``, inline: true },
-                { name: `⚖️ ${t.fieldWinner}`, value: `${winnerNick} (<@${report.accusedDiscordId}>)`, inline: true },
-                { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
+                { name: t.fieldWinner, value: `${winnerNick} (<@${report.accusedDiscordId}>)`, inline: true },
                 { name: t.fieldEvidence, value: mainEvidence, inline: false },
                 { name: t.fieldDecision, value: `**${d.decision}**`, inline: false },
                 { name: t.fieldTime, value: d.timePenalty || "brak", inline: true },
@@ -4307,14 +4304,11 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
     const winnerNick = (mainReport && mainReport.accusedNick) ? mainReport.accusedNick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
-    const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
-    const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
     const embed = {
         title: t.embedTitle, color: 3447003,
         fields: [
             { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
-            { name: `⚖️ ${t.fieldWinner}`, value: `${winnerNick} (<@${accusedId}>)`, inline: true },
-            { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
+            { name: t.fieldWinner, value: `${winnerNick} (<@${accusedId}>)`, inline: true },
             { name: t.fieldEvidence, value: mainEvidence, inline: false },
             { name: t.fieldDecision, value: `**${decision}**`, inline: false },
             { name: t.fieldTime, value: timePenalty, inline: true },
