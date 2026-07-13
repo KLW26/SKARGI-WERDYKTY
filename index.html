@@ -1224,26 +1224,11 @@
   <div id="adminLoginModal" class="login-modal">
     <div class="login-box">
       <h1 data-key="adminPanel">Panel FIA</h1>
-      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Zaloguj się przez Discord albo swoim Discord ID i hasłem nadanym przez administratora.</p>
+      <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 16px;">Zaloguj się przez Discord, aby uzyskać dostęp do panelu.</p>
       <button type="button" class="discord-login-btn" onclick="loginWithDiscordAdmin()" style="width:100%; justify-content:center; margin-bottom:16px;">
         <svg width="18" height="18" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
         <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
       </button>
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; color: var(--text-dim); font-size:11px;">
-        <div style="flex:1; height:1px; background:var(--border);"></div>
-        <span data-key="orDivider">LUB</span>
-        <div style="flex:1; height:1px; background:var(--border);"></div>
-      </div>
-      <div class="field">
-        <label>Twoje Discord ID</label>
-        <input id="adminLoginId" type="text" placeholder="np. 294330293281161634">
-        <small style="color: var(--text-dim); font-size: 11px; display:block; margin-top:4px;"></small>
-      </div>
-      <div class="field">
-        <label data-key="adminPass">Hasło</label>
-        <input id="adminPass" type="password" placeholder="Wpisz hasło..." onkeydown="if(event.key === 'Enter') checkAdminAuth()">
-      </div>
-      <button onclick="checkAdminAuth()" data-key="loginBtn">Zaloguj</button> 
       <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
       <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
     </div>
@@ -2557,8 +2542,8 @@ function showSection(id) {
     document.getElementById(id).classList.add('active');
 }
 
-function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; document.getElementById("adminLoginId").focus(); }
-function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; document.getElementById("adminPass").value = ""; document.getElementById("adminLoginId").value = ""; }
+function openAdminLogin() { document.getElementById("adminLoginModal").style.display = "flex"; }
+function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; }
 
 async function openUsersSection() {
     if (isUsersAuth) {
@@ -2577,46 +2562,6 @@ async function openUsersSection() {
     } else {
         alert(currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!");
     }
-}
-
-async function checkAdminAuth() {
-    const loginId = document.getElementById("adminLoginId").value.trim();
-    const pass = document.getElementById("adminPass").value;
-    const statusEl = document.getElementById("loginStatus");
-    statusEl.style.color = "#f97373";
-
-    if (!loginId) {
-        statusEl.textContent = currentLang === 'pl' ? "Podaj Discord ID." : "Enter Discord ID.";
-        return;
-    } else {
-        // Logowanie jako konkretny steward — identyfikacja po Discord ID i weryfikacja jego własnego hasła
-        const steward = globalStewards.find(s => s.id === loginId);
-        if (!steward) {
-            statusEl.textContent = currentLang === 'pl' ? "Nie znaleziono stewarda o podanym Discord ID." : "No steward found with that Discord ID.";
-            return;
-        }
-        const passHash = await hashPassword(pass);
-        if (!steward.password || passHash !== steward.password) {
-            statusEl.textContent = currentLang === 'pl' ? "Nieprawidłowe hasło dla tego Discord ID!" : "Invalid password for this Discord ID!";
-            return;
-        }
-        loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
-        localStorage.setItem("adminAuthId", steward.id);
-    }
-
-    isAdminAuthenticated = true;
-
-    closeAdminLogin();
-    document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
-
-    applyStewardPermissions();
-    updateLoggedInAsLabel();
-    listenToUsersAndLogs();
-    await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loginId, `Zalogowano do panelu administracyjnego (hasło).`);
-
-    showSection("adminSection");
-    renderAdmin();
-    if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
 }
 
 function updateLoggedInAsLabel() {
@@ -3646,7 +3591,9 @@ async function resendVerdict(id) {
             timestamp: new Date().toISOString()
         };
 
-        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${report.accusedDiscordId}>`, embeds: [embed] }) });
+        const reporterDiscordId = report.discordId || null;
+        const pingContent = reporterDiscordId ? `<@${report.accusedDiscordId}> <@${reporterDiscordId}>` : `<@${report.accusedDiscordId}>`;
+        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
 
         await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", id, `Ponownie wysłano powiadomienie o werdykcie na Discord.`);
@@ -4373,7 +4320,9 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     };
 
     try {
-        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${accusedId}>`, embeds: [embed] }) });
+        const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
+        const pingContent = reporterDiscordId ? `<@${accusedId}> <@${reporterDiscordId}>` : `<@${accusedId}>`;
+        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
     } catch (err) { statusEl.textContent = t.statusErr; statusEl.className = "status-msg err"; }
