@@ -1259,6 +1259,11 @@
         </div>
 
         <div class="field">
+          <label>Zgłaszający (Discord ID)</label>
+          <input type="text" id="editReporterDiscordId" placeholder="np. 294330293281161634">
+        </div>
+
+        <div class="field">
           <label>Oryginalny Opis Zdarzenia</label>
           <textarea id="editDescription" style="min-height: 100px;"></textarea>
         </div>
@@ -3467,6 +3472,7 @@ function toggleEditMode() {
 
         document.getElementById("editReporterNick").value = report.nick || "";
         document.getElementById("editAccusedNick").value = report.accusedNick || "";
+        document.getElementById("editReporterDiscordId").value = report.discordId || "";
         document.getElementById("editDescription").value = report.details || "";
     } else {
         normalView.style.display = "block";
@@ -3488,10 +3494,16 @@ async function saveEditedReport() {
 
     const newReporterNick = document.getElementById("editReporterNick").value.trim();
     const newAccusedNick = document.getElementById("editAccusedNick").value.trim();
+    const newReporterDiscordId = document.getElementById("editReporterDiscordId").value.trim();
     const newDescription = document.getElementById("editDescription").value.trim();
 
     if (!newReporterNick || !newAccusedNick || !newDescription) {
         alert(currentLang === 'pl' ? "Żadne pole nie może być puste!" : "Fields cannot be empty!");
+        return;
+    }
+
+    if (newReporterDiscordId && !/^\d+$/.test(newReporterDiscordId)) {
+        alert(currentLang === 'pl' ? "Discord ID zgłaszającego musi składać się wyłącznie z cyfr!" : "Reporter's Discord ID must be numeric only!");
         return;
     }
 
@@ -3511,6 +3523,11 @@ async function saveEditedReport() {
             changes.push(`Nick oskarżonego: "${truncate(report.accusedNick)}" → "${truncate(newAccusedNick)}"`);
             updates[`incidents/${currentlyEditedReportId}/accusedNick`] = newAccusedNick;
             restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/accusedNick`, data: report.accusedNick || null });
+        }
+        if (newReporterDiscordId !== (report.discordId || "")) {
+            changes.push(`Discord ID zgłaszającego: "${truncate(report.discordId)}" → "${truncate(newReporterDiscordId)}"`);
+            updates[`incidents/${currentlyEditedReportId}/discordId`] = newReporterDiscordId;
+            restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/discordId`, data: report.discordId || null });
         }
         if (newDescription !== (report.details || "")) {
             changes.push(`Opis zgłoszenia: "${truncate(report.details)}" → "${truncate(newDescription)}"`);
