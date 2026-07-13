@@ -1726,6 +1726,7 @@
               <option value="Naruszenie – ostrzeżenie" data-key="opt2">Naruszenie – ostrzeżenie</option>
               <option value="Naruszenie – kara czasowa" data-key="opt3">Naruszenie – kara czasowa</option>
               <option value="Naruszenie – Punkty Karne" data-key="opt3b">Naruszenie – Punkty Karne</option>
+              <option value="Naruszenie – kara czasowa i punkty karne" data-key="opt3c">Naruszenie – kara czasowa i punkty karne</option>
               <option value="Naruszenie – dyskwalifikacja" data-key="opt4">Naruszenie – dyskwalifikacja</option>
               <option value="Anulowanie kary">Anulowanie kary</option>
               <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
@@ -2265,7 +2266,7 @@ const langData = {
         dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
         dcMsgDecision: "Twoje zgłoszenie zostało", evidenceNone: "Brak", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Odpowiedź Sędziowska (Wydaj Werdykt)", caseIdLabel: "ID sprawy", accusedIdLabel: "Discord ID winnego",
-        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt4: "Dyskwalifikacja",
+        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt3c: "Kara czasowa i punkty karne", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
         sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
@@ -2304,7 +2305,7 @@ const langData = {
         dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
         dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
-        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt4: "Disqualification",
+        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt3c: "Time penalty and points", opt4: "Disqualification",
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
         sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
@@ -4404,7 +4405,7 @@ function handleDecisionChange() {
     const timeField = document.getElementById("timePenaltyField");
     const pointsField = document.getElementById("pointsPenaltyField");
 
-    if (decision === "Anulowanie kary") {
+    if (decision === "Anulowanie kary" || decision === "Naruszenie – dyskwalifikacja") {
         penaltyFields.style.display = "none";
         return;
     }
@@ -4417,6 +4418,9 @@ function handleDecisionChange() {
     } else if (decision === "Naruszenie – kara czasowa") {
         timeField.style.display = "flex";
         pointsField.style.display = "none";
+    } else if (decision === "Naruszenie – kara czasowa i punkty karne") {
+        timeField.style.display = "flex";
+        pointsField.style.display = "flex";
     } else {
         timeField.style.display = "flex";
         pointsField.style.display = "flex";
