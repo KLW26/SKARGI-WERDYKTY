@@ -1710,7 +1710,12 @@
             <div class="field">
               <label for="accusedId" data-key="accusedIdLabel">Discord ID winnego (do pingowania)</label>
               <input id="accusedId" type="text" placeholder="np. 123456789012345678" required>
-            </div>
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <button type="button" id="btnPickAccused" onclick="pickGuiltyParty('accused')" style="flex:1; font-size:11px; padding:5px 8px; background: var(--bg-input); border:1px solid var(--border); border-radius:3px; color: var(--text-dim); cursor:pointer;">🚗 Oskarżony</button>
+                <button type="button" id="btnPickReporter" onclick="pickGuiltyParty('reporter')" style="flex:1; font-size:11px; padding:5px 8px; background: var(--bg-input); border:1px solid var(--border); border-radius:3px; color: var(--text-dim); cursor:pointer;">🚩 Zgłaszający</button>
+              </div>
+              <small id="pickGuiltyNote" style="display:block; margin-top:4px; font-size:11px; color: var(--text-dim);"></small>
+            </div>            </div>
           </div>
   
           <div class="field">
@@ -1720,6 +1725,7 @@
               <option value="Brak naruszenia" data-key="opt1">Brak naruszenia</option>
               <option value="Naruszenie – ostrzeżenie" data-key="opt2">Naruszenie – ostrzeżenie</option>
               <option value="Naruszenie – kara czasowa" data-key="opt3">Naruszenie – kara czasowa</option>
+              <option value="Naruszenie – Punkty Karne" data-key="opt3b">Naruszenie – Punkty Karne</option>
               <option value="Naruszenie – dyskwalifikacja" data-key="opt4">Naruszenie – dyskwalifikacja</option>
               <option value="Anulowanie kary">Anulowanie kary</option>
               <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
@@ -1728,11 +1734,11 @@
           </div>
   
           <div class="row" id="penaltyFields">
-            <div class="field">
+            <div class="field" id="timePenaltyField">
               <label for="timePenalty" data-key="timeLabel">Kara czasowa</label>
               <input id="timePenalty" type="text" placeholder="np. +5s / brak">
             </div>
-            <div class="field">
+            <div class="field" id="pointsPenaltyField">
               <label for="pointsPenalty" data-key="pointsLabel">Punkty karne</label>
               <input id="pointsPenalty" type="text" placeholder="np. 2 pkt">
             </div>
@@ -2259,7 +2265,7 @@ const langData = {
         dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
         dcMsgDecision: "Twoje zgłoszenie zostało", evidenceNone: "Brak", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Odpowiedź Sędziowska (Wydaj Werdykt)", caseIdLabel: "ID sprawy", accusedIdLabel: "Discord ID winnego",
-        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt4: "Dyskwalifikacja",
+        decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
         sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
@@ -2298,7 +2304,7 @@ const langData = {
         dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
         dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
         verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
-        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt4: "Disqualification",
+        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt4: "Disqualification",
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
         sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
@@ -3552,10 +3558,48 @@ async function saveEditedReport() {
     }
 }
 
+let currentVerdictAccusedId = null;
+let currentVerdictReporterId = null;
+
+function updateGuiltyPickerState() {
+    const btnAccused = document.getElementById("btnPickAccused");
+    const btnReporter = document.getElementById("btnPickReporter");
+    const note = document.getElementById("pickGuiltyNote");
+    if (!btnAccused || !btnReporter) return;
+
+    btnAccused.disabled = !currentVerdictAccusedId;
+    btnReporter.disabled = !currentVerdictReporterId;
+    btnAccused.style.opacity = currentVerdictAccusedId ? "1" : "0.4";
+    btnReporter.style.opacity = currentVerdictReporterId ? "1" : "0.4";
+
+    const currentVal = document.getElementById("accusedId").value.trim();
+    btnAccused.style.borderColor = (currentVerdictAccusedId && currentVal === currentVerdictAccusedId) ? "var(--red)" : "var(--border)";
+    btnReporter.style.borderColor = (currentVerdictReporterId && currentVal === currentVerdictReporterId) ? "var(--red)" : "var(--border)";
+
+    if (note) {
+        note.textContent = !currentVerdictReporterId
+            ? (currentLang === 'pl' ? "Brak zapisanego Discord ID zgłaszającego dla tej sprawy." : "No reporter Discord ID saved for this case.")
+            : "";
+    }
+}
+
+function pickGuiltyParty(who) {
+    const id = who === "reporter" ? currentVerdictReporterId : currentVerdictAccusedId;
+    if (!id) {
+        alert(currentLang === 'pl' ? "Brak zapisanego Discord ID dla tej strony." : "No Discord ID saved for this party.");
+        return;
+    }
+    document.getElementById("accusedId").value = id;
+    updateGuiltyPickerState();
+}
+
 function transferToVerdictPanel(id, accusedDiscordId) {
     document.getElementById("caseId").value = id;
     document.getElementById("accusedId").value = accusedDiscordId;
     const found = globalIncidents.find(r => r.id === id);
+    currentVerdictAccusedId = accusedDiscordId || null;
+    currentVerdictReporterId = found ? (found.discordId || null) : null;
+    updateGuiltyPickerState();
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
         document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
@@ -3568,6 +3612,9 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     document.getElementById("accusedId").value = driverDiscordId;
     const foundCase = globalIncidents.find(r => r.id === caseId);
     const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
+    currentVerdictAccusedId = driverDiscordId || null;
+    currentVerdictReporterId = foundCase ? (foundCase.discordId || null) : null;
+    updateGuiltyPickerState();
 
     if (foundCase && foundAppeal) {
         document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
@@ -4347,16 +4394,32 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
+        currentVerdictAccusedId = null; currentVerdictReporterId = null; updateGuiltyPickerState();
     } catch (err) { statusEl.textContent = t.statusErr; statusEl.className = "status-msg err"; }
 });
 
 function handleDecisionChange() {
     const decision = document.getElementById("decision").value;
     const penaltyFields = document.getElementById("penaltyFields");
+    const timeField = document.getElementById("timePenaltyField");
+    const pointsField = document.getElementById("pointsPenaltyField");
+
     if (decision === "Anulowanie kary") {
         penaltyFields.style.display = "none";
+        return;
+    }
+
+    penaltyFields.style.display = "flex";
+
+    if (decision === "Naruszenie – Punkty Karne") {
+        timeField.style.display = "none";
+        pointsField.style.display = "flex";
+    } else if (decision === "Naruszenie – kara czasowa") {
+        timeField.style.display = "flex";
+        pointsField.style.display = "none";
     } else {
-        penaltyFields.style.display = "flex";
+        timeField.style.display = "flex";
+        pointsField.style.display = "flex";
     }
 }
 
@@ -5125,6 +5188,8 @@ window.addEventListener("DOMContentLoaded", () => {
     if (sessionStorage.getItem("usersAuth") === "1") {
         isUsersAuth = true;
     }
+
+    updateGuiltyPickerState();
 
     database.ref("incidents").on("value", (snapshot) => {
         globalIncidents = [];
