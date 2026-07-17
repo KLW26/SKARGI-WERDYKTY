@@ -1258,9 +1258,15 @@
           </div>
         </div>
 
-        <div class="field">
-          <label>Zgłaszający (Discord ID)</label>
-          <input type="text" id="editReporterDiscordId" placeholder="np. 294330293281161634">
+        <div class="row">
+          <div class="field">
+            <label>Zgłaszający (Discord ID)</label>
+            <input type="text" id="editReporterDiscordId" placeholder="np. 294330293281161634">
+          </div>
+          <div class="field">
+            <label>Oskarżony (Discord ID)</label>
+            <input type="text" id="editAccusedDiscordId" placeholder="np. 294330293281161634">
+          </div>
         </div>
 
         <div class="field">
@@ -3480,6 +3486,7 @@ function toggleEditMode() {
         document.getElementById("editReporterNick").value = report.nick || "";
         document.getElementById("editAccusedNick").value = report.accusedNick || "";
         document.getElementById("editReporterDiscordId").value = report.discordId || "";
+        document.getElementById("editAccusedDiscordId").value = report.accusedDiscordId || "";
         document.getElementById("editDescription").value = report.details || "";
     } else {
         normalView.style.display = "block";
@@ -3502,6 +3509,7 @@ async function saveEditedReport() {
     const newReporterNick = document.getElementById("editReporterNick").value.trim();
     const newAccusedNick = document.getElementById("editAccusedNick").value.trim();
     const newReporterDiscordId = document.getElementById("editReporterDiscordId").value.trim();
+    const newAccusedDiscordId = document.getElementById("editAccusedDiscordId").value.trim();
     const newDescription = document.getElementById("editDescription").value.trim();
 
     if (!newReporterNick || !newAccusedNick || !newDescription) {
@@ -3511,6 +3519,11 @@ async function saveEditedReport() {
 
     if (newReporterDiscordId && !/^\d+$/.test(newReporterDiscordId)) {
         alert(currentLang === 'pl' ? "Discord ID zgłaszającego musi składać się wyłącznie z cyfr!" : "Reporter's Discord ID must be numeric only!");
+        return;
+    }
+
+    if (newAccusedDiscordId && !/^\d+$/.test(newAccusedDiscordId)) {
+        alert(currentLang === 'pl' ? "Discord ID oskarżonego musi składać się wyłącznie z cyfr!" : "Accused's Discord ID must be numeric only!");
         return;
     }
 
@@ -3535,6 +3548,11 @@ async function saveEditedReport() {
             changes.push(`Discord ID zgłaszającego: "${truncate(report.discordId)}" → "${truncate(newReporterDiscordId)}"`);
             updates[`incidents/${currentlyEditedReportId}/discordId`] = newReporterDiscordId;
             restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/discordId`, data: report.discordId || null });
+        }
+        if (newAccusedDiscordId !== (report.accusedDiscordId || "")) {
+            changes.push(`Discord ID oskarżonego: "${truncate(report.accusedDiscordId)}" → "${truncate(newAccusedDiscordId)}"`);
+            updates[`incidents/${currentlyEditedReportId}/accusedDiscordId`] = newAccusedDiscordId;
+            restoreItemsEdit.push({ path: `incidents/${currentlyEditedReportId}/accusedDiscordId`, data: report.accusedDiscordId || null });
         }
         if (newDescription !== (report.details || "")) {
             changes.push(`Opis zgłoszenia: "${truncate(report.details)}" → "${truncate(newDescription)}"`);
