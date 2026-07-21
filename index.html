@@ -1715,10 +1715,11 @@
             </div>
             <div class="field">
               <label for="accusedId" data-key="accusedIdLabel">Discord ID winnego (do pingowania)</label>
-              <input id="accusedId" type="text" placeholder="np. 123456789012345678" required>
+              <input id="accusedId" type="text" placeholder="np. 123456789012345678">
               <div style="display:flex; gap:6px; margin-top:6px;">
                 <button type="button" id="btnPickAccused" onclick="pickGuiltyParty('accused')" style="flex:1; font-size:11px; padding:5px 8px; background: var(--bg-input); border:1px solid var(--border); border-radius:3px; color: var(--text-dim); cursor:pointer;">🚗 Oskarżony</button>
                 <button type="button" id="btnPickReporter" onclick="pickGuiltyParty('reporter')" style="flex:1; font-size:11px; padding:5px 8px; background: var(--bg-input); border:1px solid var(--border); border-radius:3px; color: var(--text-dim); cursor:pointer;">🚩 Zgłaszający</button>
+                <button type="button" id="btnPickNone" onclick="pickGuiltyParty('none')" data-key="btnPickNone" style="flex:1; font-size:11px; padding:5px 8px; background: var(--bg-input); border:1px solid var(--border); border-radius:3px; color: var(--text-dim); cursor:pointer;">🤝 Nikt nie winny</button>
               </div>
               <small id="pickGuiltyNote" style="display:block; margin-top:4px; font-size:11px; color: var(--text-dim);"></small>
             </div>            </div>
@@ -2271,6 +2272,7 @@ const langData = {
         dcReportTitle: "🚩 NOWE ZGŁOSZENIE", dcDecisionTitle: "📢 STATUS ZGŁOSZENIA",
         dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
         dcMsgDecision: "Twoje zgłoszenie zostało", evidenceNone: "Brak", evidenceBtn: "Link 🔗",
+        btnPickNone: "🤝 Nikt nie winny", noOneGuiltyText: "Nikt nie jest winny",
         verdictMainTitle: "Odpowiedź Sędziowska (Wydaj Werdykt)", caseIdLabel: "ID sprawy", accusedIdLabel: "Discord ID winnego",
         decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt3c: "Kara czasowa i punkty karne", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
@@ -2310,6 +2312,7 @@ const langData = {
         dcReportTitle: "🚩 NEW REPORT", dcDecisionTitle: "📢 REPORT STATUS",
         dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
         dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
+        btnPickNone: "🤝 Nobody guilty", noOneGuiltyText: "Nobody is guilty",
         verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
         decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt3c: "Time penalty and points", opt4: "Disqualification",
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
@@ -3579,11 +3582,14 @@ async function saveEditedReport() {
 
 let currentVerdictAccusedId = null;
 let currentVerdictReporterId = null;
+let verdictNoOneGuilty = false;
 
 function updateGuiltyPickerState() {
     const btnAccused = document.getElementById("btnPickAccused");
     const btnReporter = document.getElementById("btnPickReporter");
+    const btnNone = document.getElementById("btnPickNone");
     const note = document.getElementById("pickGuiltyNote");
+    const accusedInput = document.getElementById("accusedId");
     if (!btnAccused || !btnReporter) return;
 
     btnAccused.disabled = !currentVerdictAccusedId;
@@ -3591,23 +3597,46 @@ function updateGuiltyPickerState() {
     btnAccused.style.opacity = currentVerdictAccusedId ? "1" : "0.4";
     btnReporter.style.opacity = currentVerdictReporterId ? "1" : "0.4";
 
-    const currentVal = document.getElementById("accusedId").value.trim();
-    btnAccused.style.borderColor = (currentVerdictAccusedId && currentVal === currentVerdictAccusedId) ? "var(--red)" : "var(--border)";
-    btnReporter.style.borderColor = (currentVerdictReporterId && currentVal === currentVerdictReporterId) ? "var(--red)" : "var(--border)";
+    const currentVal = accusedInput.value.trim();
+    btnAccused.style.borderColor = (!verdictNoOneGuilty && currentVerdictAccusedId && currentVal === currentVerdictAccusedId) ? "var(--red)" : "var(--border)";
+    btnReporter.style.borderColor = (!verdictNoOneGuilty && currentVerdictReporterId && currentVal === currentVerdictReporterId) ? "var(--red)" : "var(--border)";
+
+    if (btnNone) {
+        btnNone.style.opacity = "1";
+        btnNone.style.borderColor = verdictNoOneGuilty ? "var(--red)" : "var(--border)";
+    }
+
+    if (accusedInput) {
+        accusedInput.disabled = verdictNoOneGuilty;
+        accusedInput.placeholder = verdictNoOneGuilty
+            ? (currentLang === 'pl' ? "Nie dotyczy – nikt nie jest winny" : "N/A – nobody is guilty")
+            : "np. 123456789012345678";
+        accusedInput.style.opacity = verdictNoOneGuilty ? "0.5" : "1";
+    }
 
     if (note) {
-        note.textContent = !currentVerdictReporterId
-            ? (currentLang === 'pl' ? "Brak zapisanego Discord ID zgłaszającego dla tej sprawy." : "No reporter Discord ID saved for this case.")
-            : "";
+        note.textContent = verdictNoOneGuilty
+            ? (currentLang === 'pl' ? "Werdykt zostanie wysłany bez wskazania winnego i bez pingowania nikogo." : "The verdict will be sent without naming anyone guilty and without pinging anyone.")
+            : !currentVerdictReporterId
+                ? (currentLang === 'pl' ? "Brak zapisanego Discord ID zgłaszającego dla tej sprawy." : "No reporter Discord ID saved for this case.")
+                : "";
     }
 }
 
 function pickGuiltyParty(who) {
+    if (who === "none") {
+        verdictNoOneGuilty = true;
+        document.getElementById("accusedId").value = "";
+        updateGuiltyPickerState();
+        return;
+    }
+
     const id = who === "reporter" ? currentVerdictReporterId : currentVerdictAccusedId;
     if (!id) {
         alert(currentLang === 'pl' ? "Brak zapisanego Discord ID dla tej strony." : "No Discord ID saved for this party.");
         return;
     }
+    verdictNoOneGuilty = false;
     document.getElementById("accusedId").value = id;
     updateGuiltyPickerState();
 }
@@ -3618,6 +3647,7 @@ function transferToVerdictPanel(id, accusedDiscordId) {
     const found = globalIncidents.find(r => r.id === id);
     currentVerdictAccusedId = accusedDiscordId || null;
     currentVerdictReporterId = found ? (found.discordId || null) : null;
+    verdictNoOneGuilty = false;
     updateGuiltyPickerState();
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
@@ -3633,6 +3663,7 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
     currentVerdictAccusedId = driverDiscordId || null;
     currentVerdictReporterId = foundCase ? (foundCase.discordId || null) : null;
+    verdictNoOneGuilty = false;
     updateGuiltyPickerState();
 
     if (foundCase && foundAppeal) {
@@ -4340,6 +4371,13 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 
     const caseIdInput = document.getElementById("caseId").value.trim();
     const accusedId = document.getElementById("accusedId").value.trim();
+
+    if (!verdictNoOneGuilty && !accusedId) {
+        statusEl.textContent = "";
+        alert(currentLang === 'pl' ? "Podaj Discord ID winnego lub wybierz opcję \"Nikt nie winny\"." : "Enter the guilty party's Discord ID, or choose \"Nobody guilty\".");
+        return;
+    }
+
     const decision = document.getElementById("decision").value;
     const timePenalty = document.getElementById("timePenalty").value || "brak";
     const pointsPenalty = document.getElementById("pointsPenalty").value || "0 pkt";
@@ -4391,11 +4429,12 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const winnerNick = (mainReport && mainReport.accusedNick) ? mainReport.accusedNick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
     const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
     const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
+    const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick} (<@${accusedId}>)`;
     const embed = {
         title: t.embedTitle, color: 3447003,
         fields: [
             { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
-            { name: `⚖️ ${t.fieldWinner}`, value: `${winnerNick} (<@${accusedId}>)`, inline: true },
+            { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
             { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
             { name: t.fieldEvidence, value: mainEvidence, inline: false },
             { name: t.fieldDecision, value: `**${decision}**`, inline: false },
@@ -4409,11 +4448,12 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 
     try {
         const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
-        const pingContent = reporterDiscordId ? `🚩 Oskarżony: <@${accusedId}>   |   👤 Zgłaszający: <@${reporterDiscordId}>` : `🚩 Oskarżony: <@${accusedId}>`;
+        const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 Oskarżony: <@${accusedId}>`;
+        const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
-        currentVerdictAccusedId = null; currentVerdictReporterId = null; updateGuiltyPickerState();
+        currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
     } catch (err) { statusEl.textContent = t.statusErr; statusEl.className = "status-msg err"; }
 });
 
