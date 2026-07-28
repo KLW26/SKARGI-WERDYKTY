@@ -3037,7 +3037,7 @@ function fetchAndRenderHistory(discordId) {
                         <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${r.decisionData.timePenalty || 'brak'}, Punkty: ${r.decisionData.pointsPenalty || '0'}<br>
                         <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
                         ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
-                        <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                        <small style="color:#64748b;">${currentLang === 'pl' ? 'Sędzia' : 'Steward'}: ${r.decisionData.judge}${(r.decisionData.issuedBy && r.decisionData.issuedBy !== r.decisionData.judge) ? ` (${currentLang === 'pl' ? 'wydał' : 'issued by'}: ${r.decisionData.issuedBy})` : ''}</small>
                     </div>
                 </div>
             `;
@@ -3098,6 +3098,11 @@ function fetchAndRenderHistory(discordId) {
                     <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${a.reason}
                 </div>
                 ${hasEvidence(a) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(a)}</p>` : ''}
+                ${a.resolvedBy ? `
+                <div style="margin-top:8px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #4c1d95;">
+                    ${a.rejectReason ? `<p style="margin:0 0 4px 0; font-size:12px; color:#cbd5e1;"><strong>${currentLang === 'pl' ? 'Uzasadnienie decyzji' : 'Decision reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${a.rejectReason}"</span></p>` : ''}
+                    <small style="color:#64748b;">${currentLang === 'pl' ? 'Sędzia' : 'Steward'}: ${a.resolvedBy}</small>
+                </div>` : ''}
                 <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
                     ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${a.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
                     <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${a.appealId}')">💬 Czatuj o tej apelacji</button>
@@ -3339,7 +3344,7 @@ function renderAdmin() {
                             <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
                             <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
                             ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
-                            <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                            <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}${(r.decisionData.issuedBy && r.decisionData.issuedBy !== r.decisionData.judge) ? ` (wydał: ${r.decisionData.issuedBy})` : ''}</small>
                         </div>
                     ` : ''}
                 </td>
@@ -3387,7 +3392,15 @@ function renderAdmin() {
                 <td><strong>${a.appealId}</strong></td>
                 <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
                 <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
-                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
+                <td>
+                    <div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div>
+                    ${a.resolvedBy ? `
+                        <div style="margin-top:6px; font-size:11px; color:#94a3b8;">
+                            ${a.rejectReason ? `<div style="font-style:italic;">"${a.rejectReason}"</div>` : ''}
+                            <small style="color:#64748b;">Sędzia: ${a.resolvedBy}</small>
+                        </div>
+                    ` : ''}
+                </td>
                 <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
                     <span style="background:${appBadgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${appStatusText}</span>
@@ -3703,7 +3716,8 @@ async function resendVerdict(id) {
                 { name: t.fieldTime, value: d.timePenalty || "brak", inline: true },
                 { name: t.fieldPoints, value: d.pointsPenalty || "0 pkt", inline: true },
                 { name: t.fieldDetails, value: `\`\`\`text\n${d.verdictDetails}\n\`\`\``, inline: false },
-                { name: t.fieldJudge, value: d.judge, inline: false }
+                { name: t.fieldJudge, value: d.judge, inline: false },
+                ...(d.issuedBy && d.issuedBy !== d.judge ? [{ name: currentLang === 'pl' ? "Wydał (konto)" : "Issued by (account)", value: d.issuedBy, inline: false }] : [])
             ],
             timestamp: new Date().toISOString()
         };
@@ -3777,14 +3791,16 @@ async function updateStatus(id, newStatus) {
 async function acceptAppeal(appealId, caseId, discordId) {
     const oldAppeal = globalAppeals.find(a => a.appealId === appealId);
     const oldReport = globalIncidents.find(r => r.id === caseId);
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Przyjęte";
+    updates[`appeals/${appealId}/resolvedBy`] = stewardName;
     updates[`incidents/${caseId}/status`] = "Przyjęte";
     await database.ref().update(updates);
     
-    const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
     const restoreItemsAcc = [
         { path: `appeals/${appealId}/status`, data: oldAppeal ? (oldAppeal.status || null) : null },
+        { path: `appeals/${appealId}/resolvedBy`, data: oldAppeal ? (oldAppeal.resolvedBy || null) : null },
         { path: `incidents/${caseId}/status`, data: oldReport ? (oldReport.status || null) : null }
     ];
     await logAction(stewardName, "APPEAL", caseId, `Zaakceptowano apelację ${appealId} i zmieniono pierwotną decyzję.`, { items: restoreItemsAcc });
@@ -3808,15 +3824,17 @@ async function acceptAppeal(appealId, caseId, discordId) {
 async function rejectAppeal(appealId, caseId, discordId) {
     const oldAppealRej = globalAppeals.find(a => a.appealId === appealId);
     const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
+    const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Podtrzymany";
     updates[`appeals/${appealId}/rejectReason`] = reason;
+    updates[`appeals/${appealId}/resolvedBy`] = stewardName;
     await database.ref().update(updates);
     
-    const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
     const restoreItemsRej = [
         { path: `appeals/${appealId}/status`, data: oldAppealRej ? (oldAppealRej.status || null) : null },
-        { path: `appeals/${appealId}/rejectReason`, data: oldAppealRej ? (oldAppealRej.rejectReason || null) : null }
+        { path: `appeals/${appealId}/rejectReason`, data: oldAppealRej ? (oldAppealRej.rejectReason || null) : null },
+        { path: `appeals/${appealId}/resolvedBy`, data: oldAppealRej ? (oldAppealRej.resolvedBy || null) : null }
     ];
     await logAction(stewardName, "APPEAL", caseId, `Odrzucono apelację ${appealId}. Podtrzymano pierwotny werdykt sędziowski. Uzasadnienie: ${reason}`, { items: restoreItemsRej });
 
@@ -4401,6 +4419,8 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         }
     }
 
+    const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
+
     const mainReport = globalIncidents.find(r => r.id === originalCaseId);
     const restoreItemsVerdict = [];
     if (mainReport) {
@@ -4417,11 +4437,12 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             pointsPenalty: pointsPenalty,
             verdictDetails: verdictDetails,
             judge: judge,
+            issuedBy: stewardName,
+            issuedByStewardId: loggedInSteward ? (loggedInSteward.id || null) : null,
             issuedAt: Date.now()
         });
     }
 
-    const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
     await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
@@ -4441,7 +4462,8 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             { name: t.fieldTime, value: timePenalty, inline: true },
             { name: t.fieldPoints, value: pointsPenalty, inline: true },
             { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\``, inline: false },
-            { name: t.fieldJudge, value: judge, inline: false }
+            { name: t.fieldJudge, value: judge, inline: false },
+            ...(loggedInSteward && loggedInSteward.nick !== judge ? [{ name: currentLang === 'pl' ? "Wydał (konto)" : "Issued by (account)", value: stewardName, inline: false }] : [])
         ],
         timestamp: new Date().toISOString()
     };
