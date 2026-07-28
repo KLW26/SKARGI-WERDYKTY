@@ -2058,6 +2058,20 @@ async function buildDiscordEvidenceValue(record) {
     return parts.length ? parts.join("\n") : "Brak";
 }
 
+// Wyciąga realne, klikalne linki (etykieta + URL) z wygenerowanego tekstu dowodu (markdown),
+// żeby można było dołączyć je jako prawdziwe przyciski Discorda (obrazek karty nie jest klikalny).
+function extractEvidenceLinks(mainEvidence) {
+    if (!mainEvidence) return [];
+    const links = [];
+    String(mainEvidence).split("\n").forEach(line => {
+        const md = line.match(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/);
+        if (md) { links.push({ label: md[1], url: md[2] }); return; }
+        const plainUrl = line.match(/(https?:\/\/\S+)/);
+        if (plainUrl) links.push({ label: "Dowód", url: plainUrl[1] });
+    });
+    return links;
+}
+
 // === Kolor embeda werdyktu w zależności od decyzji (bardziej efektowne niż stały niebieski) ===
 function getVerdictEmbedColor(decision, noOneGuilty) {
     if (noOneGuilty) return 0x99AAB5; // szary – „nikt nie winny”
@@ -2342,7 +2356,8 @@ async function generateVerdictCardImage(opts) {
 }
 
 // === Wspólny budowniczy karty werdyktu – używany zarówno przy pierwszym wysyłaniu, jak i przy ponownym ===
-// Zwraca gotowy embed Discorda (samo zdjęcie karty) razem z wyrenderowanym blobem PNG.
+// Zwraca gotowy embed Discorda (samo zdjęcie karty), wyrenderowany blob PNG,
+// oraz "components" z klikalnymi przyciskami-linkami do dowodów (obrazek sam w sobie nie jest klikalny).
 async function buildVerdictEmbed(opts) {
     const { t, caseId, winnerFieldValue, reporterDiscordId, reporterNick, mainEvidence,
             decision, timePenalty, pointsPenalty, verdictDetails, judge, noOneGuilty } = opts;
@@ -2358,10 +2373,26 @@ async function buildVerdictEmbed(opts) {
         verdictDetails, judge, noOneGuilty
     });
 
+    const evidenceLinks = extractEvidenceLinks(mainEvidence);
+    const components = [];
+    for (let i = 0; i < evidenceLinks.length && i < 10; i += 5) {
+        components.push({
+            type: 1,
+            components: evidenceLinks.slice(i, i + 5).map(link => ({
+                type: 2,
+                style: 5,
+                label: (link.label.length > 60 ? link.label.slice(0, 57) + "…" : link.label) || "Dowód",
+                url: link.url,
+                emoji: { name: "📎" }
+            }))
+        });
+    }
+
     return {
         color,
         embed: { color, image: { url: "attachment://fia-banner.png" } },
-        blob
+        blob,
+        components
     };
 }
 
@@ -4001,7 +4032,7 @@ async function resendVerdict(id) {
         const reporterNick = report.nick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
         const reporterDiscordId = report.discordId || null;
 
-        const { embed, blob: bannerBlob } = await buildVerdictEmbed({
+        const { embed, blob: bannerBlob, components } = await buildVerdictEmbed({
             t, caseId: id,
             winnerFieldValue: `${winnerNick} (<@${report.accusedDiscordId}>)`,
             reporterDiscordId, reporterNick, mainEvidence,
@@ -4015,7 +4046,7 @@ async function resendVerdict(id) {
 
         const pingContent = reporterDiscordId ? `🚩 Oskarżony: <@${report.accusedDiscordId}>   |   👤 Zgłaszający: <@${reporterDiscordId}>` : `🚩 Oskarżony: <@${report.accusedDiscordId}>`;
         const formData = new FormData();
-        formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [embed] }));
+        formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [embed], components }));
         formData.append("files[0]", bannerBlob, "fia-banner.png");
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
         if (!res.ok) throw new Error();
@@ -4740,7 +4771,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick} (<@${accusedId}>)`;
 
     try {
-        const { embed, blob: bannerBlob } = await buildVerdictEmbed({
+        const { embed, blob: bannerBlob, components } = await buildVerdictEmbed({
             t, caseId: originalCaseId,
             winnerFieldValue,
             reporterDiscordId, reporterNick, mainEvidence,
@@ -4751,7 +4782,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 Oskarżony: <@${accusedId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const formData = new FormData();
-        formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [embed] }));
+        formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [embed], components }));
         formData.append("files[0]", bannerBlob, "fia-banner.png");
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
         if (!res.ok) throw new Error();
