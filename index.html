@@ -2817,6 +2817,33 @@ function applyStewardPermissions() {
 
     const bulkBar = document.getElementById("bulkBar");
     if (bulkBar && !isRoot && !perms.review_incidents) bulkBar.style.display = "none";
+
+    updateJudgeFieldLock();
+}
+
+// Pole "Sędzia prowadzący" jest uzupełniane automatycznie na podstawie zalogowanego
+// konta stewarda (jego ID/nick) i domyślnie zablokowane do edycji ręcznej.
+// Ręczną zmianę może wykonać wyłącznie Główny Steward / ROOT.
+function updateJudgeFieldLock() {
+    const judgeInput = document.getElementById("judge");
+    if (!judgeInput) return;
+    const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+
+    if (loggedInSteward) {
+        judgeInput.value = loggedInSteward.nick;
+    }
+
+    if (isRoot) {
+        judgeInput.readOnly = false;
+        judgeInput.classList.remove('input-locked');
+        judgeInput.title = "";
+    } else {
+        judgeInput.readOnly = true;
+        judgeInput.classList.add('input-locked');
+        judgeInput.title = currentLang === 'pl'
+            ? "Pole uzupełniane automatycznie na podstawie zalogowanego konta. Edycja dostępna tylko dla Głównego Stewarda."
+            : "Auto-filled from the logged-in account. Only the Head Steward can edit this.";
+    }
 }
 
 document.getElementById("complaintForm").addEventListener("submit", async e => {
@@ -3657,6 +3684,7 @@ function pickGuiltyParty(who) {
 function transferToVerdictPanel(id, accusedDiscordId) {
     document.getElementById("caseId").value = id;
     document.getElementById("accusedId").value = accusedDiscordId;
+    updateJudgeFieldLock();
     const found = globalIncidents.find(r => r.id === id);
     currentVerdictAccusedId = accusedDiscordId || null;
     currentVerdictReporterId = found ? (found.discordId || null) : null;
@@ -3672,6 +3700,7 @@ function transferToVerdictPanel(id, accusedDiscordId) {
 function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     document.getElementById("caseId").value = `${caseId} (${appealId})`;
     document.getElementById("accusedId").value = driverDiscordId;
+    updateJudgeFieldLock();
     const foundCase = globalIncidents.find(r => r.id === caseId);
     const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
     currentVerdictAccusedId = driverDiscordId || null;
@@ -4474,7 +4503,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
-        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
+        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset(); updateJudgeFieldLock();
         currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
     } catch (err) { statusEl.textContent = t.statusErr; statusEl.className = "status-msg err"; }
 });
