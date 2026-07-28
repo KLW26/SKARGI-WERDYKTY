@@ -2058,6 +2058,307 @@ async function buildDiscordEvidenceValue(record) {
     return parts.length ? parts.join("\n") : "Brak";
 }
 
+// === Kolor embeda werdyktu w zależności od decyzji (bardziej efektowne niż stały niebieski) ===
+function getVerdictEmbedColor(decision, noOneGuilty) {
+    if (noOneGuilty) return 0x99AAB5; // szary – „nikt nie winny”
+    const map = {
+        "Brak naruszenia": 0x2ECC71,                                   // zielony
+        "Anulowanie kary": 0x2ECC71,                                   // zielony
+        "Naruszenie – ostrzeżenie": 0xF1C40F,                          // żółty
+        "Naruszenie – kara czasowa": 0xE67E22,                         // pomarańczowy
+        "Naruszenie – Punkty Karne": 0xE67E22,                         // pomarańczowy
+        "Naruszenie – kara czasowa i punkty karne": 0xE10600,          // czerwony FIA
+        "Naruszenie – dyskwalifikacja": 0x8B0000,                      // ciemna czerwień
+        "Apelacja rozpatrzona – Zmiana werdyktu": 0x9B59B6,            // fiolet
+        "Apelacja odrzucona – Werdykt podtrzymany": 0x5865F2           // blurple
+    };
+    return map[decision] || 3447003;
+}
+
+// ============================================================================
+// === Renderer karty werdyktu (canvas) – odtwarza wygląd karty "FIA Race Control"
+//     ze zrzutu ekranu: nagłówek z flagą w kratkę, boksy SPRAWA/WINNY, wiersze
+//     ZGŁASZAJĄCY/DOWÓD, baner DECYZJA, boksy KARA/PUNKTY, ramka UZASADNIENIE,
+//     wiersz SĘDZIA oraz stopka z kratką i podpisem sprawy/daty.
+// ============================================================================
+
+function drawRoundedRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+}
+
+function drawCheckerStrip(ctx, x, y, w, h, size, lightColor, darkColor) {
+    for (let cx = 0; cx < w; cx += size) {
+        ctx.fillStyle = (Math.floor(cx / size) % 2 === 0) ? (lightColor || "#eef0f4") : (darkColor || "#0b0d13");
+        ctx.fillRect(x + cx, y, Math.min(size, w - cx), h);
+    }
+}
+
+function drawDashedDivider(ctx, x1, y1, x2, y2) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+    const paragraphs = String(text == null ? "" : text).split("\n");
+    const lines = [];
+    paragraphs.forEach(paragraph => {
+        if (paragraph.trim() === "") { lines.push(""); return; }
+        const words = paragraph.split(" ");
+        let current = "";
+        words.forEach(word => {
+            const test = current ? current + " " + word : word;
+            if (ctx.measureText(test).width > maxWidth && current) {
+                lines.push(current);
+                current = word;
+            } else {
+                current = test;
+            }
+        });
+        if (current) lines.push(current);
+    });
+    return lines;
+}
+
+function stripLeadingIcon(label) {
+    return String(label || "").replace(/^[^\w]+/, "").trim();
+}
+
+// Zamienia znaczniki wzmianek Discorda (<@id>) na czytelny tekst do narysowania na obrazku
+function plainizeMention(str) {
+    if (!str) return str;
+    return String(str).replace(/<@&?(\d+)>/g, "ID: $1");
+}
+
+// Zamienia wartość dowodu (markdown Discorda) na czyste linie tekstu do narysowania
+function evidenceToPlainLines(mainEvidence) {
+    if (!mainEvidence) return ["Brak"];
+    const lines = String(mainEvidence).split("\n").map(line => {
+        const m = line.match(/\[([^\]]+)\]\(([^)]+)\)/);
+        if (m) return `📎 ${m[1]}`;
+        return line;
+    });
+    return lines.length ? lines : ["Brak"];
+}
+
+function drawLabelBox(ctx, x, y, w, h, borderColor, label, value, labelColor) {
+    drawRoundedRectPath(ctx, x, y, w, h, 6);
+    ctx.fillStyle = "#0d0f16";
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+
+    ctx.textAlign = "left";
+    ctx.font = "700 11px 'Barlow Condensed', Arial, sans-serif";
+    ctx.fillStyle = labelColor || "#9aa3b5";
+    ctx.fillText(label, x + 14, y + 23, w - 28);
+
+    const maxW = w - 28;
+    let fontSize = 18;
+    ctx.font = `700 ${fontSize}px 'Barlow Condensed', Arial, sans-serif`;
+    let displayValue = value == null ? "-" : String(value);
+    if (ctx.measureText(displayValue).width > maxW) {
+        fontSize = 15;
+        ctx.font = `700 ${fontSize}px 'Barlow Condensed', Arial, sans-serif`;
+    }
+    while (ctx.measureText(displayValue).width > maxW && displayValue.length > 1) {
+        displayValue = displayValue.slice(0, -1);
+    }
+    if (displayValue !== String(value)) displayValue = displayValue.replace(/.$/, "…");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(displayValue, x + 14, y + 47);
+}
+
+function drawLabelRow(ctx, x, y, label, value) {
+    ctx.textAlign = "left";
+    ctx.font = "700 12px 'Barlow Condensed', Arial, sans-serif";
+    ctx.fillStyle = "#9aa3b5";
+    ctx.fillText(label, x, y);
+    ctx.font = "600 15px 'Barlow', Arial, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(value, x, y + 22);
+}
+
+// === Generuje pełną kartę werdyktu jako PNG (do dołączenia jako załącznik webhooka) ===
+async function generateVerdictCardImage(opts) {
+    const {
+        t, color, caseId, winnerText, reporterText, evidenceLines,
+        decision, timePenalty, pointsPenalty, verdictDetails, judge, noOneGuilty
+    } = opts;
+
+    if (document.fonts && document.fonts.ready) {
+        try {
+            await Promise.all([
+                document.fonts.load("700 20px 'Barlow Condensed'"),
+                document.fonts.load("600 16px 'Barlow'")
+            ]);
+            await document.fonts.ready;
+        } catch (e) { /* fonty opcjonalne, ignorujemy błąd */ }
+    }
+
+    const accentHex = "#" + (color >>> 0).toString(16).padStart(6, "0").slice(-6);
+    const width = 760;
+    const pad = 28;
+    const contentW = width - pad * 2;
+    const boxGap = 16;
+    const boxW = (contentW - boxGap) / 2;
+    const boxH = 62;
+
+    // --- warstwa treści rysowana na dużym, przezroczystym płótnie; wysokość dopasujemy na końcu ---
+    const content = document.createElement("canvas");
+    content.width = width;
+    content.height = 2200;
+    const ctx = content.getContext("2d");
+
+    let y = 24;
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 26px 'Barlow Condensed', Arial, sans-serif";
+    const titleText = stripLeadingIcon(t && t.embedTitle ? t.embedTitle : "Werdykt Sędziowski").toUpperCase();
+    ctx.fillText(`🏁 ${titleText}`, width / 2, y + 18);
+    y += 44;
+
+    drawCheckerStrip(ctx, pad, y, contentW, 5, 12);
+    y += 22;
+
+    ctx.textAlign = "left";
+    drawLabelBox(ctx, pad, y, boxW, boxH, "rgba(255,255,255,0.2)", stripLeadingIcon(t.fieldCase).toUpperCase(), caseId);
+    drawLabelBox(ctx, pad + boxW + boxGap, y, boxW, boxH, "#FFD700", `🏆 ${stripLeadingIcon(t.fieldWinner).toUpperCase()}`, winnerText, "#FFD700");
+    y += boxH + 20;
+
+    drawLabelRow(ctx, pad, y, stripLeadingIcon(t.dcLabelReporter).toUpperCase(), reporterText || "-");
+    y += 42;
+
+    ctx.font = "700 12px 'Barlow Condensed', Arial, sans-serif";
+    ctx.fillStyle = "#9aa3b5";
+    ctx.fillText(stripLeadingIcon(t.fieldEvidence).toUpperCase(), pad, y);
+    y += 20;
+    ctx.font = "500 14px 'Barlow', Arial, sans-serif";
+    let evidenceRenderLines = [];
+    (evidenceLines || ["Brak"]).forEach(l => { evidenceRenderLines = evidenceRenderLines.concat(wrapCanvasText(ctx, l, contentW)); });
+    if (!evidenceRenderLines.length) evidenceRenderLines = ["Brak"];
+    ctx.fillStyle = "#6ea8ff";
+    evidenceRenderLines.forEach(line => { ctx.fillText(line, pad, y); y += 19; });
+    y += 12;
+
+    drawDashedDivider(ctx, pad, y, width - pad, y);
+    y += 24;
+
+    const bannerH = 78;
+    drawRoundedRectPath(ctx, pad, y, contentW, bannerH, 8);
+    ctx.fillStyle = accentHex;
+    ctx.fill();
+    ctx.font = "700 11px 'Barlow Condensed', Arial, sans-serif";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillText(stripLeadingIcon(t.fieldDecision).toUpperCase(), pad + 16, y + 24);
+    ctx.font = "800 20px 'Barlow Condensed', Arial, sans-serif";
+    ctx.fillStyle = "#0b0d13";
+    const decisionLabel = (noOneGuilty && t.noOneGuiltyText) ? t.noOneGuiltyText : decision;
+    let decisionDisplay = String(decisionLabel).toUpperCase();
+    while (ctx.measureText(decisionDisplay).width > contentW - 32 && decisionDisplay.length > 1) {
+        decisionDisplay = decisionDisplay.slice(0, -1);
+    }
+    if (decisionDisplay !== String(decisionLabel).toUpperCase()) decisionDisplay = decisionDisplay.replace(/.$/, "…");
+    ctx.fillText(decisionDisplay, pad + 16, y + 54);
+    y += bannerH + 20;
+
+    drawLabelBox(ctx, pad, y, boxW, boxH, "rgba(255,255,255,0.2)", stripLeadingIcon(t.fieldTime).toUpperCase(), timePenalty || "brak");
+    drawLabelBox(ctx, pad + boxW + boxGap, y, boxW, boxH, "#ff4d4d", `🔴 ${stripLeadingIcon(t.fieldPoints).toUpperCase()}`, pointsPenalty || "0 pkt", "#ff4d4d");
+    y += boxH + 20;
+
+    ctx.font = "700 12px 'Barlow Condensed', Arial, sans-serif";
+    ctx.fillStyle = "#9aa3b5";
+    ctx.fillText(stripLeadingIcon(t.fieldDetails).toUpperCase(), pad, y);
+    y += 20;
+
+    ctx.font = "400 14px 'Courier New', monospace";
+    const detailLines = wrapCanvasText(ctx, verdictDetails || "-", contentW - 32);
+    const uzasBoxH = 24 + detailLines.length * 21;
+    drawRoundedRectPath(ctx, pad, y, contentW, uzasBoxH, 6);
+    ctx.fillStyle = "#07090f";
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.stroke();
+    ctx.fillStyle = "#cfd3dc";
+    let ty = y + 22;
+    detailLines.forEach(line => { ctx.fillText(line, pad + 16, ty); ty += 21; });
+    y += uzasBoxH + 20;
+
+    drawLabelRow(ctx, pad, y, stripLeadingIcon(t.fieldJudge).toUpperCase(), judge || "-");
+    y += 34;
+
+    y += 16; // odstęp przed stopką
+
+    // --- finalne płótno o właściwej wysokości: tło + obramowanie + skopiowana treść ---
+    const finalHeight = Math.ceil(y + 54 + pad / 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = finalHeight;
+    const fctx = canvas.getContext("2d");
+
+    drawRoundedRectPath(fctx, 0, 0, width, finalHeight, 14);
+    fctx.fillStyle = "#0b0d13";
+    fctx.fill();
+
+    drawRoundedRectPath(fctx, 1.5, 1.5, width - 3, finalHeight - 3, 13);
+    fctx.lineWidth = 3;
+    fctx.strokeStyle = accentHex;
+    fctx.stroke();
+
+    fctx.drawImage(content, 0, 0, width, finalHeight, 0, 0, width, finalHeight);
+
+    drawCheckerStrip(fctx, 8, 8, width - 16, 8, 14);
+    drawCheckerStrip(fctx, 8, finalHeight - 8 - 8, width - 16, 8, 14);
+
+    fctx.textAlign = "center";
+    fctx.font = "600 11px 'Barlow', Arial, sans-serif";
+    fctx.fillStyle = "#7a8194";
+    const dateStr = new Date().toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    fctx.fillText(`FIA STEWARDS SYSTEM  •  SPRAWA ${caseId}  •  ${dateStr}`, width / 2, finalHeight - pad / 2 - 6);
+
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
+}
+
+// === Wspólny budowniczy karty werdyktu – używany zarówno przy pierwszym wysyłaniu, jak i przy ponownym ===
+// Zwraca gotowy embed Discorda (samo zdjęcie karty) razem z wyrenderowanym blobem PNG.
+async function buildVerdictEmbed(opts) {
+    const { t, caseId, winnerFieldValue, reporterDiscordId, reporterNick, mainEvidence,
+            decision, timePenalty, pointsPenalty, verdictDetails, judge, noOneGuilty } = opts;
+
+    const color = getVerdictEmbedColor(decision, noOneGuilty);
+    const winnerText = plainizeMention(winnerFieldValue);
+    const reporterText = reporterDiscordId ? `${reporterNick}  •  ID: ${reporterDiscordId}` : reporterNick;
+    const evidenceLines = evidenceToPlainLines(mainEvidence);
+
+    const blob = await generateVerdictCardImage({
+        t, color, caseId, winnerText, reporterText, evidenceLines,
+        decision, timePenalty: timePenalty || "brak", pointsPenalty: pointsPenalty || "0 pkt",
+        verdictDetails, judge, noOneGuilty
+    });
+
+    return {
+        color,
+        embed: { color, image: { url: "attachment://fia-banner.png" } },
+        blob
+    };
+}
+
 document.addEventListener("click", async (e) => {
     const btn = e.target.closest(".evidence-fetch-btn");
     if (!btn) return;
@@ -3692,24 +3993,23 @@ async function resendVerdict(id) {
         const reporterNick = report.nick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
         const reporterDiscordId = report.discordId || null;
 
-        const embed = {
-            title: t.embedTitle, color: 3447003,
-            fields: [
-                { name: t.fieldCase, value: `\`${id}\``, inline: true },
-                { name: `⚖️ ${t.fieldWinner}`, value: `${winnerNick} (<@${report.accusedDiscordId}>)`, inline: true },
-                { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
-                { name: t.fieldEvidence, value: mainEvidence, inline: false },
-                { name: t.fieldDecision, value: `**${d.decision}**`, inline: false },
-                { name: t.fieldTime, value: d.timePenalty || "brak", inline: true },
-                { name: t.fieldPoints, value: d.pointsPenalty || "0 pkt", inline: true },
-                { name: t.fieldDetails, value: `\`\`\`text\n${d.verdictDetails}\n\`\`\``, inline: false },
-                { name: t.fieldJudge, value: d.judge, inline: false }
-            ],
-            timestamp: new Date().toISOString()
-        };
+        const { embed, blob: bannerBlob } = await buildVerdictEmbed({
+            t, caseId: id,
+            winnerFieldValue: `${winnerNick} (<@${report.accusedDiscordId}>)`,
+            reporterDiscordId, reporterNick, mainEvidence,
+            decision: d.decision,
+            timePenalty: d.timePenalty || "brak",
+            pointsPenalty: d.pointsPenalty || "0 pkt",
+            verdictDetails: d.verdictDetails,
+            judge: d.judge,
+            noOneGuilty: false
+        });
 
         const pingContent = reporterDiscordId ? `🚩 Oskarżony: <@${report.accusedDiscordId}>   |   👤 Zgłaszający: <@${reporterDiscordId}>` : `🚩 Oskarżony: <@${report.accusedDiscordId}>`;
-        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+        const formData = new FormData();
+        formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [embed] }));
+        formData.append("files[0]", bannerBlob, "fia-banner.png");
+        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
         if (!res.ok) throw new Error();
 
         await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", id, `Ponownie wysłano powiadomienie o werdykcie na Discord.`);
@@ -4430,27 +4730,22 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
     const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
     const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick} (<@${accusedId}>)`;
-    const embed = {
-        title: t.embedTitle, color: 3447003,
-        fields: [
-            { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
-            { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
-            { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
-            { name: t.fieldEvidence, value: mainEvidence, inline: false },
-            { name: t.fieldDecision, value: `**${decision}**`, inline: false },
-            { name: t.fieldTime, value: timePenalty, inline: true },
-            { name: t.fieldPoints, value: pointsPenalty, inline: true },
-            { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\``, inline: false },
-            { name: t.fieldJudge, value: judge, inline: false }
-        ],
-        timestamp: new Date().toISOString()
-    };
 
     try {
+        const { embed, blob: bannerBlob } = await buildVerdictEmbed({
+            t, caseId: originalCaseId,
+            winnerFieldValue,
+            reporterDiscordId, reporterNick, mainEvidence,
+            decision, timePenalty, pointsPenalty, verdictDetails, judge,
+            noOneGuilty: verdictNoOneGuilty
+        });
         const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
         const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 Oskarżony: <@${accusedId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
-        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+        const formData = new FormData();
+        formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [embed] }));
+        formData.append("files[0]", bannerBlob, "fia-banner.png");
+        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
         if (!res.ok) throw new Error();
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
         currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
