@@ -2227,6 +2227,12 @@ async function generateVerdictCardImage(opts) {
     let y = 24;
 
     ctx.textAlign = "center";
+    ctx.fillStyle = "#e10600";
+    ctx.font = "700 13px 'Barlow Condensed', Arial, sans-serif";
+    const kickerText = (t && t.cardKicker ? t.cardKicker : "FIA RACE CONTROL — PANEL SĘDZIOWSKI").toUpperCase();
+    ctx.fillText(kickerText, width / 2, y + 12);
+    y += 28;
+
     ctx.fillStyle = "#ffffff";
     ctx.font = "700 26px 'Barlow Condensed', Arial, sans-serif";
     const titleText = stripLeadingIcon(t && t.embedTitle ? t.embedTitle : "Werdykt Sędziowski").toUpperCase();
@@ -2238,7 +2244,7 @@ async function generateVerdictCardImage(opts) {
 
     ctx.textAlign = "left";
     drawLabelBox(ctx, pad, y, boxW, boxH, "rgba(255,255,255,0.2)", stripLeadingIcon(t.fieldCase).toUpperCase(), caseId);
-    drawLabelBox(ctx, pad + boxW + boxGap, y, boxW, boxH, "#FFD700", `🏆 ${stripLeadingIcon(t.fieldWinner).toUpperCase()}`, winnerText, "#FFD700");
+    drawLabelBox(ctx, pad + boxW + boxGap, y, boxW, boxH, "#e10600", `👤 ${stripLeadingIcon(t.fieldWinner).toUpperCase()}`, winnerText, "#e10600");
     y += boxH + 20;
 
     drawLabelRow(ctx, pad, y, stripLeadingIcon(t.dcLabelReporter).toUpperCase(), reporterText || "-");
@@ -2278,7 +2284,7 @@ async function generateVerdictCardImage(opts) {
     y += bannerH + 20;
 
     drawLabelBox(ctx, pad, y, boxW, boxH, "rgba(255,255,255,0.2)", stripLeadingIcon(t.fieldTime).toUpperCase(), timePenalty || "brak");
-    drawLabelBox(ctx, pad + boxW + boxGap, y, boxW, boxH, "#ff4d4d", `🔴 ${stripLeadingIcon(t.fieldPoints).toUpperCase()}`, pointsPenalty || "0 pkt", "#ff4d4d");
+    drawLabelBox(ctx, pad + boxW + boxGap, y, boxW, boxH, "#e10600", `🔴 ${stripLeadingIcon(t.fieldPoints).toUpperCase()}`, pointsPenalty || "0 pkt", "#e10600");
     y += boxH + 20;
 
     ctx.font = "700 12px 'Barlow Condensed', Arial, sans-serif";
@@ -2318,7 +2324,7 @@ async function generateVerdictCardImage(opts) {
 
     drawRoundedRectPath(fctx, 1.5, 1.5, width - 3, finalHeight - 3, 13);
     fctx.lineWidth = 3;
-    fctx.strokeStyle = accentHex;
+    fctx.strokeStyle = "#e10600";
     fctx.stroke();
 
     fctx.drawImage(content, 0, 0, width, finalHeight, 0, 0, width, finalHeight);
@@ -2579,6 +2585,7 @@ const langData = {
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
         sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
+        cardKicker: "FIA RACE CONTROL — PANEL SĘDZIOWSKI",
         embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Winny", fieldEvidence: "🎬 Dowód",
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
         lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
@@ -2619,6 +2626,7 @@ const langData = {
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
         sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
+        cardKicker: "FIA RACE CONTROL — STEWARDS PANEL",
         embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Guilty", fieldEvidence: "🎬 Evidence",
         fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
         lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
