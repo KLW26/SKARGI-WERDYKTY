@@ -1229,11 +1229,42 @@
         <svg width="18" height="18" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
         <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
       </button>
+      <div style="display:flex; align-items:center; gap:10px; margin:14px 0 10px;">
+        <div style="flex:1; height:1px; background: var(--border);"></div>
+        <span style="font-size:10px; color: var(--text-dim); letter-spacing:2px;" data-key="orDivider">LUB</span>
+        <div style="flex:1; height:1px; background: var(--border);"></div>
+      </div>
+      <button type="button" class="btn-secondary" style="width:100%; justify-content:center; margin-bottom:16px;" onclick="closeAdminLogin(); openExternalJudgeLogin();">
+        <span data-key="externalJudgeLoginBtn">Zaloguj jako sędzia spoza ligi</span>
+      </button>
       <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
       <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
     </div>
 
   </div>
+
+  <div id="externalJudgeModal" class="login-modal">
+    <div class="login-box">
+      <h1 data-key="externalJudgeTitle">Sędzia spoza ligi</h1>
+      <p style="font-size: 11px; color: var(--amber-text); margin-bottom: 16px; line-height:1.5;" data-key="externalJudgeDesc">Dostęp gościnny dla sędziego spoza ligi, bez konta stewarda ani logowania przez Discord. Uprawnienia są ograniczone do przeglądu i oceny zgłoszeń oraz apelacji.</p>
+      <div class="field" style="text-align:left; margin-bottom:12px;">
+        <label data-key="labelNick">Twój Nick</label>
+        <input id="externalJudgeNick" type="text" placeholder="np. Sędzia Kowalski" />
+      </div>
+      <div class="field" style="text-align:left; margin-bottom:6px;">
+        <label data-key="externalJudgePasswordLabel">Hasło dostępu</label>
+        <input id="externalJudgePassword" type="password" placeholder="••••••••" autocomplete="off" />
+        <small style="color: var(--text-dim); font-size: 11px;" data-key="externalJudgePasswordHint">Hasło otrzymujesz od organizatora ligi.</small>
+        <span class="error-message" id="externalJudgePasswordError" data-key="externalJudgePasswordError">Nieprawidłowe hasło.</span>
+      </div>
+      <button type="button" class="discord-login-btn" style="width:100%; justify-content:center; margin:10px 0; background: var(--bg-card); border: 1px solid var(--border); color: var(--text);" onclick="submitExternalJudgeLogin()">
+        <span data-key="externalJudgeSubmit">Zaloguj się jako sędzia</span>
+      </button>
+      <button class="btn-secondary" onclick="closeExternalJudgeLogin()" data-key="cancelBtn">Anuluj</button>
+      <div id="externalJudgeStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
+    </div>
+  </div>
+
 
   <div id="descModal" class="desc-modal">
     <div class="desc-box">
@@ -2247,6 +2278,13 @@ const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
         discordLoginBtn: "Zaloguj przez Discord", discordLoggedInAs: "Kierowca:", discordLogoutBtn: "Wyloguj", orDivider: "LUB",
+        externalJudgeLoginBtn: "Zaloguj jako sędzia spoza ligi", externalJudgeTitle: "Sędzia spoza ligi",
+        externalJudgeDesc: "Dostęp gościnny dla sędziego spoza ligi, bez konta stewarda ani logowania przez Discord. Uprawnienia są ograniczone do przeglądu i oceny zgłoszeń oraz apelacji.",
+        externalJudgePasswordLabel: "Hasło dostępu", externalJudgePasswordHint: "Hasło otrzymujesz od organizatora ligi.",
+        externalJudgePasswordError: "Nieprawidłowe hasło.", externalJudgePasswordRequired: "Podaj hasło.",
+        externalJudgeSubmit: "Zaloguj się jako sędzia", externalJudgeNickRequired: "Podaj swój nick.",
+        externalJudgeRole: "Sędzia (spoza ligi)",
+        manualBadge: "RĘCZNIE", manualNoteLocked: "⚠️ Podano ręcznie — dane niezweryfikowane przez Discord.",
         formLockedMsg: "Aby złożyć zgłoszenie, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować Twoją tożsamość jako kierowcy.",
         historyVerifiedByDiscord: "Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.",
         historyRecommendDiscord: "Zalecane: zaloguj się przez Discord, aby bezpiecznie i automatycznie zobaczyć swoją historię.",
@@ -2287,6 +2325,13 @@ const langData = {
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
         discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout", orDivider: "OR",
+        externalJudgeLoginBtn: "Log in as an outside-league judge", externalJudgeTitle: "Outside-league judge",
+        externalJudgeDesc: "Guest access for a judge from outside the league, without a steward account or Discord login. Permissions are limited to reviewing and ruling on reports and appeals.",
+        externalJudgePasswordLabel: "Access password", externalJudgePasswordHint: "You receive this password from the league organizer.",
+        externalJudgePasswordError: "Incorrect password.", externalJudgePasswordRequired: "Enter the password.",
+        externalJudgeSubmit: "Log in as judge", externalJudgeNickRequired: "Enter your nickname.",
+        externalJudgeRole: "Judge (outside league)",
+        manualBadge: "MANUAL", manualNoteLocked: "⚠️ Entered manually — not verified through Discord.",
         formLockedMsg: "You must log in with Discord before submitting a report. This lets us verify your identity as a driver.",
         historyVerifiedByDiscord: "Verified via Discord — showing the history linked to your account.",
         historyRecommendDiscord: "Recommended: log in with Discord to securely and automatically see your history.",
@@ -2634,6 +2679,92 @@ function logoutDiscordDriver() {
     discordDriverAuth = null;
     localStorage.removeItem("driverDiscordAuth");
     applyDriverAuthUI();
+}
+
+// ============ LOGOWANIE SĘDZIEGO SPOZA LIGI (hasłem, do panelu admina) ============
+// Dla gościnnego sędziego bez konta stewarda i bez logowania przez Discord — np. sędzia
+// zapraszany z innej ligi na pojedyncze wydarzenie. Dostęp jest chroniony wspólnym hasłem;
+// jego jawna postać NIE występuje w kodzie strony, przechowywany jest wyłącznie hash SHA-256.
+// Aby ustawić własne hasło: wejdź w konsolę przeglądarki na tej stronie i wpisz
+// `await hashPassword("twoje-nowe-haslo")`, a otrzymany ciąg wklej poniżej jako
+// wartość EXTERNAL_JUDGE_PASSWORD_HASH.
+const EXTERNAL_JUDGE_PASSWORD_HASH = "7aedaafdae9803d745b2e7ba773be6716b7d0318e92beeb52055a296e14f1a1c";
+
+// Uprawnienia gościnnego sędziego — celowo ograniczone: może przeglądać i oceniać
+// zgłoszenia oraz apelacje, ale nie ma dostępu do zarządzania użytkownikami, Kosza,
+// edycji zgłoszeń/notatek ani ustawień systemu.
+const EXTERNAL_JUDGE_PERMISSIONS = {
+    review_incidents: true, review_appeals: true,
+    manage_users: false, access_trash: false,
+    edit_reports: false, edit_notes: false,
+    clear_chat: false, manage_settings: false
+};
+
+function openExternalJudgeLogin() {
+    const modal = document.getElementById("externalJudgeModal");
+    if (!modal) return;
+    document.getElementById("externalJudgeStatus").textContent = "";
+    document.getElementById("externalJudgeNick").value = "";
+    document.getElementById("externalJudgePassword").value = "";
+    modal.style.display = "flex";
+}
+
+function closeExternalJudgeLogin() {
+    const modal = document.getElementById("externalJudgeModal");
+    if (modal) modal.style.display = "none";
+    document.getElementById("externalJudgeStatus").textContent = "";
+}
+
+async function submitExternalJudgeLogin() {
+    const nickInput = document.getElementById("externalJudgeNick");
+    const passInput = document.getElementById("externalJudgePassword");
+    const errorEl = document.getElementById("externalJudgePasswordError");
+    const statusEl = document.getElementById("externalJudgeStatus");
+
+    const nick = nickInput.value.trim();
+    const password = passInput.value;
+
+    if (!nick) {
+        statusEl.textContent = langData[currentLang].externalJudgeNickRequired;
+        return;
+    }
+    if (!password) {
+        statusEl.textContent = langData[currentLang].externalJudgePasswordRequired;
+        return;
+    }
+
+    const passHash = await hashPassword(password);
+    if (passHash !== EXTERNAL_JUDGE_PASSWORD_HASH) {
+        passInput.classList.add("input-error");
+        if (errorEl) errorEl.style.display = "block";
+        statusEl.textContent = langData[currentLang].externalJudgePasswordError;
+        return;
+    }
+    passInput.classList.remove("input-error");
+    if (errorEl) errorEl.style.display = "none";
+
+    loggedInSteward = {
+        nick: nick,
+        id: "external-judge", // brak zweryfikowanego Discord ID — dostęp gościnny hasłem
+        role: langData[currentLang].externalJudgeRole,
+        permissions: EXTERNAL_JUDGE_PERMISSIONS
+    };
+    // Sesja gościnna trzymana tylko w sessionStorage (nie w localStorage) — wygasa
+    // z zamknięciem karty/przeglądarki, tak jak dostęp do Kosza czy Użytkowników.
+    sessionStorage.setItem("externalJudgeAuth", JSON.stringify(loggedInSteward));
+    closeExternalJudgeLogin();
+    finalizeAutoLogin();
+}
+
+function restoreExternalJudgeSession() {
+    const saved = sessionStorage.getItem("externalJudgeAuth");
+    if (!saved || isAdminAuthenticated) return;
+    try {
+        loggedInSteward = JSON.parse(saved);
+        finalizeAutoLogin();
+    } catch (e) {
+        sessionStorage.removeItem("externalJudgeAuth");
+    }
 }
 
 async function handleDiscordOAuthRedirect() {
@@ -4323,6 +4454,7 @@ function adminLogout() {
         localStorage.removeItem("adminAuthId");
         sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
+        sessionStorage.removeItem("externalJudgeAuth");
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
         if(document.getElementById("usersMenuBtn")) {
             document.getElementById("usersMenuBtn").style.display = "none";
@@ -4902,7 +5034,10 @@ function finalizeAutoLogin() {
     applyStewardPermissions();
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
-    logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loggedInSteward ? loggedInSteward.id : "N/A", `Zalogowano do panelu administracyjnego przez Discord.`);
+    const loginSourceMsg = (loggedInSteward && loggedInSteward.id === "external-judge")
+        ? `Zalogowano do panelu administracyjnego jako sędzia spoza ligi (hasłem).`
+        : `Zalogowano do panelu administracyjnego przez Discord.`;
+    logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loggedInSteward ? loggedInSteward.id : "N/A", loginSourceMsg);
     showSection("adminSection");
     renderAdmin();
 }
@@ -5243,6 +5378,9 @@ window.addEventListener("DOMContentLoaded", () => {
     pendingAutoLoginId = localStorage.getItem("adminAuthId");
     // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
     // gdy tylko nadejdzie pierwszy snapshot z "stewards" (patrz listenToStewards).
+
+    // Sesja gościnna sędziego spoza ligi (logowanie hasłem, bez Discorda/konta stewarda).
+    restoreExternalJudgeSession();
 
     if (sessionStorage.getItem("trashAuth") === "1") {
         isTrashAuthenticated = true;
