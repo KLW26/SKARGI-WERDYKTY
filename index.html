@@ -1625,9 +1625,9 @@
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button style="font-size:11px; padding: 6px 14px;" onclick="showSection('chatSection')" data-key="btnOpenChat">💬 CZAT SĘDZIÓW</button>
           <button id="openTrashBtn" style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;" onclick="openTrash()">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
-          <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportDatabase()">⬇ EKSPORTUJ</button>
-          <button class="btn-danger" style="padding: 6px 14px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">↺ RESETUJ ID</button>
-          <button style="background:#4c1d95; border: 1px solid #6d28d9; padding: 6px 14px; font-size: 11px; border-radius:2px; font-weight:700; cursor:pointer; color:white; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;" onclick="resetAppealIDCounter()">↺ ID APELACJI</button>
+          <button id="btnExportDb" class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportDatabase()">⬇ EKSPORTUJ</button>
+          <button id="btnResetIdCounter" class="btn-danger" style="padding: 6px 14px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">↺ RESETUJ ID</button>
+          <button id="btnResetAppealId" style="background:#4c1d95; border: 1px solid #6d28d9; padding: 6px 14px; font-size: 11px; border-radius:2px; font-weight:700; cursor:pointer; color:white; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;" onclick="resetAppealIDCounter()">↺ ID APELACJI</button>
           <button class="btn-danger" style="padding: 6px 14px; font-size: 11px; border-color: #ef4444;" onclick="adminLogout()">🔒 WYLOGUJ</button>
         </div>
       </div>
@@ -3409,6 +3409,15 @@ function renderAdmin() {
 
     const perms = loggedInSteward?.permissions || {};
     const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+
+    // Przyciski systemowe (eksport bazy, reset liczników ID) — widoczne tylko
+    // dla Głównego Stewarda / ROOT lub stewarda z uprawnieniem manage_settings.
+    // Zwykły steward w ogóle ich nie widzi (nie tylko dostaje alert po kliknięciu).
+    const canManageSettings = isRoot || !!perms.manage_settings;
+    ["btnExportDb", "btnResetIdCounter", "btnResetAppealId"].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = canManageSettings ? "" : "none";
+    });
 
     const sortedIncidents = [...globalIncidents].sort((a, b) => {
         const tb = new Date(b.timestamp).getTime() || 0;
