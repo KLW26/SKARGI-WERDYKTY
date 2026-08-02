@@ -3410,7 +3410,13 @@ function renderAdmin() {
     const perms = loggedInSteward?.permissions || {};
     const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
 
-    globalIncidents.forEach(r => {
+    const sortedIncidents = [...globalIncidents].sort((a, b) => {
+        const tb = new Date(b.timestamp).getTime() || 0;
+        const ta = new Date(a.timestamp).getTime() || 0;
+        return tb - ta;
+    });
+
+    sortedIncidents.forEach(r => {
         const matchesSearch = r.nick.toLowerCase().includes(searchQuery) || (r.accusedNick || "").toLowerCase().includes(searchQuery) || r.track.toLowerCase().includes(searchQuery) || r.id.toLowerCase().includes(searchQuery);
         const matchesStatus = (filterStatus === "ALL") || (r.status === filterStatus);
         const matchesTrack = (filterTrack === "ALL") || (r.track === filterTrack);
@@ -3491,7 +3497,12 @@ function renderAdmin() {
     if (globalAppeals.length === 0) {
         appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:12px;">Brak złożonych odwołań.</td></tr>`;
     } else {
-        globalAppeals.forEach(a => {
+        const sortedAppeals = [...globalAppeals].sort((a, b) => {
+            const tb = new Date(b.timestamp).getTime() || 0;
+            const ta = new Date(a.timestamp).getTime() || 0;
+            return tb - ta;
+        });
+        sortedAppeals.forEach(a => {
             const trA = document.createElement("tr");
             let appBadgeBg = "#fbbf24";
             if (a.status === "Przyjęte") appBadgeBg = "#10b981";
