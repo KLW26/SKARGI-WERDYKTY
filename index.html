@@ -207,6 +207,32 @@
       user-select: none;
     }
 
+    /* === ZWIJANA LISTA ZGŁOSZEŃ / APELACJI === */
+    .collapsible-list-wrap { transition: none; }
+    .collapsible-list-wrap.is-collapsed .table-wrapper { display: none; }
+    .btn-toggle-list {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-toggle-list:hover {
+      border-color: var(--red);
+      color: #fff;
+      background: rgba(225,6,0,0.1);
+    }
+    html[data-theme="light"] .btn-toggle-list { color: var(--text-dim); }
+    html[data-theme="light"] .btn-toggle-list:hover { color: var(--text); }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -1623,6 +1649,7 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
         <h2 class="section-title" data-key="adminSecTitle" style="margin-bottom: 0;">Zarządzanie Zgłoszeniami</h2>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button id="btnScrollToVerdict" class="btn-toggle-list" style="border-color: var(--gold-dim);" onclick="scrollToVerdictPanel()">⬇ PRZEJDŹ DO WERDYKTU</button>
           <button style="font-size:11px; padding: 6px 14px;" onclick="showSection('chatSection')" data-key="btnOpenChat">💬 CZAT SĘDZIÓW</button>
           <button id="openTrashBtn" style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;" onclick="openTrash()">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
           <button id="btnExportDb" class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportDatabase()">⬇ EKSPORTUJ</button>
@@ -1688,43 +1715,53 @@
         </div>
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
-              <th class="col-id">ID</th>
-              <th class="col-rep" data-key="thReporter">Zgłaszający</th>
-              <th class="col-track">Tor / Kategoria</th>
-              <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
-              <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
-              <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
-              <th class="col-ev" data-key="labelEvidence">Dowody</th>
-              <th class="col-stat" data-key="thStatus">Status / Akcje</th>
-            </tr>
-          </thead>
-          <tbody id="adminTableBody"></tbody>
-        </table>
+      <div id="incidentsListWrap" class="collapsible-list-wrap">
+        <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:8px;">
+          <button id="btnToggleIncidents" class="btn-toggle-list" onclick="toggleCollapsibleList('incidentsListWrap','btnToggleIncidents')">⬆ ZWIŃ LISTĘ ZGŁOSZEŃ</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
+                <th class="col-id">ID</th>
+                <th class="col-rep" data-key="thReporter">Zgłaszający</th>
+                <th class="col-track">Tor / Kategoria</th>
+                <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
+                <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
+                <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
+                <th class="col-ev" data-key="labelEvidence">Dowody</th>
+                <th class="col-stat" data-key="thStatus">Status / Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="adminTableBody"></tbody>
+          </table>
+        </div>
       </div>
 
-      <h2 class="section-title appeal-title" style="margin-top: 32px;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
-      <div class="table-wrapper" style="border-color: rgba(255,215,0,0.2);">
-        <table>
-          <thead>
-            <tr>
-              <th class="col-ap-id">ID Apelacji</th>
-              <th class="col-ap-case">ID Zgłoszenia</th>
-              <th class="col-ap-driver">Apelujący kierowca</th>
-              <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
-              <th class="col-ap-ev">Nowe Dowody</th>
-              <th class="col-ap-actions">Decyzja Sędziowska</th>
-            </tr>
-          </thead>
-          <tbody id="adminAppealsTableBody"></tbody>
-        </table>
+      <div id="appealsListWrap" class="collapsible-list-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 32px; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+          <h2 class="section-title appeal-title" style="margin-bottom: 0;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
+          <button id="btnToggleAppeals" class="btn-toggle-list" onclick="toggleCollapsibleList('appealsListWrap','btnToggleAppeals')">⬆ ZWIŃ LISTĘ APELACJI</button>
+        </div>
+        <div class="table-wrapper" style="border-color: rgba(255,215,0,0.2);">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-ap-id">ID Apelacji</th>
+                <th class="col-ap-case">ID Zgłoszenia</th>
+                <th class="col-ap-driver">Apelujący kierowca</th>
+                <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
+                <th class="col-ap-ev">Nowe Dowody</th>
+                <th class="col-ap-actions">Decyzja Sędziowska</th>
+              </tr>
+            </thead>
+            <tbody id="adminAppealsTableBody"></tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="verdict-panel">
+      <div class="verdict-panel" id="verdictPanel">
         <h2 class="section-title" data-key="verdictMainTitle" style="margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">Odpowiedź Sędziowska (Wydaj Werdykt)</h2>
         
         <div style="background: var(--bg-deep); border: 1px solid var(--border); padding: 14px 18px; border-radius: 4px; margin-bottom: 16px;">
@@ -2598,6 +2635,7 @@ function toggleLang() {
 
     initFormDropdowns();
     initAdminTrackFilter();
+    initCollapsibleLists();
     
     if (isAdminAuthenticated) { renderAdmin(); }
     if (authorizedHistoryDiscordId) { fetchAndRenderHistory(authorizedHistoryDiscordId); }
@@ -3792,6 +3830,49 @@ function pickGuiltyParty(who) {
     updateGuiltyPickerState();
 }
 
+/* === ZWIJANIE LISTY ZGŁOSZEŃ / APELACJI ===
+   Pozwala schować tabelę, żeby nie trzeba było przewijać całej listy
+   w drodze do panelu wydawania werdyktu. Stan zapamiętywany w localStorage. */
+function getListCollapseKey(wrapId) { return "listCollapsed_" + wrapId; }
+
+function applyListCollapseState(wrapId, btnId) {
+    const wrap = document.getElementById(wrapId);
+    const btn = document.getElementById(btnId);
+    if (!wrap || !btn) return;
+    const collapsed = localStorage.getItem(getListCollapseKey(wrapId)) === "1";
+    wrap.classList.toggle("is-collapsed", collapsed);
+    const isAppeals = wrapId === "appealsListWrap";
+    const labelPl = collapsed
+        ? (isAppeals ? "⬇ ROZWIŃ LISTĘ APELACJI" : "⬇ ROZWIŃ LISTĘ ZGŁOSZEŃ")
+        : (isAppeals ? "⬆ ZWIŃ LISTĘ APELACJI" : "⬆ ZWIŃ LISTĘ ZGŁOSZEŃ");
+    const labelEn = collapsed
+        ? (isAppeals ? "⬇ EXPAND APPEALS LIST" : "⬇ EXPAND REPORTS LIST")
+        : (isAppeals ? "⬆ COLLAPSE APPEALS LIST" : "⬆ COLLAPSE REPORTS LIST");
+    btn.textContent = currentLang === 'pl' ? labelPl : labelEn;
+}
+
+function toggleCollapsibleList(wrapId, btnId) {
+    const key = getListCollapseKey(wrapId);
+    const collapsedNow = localStorage.getItem(key) === "1";
+    localStorage.setItem(key, collapsedNow ? "0" : "1");
+    applyListCollapseState(wrapId, btnId);
+}
+
+function collapseList(wrapId, btnId) {
+    localStorage.setItem(getListCollapseKey(wrapId), "1");
+    applyListCollapseState(wrapId, btnId);
+}
+
+function scrollToVerdictPanel() {
+    const panel = document.getElementById("verdictPanel");
+    if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function initCollapsibleLists() {
+    applyListCollapseState("incidentsListWrap", "btnToggleIncidents");
+    applyListCollapseState("appealsListWrap", "btnToggleAppeals");
+}
+
 function transferToVerdictPanel(id, accusedDiscordId) {
     document.getElementById("caseId").value = id;
     document.getElementById("accusedId").value = accusedDiscordId;
@@ -3805,6 +3886,8 @@ function transferToVerdictPanel(id, accusedDiscordId) {
         document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
         document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session || found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
     }
+    collapseList("incidentsListWrap", "btnToggleIncidents");
+    scrollToVerdictPanel();
 }
 
 function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
@@ -3822,6 +3905,8 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
         document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${renderEvidenceHtml(foundCase, "Link", "Brak")}<br>Nowy dowód: ${renderEvidenceHtml(foundAppeal, "Link", "Brak")}`;
         document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
     }
+    collapseList("appealsListWrap", "btnToggleAppeals");
+    scrollToVerdictPanel();
 }
 
 async function resendVerdict(id) {
@@ -5450,6 +5535,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     initFormDropdowns();
     initAdminTrackFilter();
+    initCollapsibleLists();
 
     const form = document.getElementById('complaintForm');
     const progressBar = document.getElementById('progress-bar');
