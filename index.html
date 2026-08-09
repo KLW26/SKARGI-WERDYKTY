@@ -1827,7 +1827,7 @@
   
           <div class="field">
             <label for="judge" data-key="judgeLabel">Sędzia prowadzący</label>
-            <input id="judge" type="text" placeholder="np. A. Nowak" required />
+            <input id="judge" type="text" placeholder="np. A. Nowak" required readonly class="input-locked" />
           </div>
   
           <button type="submit" data-key="sendBtn" style="width: 100%; box-shadow: 0 10px 25px rgba(59,130,246,0.4);">Wyślij decyzję</button>
@@ -2678,6 +2678,24 @@ function updateLoggedInAsLabel() {
     } else {
         label.style.display = "none";
         nickEl.textContent = "";
+    }
+    updateJudgeFieldFromSession();
+}
+
+// Uzupełnia pole "Sędzia prowadzący" nickiem zalogowanego konta (steward/sędzia gościnny)
+// i blokuje je do edycji — podpis pod werdyktem zawsze pochodzi z aktualnej sesji, a nie
+// z ręcznie wpisanego tekstu.
+function updateJudgeFieldFromSession() {
+    const judgeInput = document.getElementById("judge");
+    if (!judgeInput) return;
+    if (isAdminAuthenticated && loggedInSteward && loggedInSteward.nick) {
+        judgeInput.value = loggedInSteward.nick;
+        judgeInput.readOnly = true;
+        judgeInput.classList.add("input-locked");
+    } else {
+        judgeInput.value = "";
+        judgeInput.readOnly = true;
+        judgeInput.classList.add("input-locked");
     }
 }
 
@@ -4619,7 +4637,9 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const timePenalty = document.getElementById("timePenalty").value || "brak";
     const pointsPenalty = document.getElementById("pointsPenalty").value || "0 pkt";
     const verdictDetails = document.getElementById("verdictDetails").value;
-    const judge = document.getElementById("judge").value;
+    // Podpis sędziego pobierany jest z zalogowanego konta (nie z ręcznie edytowalnego pola),
+    // żeby uniemożliwić podpisanie werdyktu cudzym/nieprawdziwym nazwiskiem.
+    const judge = (loggedInSteward && loggedInSteward.nick) ? loggedInSteward.nick : document.getElementById("judge").value;
 
     let originalCaseId = caseIdInput;
     const matchApp = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
@@ -5486,6 +5506,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Sesja gościnna sędziego spoza ligi (logowanie hasłem, bez Discorda/konta stewarda).
     restoreExternalJudgeSession();
+    updateJudgeFieldFromSession();
 
     if (sessionStorage.getItem("trashAuth") === "1") {
         isTrashAuthenticated = true;
