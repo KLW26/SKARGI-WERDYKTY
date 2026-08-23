@@ -2959,6 +2959,24 @@ function lockFieldWithDiscordId(inputId, noteId) {
         : "✅ Verified via Discord — field locked.";
 }
 
+function lockFieldWithDiscordName(inputId, noteId) {
+    const input = document.getElementById(inputId);
+    if (!input || !discordDriverAuth) return;
+    input.value = discordDriverAuth.globalName || discordDriverAuth.username;
+    input.readOnly = true;
+    input.classList.add("input-locked");
+    let note = document.getElementById(noteId);
+    if (!note) {
+        note = document.createElement("small");
+        note.id = noteId;
+        note.style.cssText = "display:block; margin-top:4px; color:#10b981; font-size:11px;";
+        input.insertAdjacentElement("afterend", note);
+    }
+    note.textContent = currentLang === 'pl'
+        ? "✅ Zweryfikowano przez Discord — pole zablokowane."
+        : "✅ Verified via Discord — field locked.";
+}
+
 function unlockField(inputId, noteId) {
     const input = document.getElementById(inputId);
     if (input) {
@@ -3025,10 +3043,8 @@ function applyDriverAuthUI() {
         // Uwaga: pole "Discord ID osoby zgłaszanej" (accusedDiscordId) NIE jest blokowane —
         // dotyczy innej osoby (oskarżonego), nie zalogowanego kierowcy.
 
-        const nickInput = document.getElementById("nick");
-        if (nickInput && !nickInput.value) nickInput.value = discordDriverAuth.username;
-        const appealNickInput = document.getElementById("appealNick");
-        if (appealNickInput && !appealNickInput.value) appealNickInput.value = discordDriverAuth.username;
+        lockFieldWithDiscordName("nick", "nickDiscordNote");
+        lockFieldWithDiscordName("appealNick", "appealNickDiscordNote");
 
         // Historia — automatyczna autoryzacja, bez PIN-u
         const authBox = document.getElementById("historyAuthBox");
@@ -3049,6 +3065,8 @@ function applyDriverAuthUI() {
 
         unlockField("discordId", "discordIdDiscordNote");
         unlockField("appealDiscordId", "appealDiscordIdNote");
+        unlockField("nick", "nickDiscordNote");
+        unlockField("appealNick", "appealNickDiscordNote");
         populateAppealCaseOptions(null);
 
         const authBox = document.getElementById("historyAuthBox");
@@ -3145,6 +3163,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     const evidenceFileListEl = document.getElementById("evidenceFileList");
     if (evidenceFileListEl) evidenceFileListEl.innerHTML = "";
     handleCategoryChange();
+    applyDriverAuthUI();
 
     const embed = {
         title: langData.pl.dcReportTitle,
@@ -3225,6 +3244,7 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     e.target.reset();
     const appealEvidenceFileListEl = document.getElementById("appealEvidenceFileList");
     if (appealEvidenceFileListEl) appealEvidenceFileListEl.innerHTML = "";
+    applyDriverAuthUI();
 
     const embed = {
         title: langData.pl.dcAppealTitle,
