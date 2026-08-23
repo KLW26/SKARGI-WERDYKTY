@@ -2421,7 +2421,7 @@ const langData = {
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
         sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
-        embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Winny", fieldEvidence: "🎬 Dowód",
+        embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Winny", fieldEvidence: "🎬 Dowód", fieldSplit: "🏁 Split",
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
         lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
         alertCaseNotFound: "Nie znaleziono zgłoszenia.", dcAppealTitle: "⚖️ NOWA APELACJA",
@@ -2468,7 +2468,7 @@ const langData = {
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
         sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
-        embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Guilty", fieldEvidence: "🎬 Evidence",
+        embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Guilty", fieldEvidence: "🎬 Evidence", fieldSplit: "🏁 Split",
         fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
         lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
         alertCaseNotFound: "Report not found.", dcAppealTitle: "⚖️ NEW APPEAL",
@@ -4041,6 +4041,7 @@ async function resendVerdict(id) {
             title: t.embedTitle, color: 3447003,
             fields: [
                 { name: t.fieldCase, value: `\`${id}\``, inline: true },
+                { name: t.fieldSplit, value: report.split ? report.split : "—", inline: true },
                 { name: `⚖️ ${t.fieldWinner}`, value: `${winnerNick} (<@${report.accusedDiscordId}>)`, inline: true },
                 { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
                 { name: t.fieldEvidence, value: mainEvidence, inline: false },
@@ -4111,7 +4112,7 @@ async function updateStatus(id, newStatus) {
         title: langData[currentLang].dcDecisionTitle,
         color: newStatus === "Przyjęte" ? 65280 : 16711680,
         description: `${langData[currentLang].dcMsgDecision} **${newStatus === "Przyjęte" ? "PRZYJĘTE" : "ODRZUCONE"}**.` + (reason ? `\n\n**Uzasadnienie:** ${reason}` : ""),
-        fields: [{ name: "🆔 ID Zgłoszenia", value: `\`${item.id}\``, inline: true }, { name: "👤 Kierowca", value: `${item.nick || "Nieznany"} (<@${item.discordId}>)`, inline: true }],
+        fields: [{ name: "🆔 ID Zgłoszenia", value: `\`${item.id}\``, inline: true }, { name: "🏁 Split", value: item.split || "—", inline: true }, { name: "👤 Kierowca", value: `${item.nick || "Nieznany"} (<@${item.discordId}>)`, inline: true }],
         timestamp: new Date().toISOString()
     };
     try {
@@ -4137,11 +4138,13 @@ async function acceptAppeal(appealId, caseId, discordId) {
     const isPl = (currentLang === 'pl');
     const appealObj = globalAppeals.find(a => a.appealId === appealId);
     const appellantNick = (appealObj && appealObj.nick) ? appealObj.nick : (isPl ? "Nieznany" : "Unknown");
+    const relatedReportAcc = globalIncidents.find(r => r.id === caseId);
     const embed = {
         title: isPl ? "⚖️ APELACJA PRZYJĘTA" : "⚖️ APPEAL APPROVED", color: 10540247,
         description: isPl ? `Decyzja sędziowska została zmieniona w wyniku apelacji **${appealId}** dla sprawy **${caseId}**.` : `The decision has been modified following appeal **${appealId}** for case **${caseId}**.`,
         fields: [
             { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "🏁 Split", value: (relatedReportAcc && relatedReportAcc.split) ? relatedReportAcc.split : "—", inline: true },
             { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
             { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${discordId}>)`, inline: false }
         ], timestamp: new Date().toISOString()
@@ -4168,10 +4171,12 @@ async function rejectAppeal(appealId, caseId, discordId) {
     const isPl = (currentLang === 'pl');
     const appealObj = globalAppeals.find(a => a.appealId === appealId);
     const appellantNick = (appealObj && appealObj.nick) ? appealObj.nick : (isPl ? "Nieznany" : "Unknown");
+    const relatedReportRej = globalIncidents.find(r => r.id === caseId);
     const embed = {
         title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL DISMISSED", color: 10040084,
         fields: [
             { name: "🆔 ID Zgłoszenia", value: `\`${caseId}\``, inline: true },
+            { name: "🏁 Split", value: (relatedReportRej && relatedReportRej.split) ? relatedReportRej.split : "—", inline: true },
             { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
             { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${discordId}>)`, inline: false },
             { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
@@ -4447,6 +4452,8 @@ async function resendAppealVerdict(appealId) {
         try {
             const isPl = (currentLang === 'pl');
             const appellantNick = appeal.nick || (isPl ? "Nieznany" : "Unknown");
+            const relatedReportResend = globalIncidents.find(r => r.id === appeal.caseId);
+            const splitValue = (relatedReportResend && relatedReportResend.split) ? relatedReportResend.split : "—";
             let embed;
             if (appeal.status === "Przyjęte") {
                 embed = {
@@ -4454,6 +4461,7 @@ async function resendAppealVerdict(appealId) {
                     description: isPl ? `Decyzja sędziowska została zmieniona w wyniku apelacji **${appealId}** dla sprawy **${appeal.caseId}**.` : `The decision has been modified following appeal **${appealId}** for case **${appeal.caseId}**.`,
                     fields: [
                         { name: "🆔 ID Zgłoszenia", value: `\`${appeal.caseId}\``, inline: true },
+                        { name: "🏁 Split", value: splitValue, inline: true },
                         { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
                         { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${appeal.discordId}>)`, inline: false }
                     ], timestamp: new Date().toISOString()
@@ -4463,6 +4471,7 @@ async function resendAppealVerdict(appealId) {
                     title: isPl ? "❌ APELACJA ODRZUCONA" : "❌ APPEAL DISMISSED", color: 10040084,
                     fields: [
                         { name: "🆔 ID Zgłoszenia", value: `\`${appeal.caseId}\``, inline: true },
+                        { name: "🏁 Split", value: splitValue, inline: true },
                         { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
                         { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${appeal.discordId}>)`, inline: false },
                         { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
@@ -4782,6 +4791,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         title: t.embedTitle, color: 3447003,
         fields: [
             { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
+            { name: t.fieldSplit, value: (mainReport && mainReport.split) ? mainReport.split : "—", inline: true },
             { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
             { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
             { name: t.fieldEvidence, value: mainEvidence, inline: false },
