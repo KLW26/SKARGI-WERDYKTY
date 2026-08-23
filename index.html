@@ -120,6 +120,38 @@
       background: rgba(225,6,0,0.1);
     }
 
+    /* === ZAKŁADKI SPLIT 1 / SPLIT 2 === */
+    .split-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .split-tab-btn {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 8px 20px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .split-tab-btn:hover {
+      border-color: var(--red);
+      color: var(--text);
+    }
+    .split-tab-btn.active {
+      background: var(--red);
+      border-color: var(--red);
+      color: #fff;
+    }
+    html[data-theme="light"] .split-tab-btn {
+      background: rgba(15,23,42,0.05);
+    }
+
     .input-locked {
       background: rgba(16,185,129,0.08) !important;
       border-color: rgba(16,185,129,0.4) !important;
@@ -1470,6 +1502,13 @@
               <label data-key="labelTrack">Tor wyścigowy</label>
               <select id="track" required></select>
           </div>
+          <div class="field">
+              <label data-key="labelSplit">Split</label>
+              <select id="split" required>
+                <option value="Split 1" data-key="optSplit1">Split 1</option>
+                <option value="Split 2" data-key="optSplit2">Split 2</option>
+              </select>
+          </div>
         </div>
         <div class="row">
           <div class="field"><label data-key="labelSession">Rodzaj Sesji</label><select id="sessionType" required></select></div>
@@ -1568,6 +1607,11 @@
       </div>
 
       <div id="historyContent">
+        <div id="historySplitTabs" class="split-tabs">
+          <button type="button" class="split-tab-btn active" data-split="ALL" onclick="setHistorySplitTab('ALL')" data-key="splitTabAll">Wszystkie</button>
+          <button type="button" class="split-tab-btn" data-split="Split 1" onclick="setHistorySplitTab('Split 1')">Split 1</button>
+          <button type="button" class="split-tab-btn" data-split="Split 2" onclick="setHistorySplitTab('Split 2')">Split 2</button>
+        </div>
         <div id="historyList"></div>
 
         <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
@@ -1682,6 +1726,12 @@
         </div>
       </div>
 
+      <div id="adminSplitTabs" class="split-tabs">
+        <button type="button" class="split-tab-btn active" data-split="ALL" onclick="setAdminSplitTab('ALL')" data-key="splitTabAll">Wszystkie</button>
+        <button type="button" class="split-tab-btn" data-split="Split 1" onclick="setAdminSplitTab('Split 1')">Split 1</button>
+        <button type="button" class="split-tab-btn" data-split="Split 2" onclick="setAdminSplitTab('Split 2')">Split 2</button>
+      </div>
+
       <div class="admin-controls">
         <input id="adminSearch" type="text" class="search-input" placeholder="Szukaj po nicku, oskarżonym, torze..." oninput="renderAdmin()">
         
@@ -1726,7 +1776,7 @@
                 <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
                 <th class="col-id">ID</th>
                 <th class="col-rep" data-key="thReporter">Zgłaszający</th>
-                <th class="col-track">Tor / Kategoria</th>
+                <th class="col-track">Tor / Split / Kategoria</th>
                 <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
                 <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
                 <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
@@ -2308,6 +2358,24 @@ let currentlyEditedReportId = null;
 let isUsersAuth = false;
 
 let authorizedHistoryDiscordId = null;
+let adminSplitFilter = "ALL";
+let historySplitFilter = "ALL";
+
+function setAdminSplitTab(split) {
+    adminSplitFilter = split;
+    document.querySelectorAll("#adminSplitTabs .split-tab-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-split") === split);
+    });
+    renderAdmin();
+}
+
+function setHistorySplitTab(split) {
+    historySplitFilter = split;
+    document.querySelectorAll("#historySplitTabs .split-tab-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-split") === split);
+    });
+    if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+}
 let selectedPlayerCaseId = null;
 let activeVerificationPin = null;
 
@@ -2329,7 +2397,7 @@ const langData = {
         mainTitle: "System Zgłoszeń FIA", mainSubtitle: "Zarządzanie incydentami wyścigowymi",
         navNew: "Nowe Zgłoszenie", navHistory: "Globalna Historia", navAdmin: "Panel Administracyjny", navAppeal: "Złóż Apelację",
         secDetails: "Szczegóły Incydentu", labelNick: "Twój Nick", labelDiscord: "Twoje Discord ID",
-        labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSession: "Rodzaj Sesji",
+        labelCategory: "Kategoria", labelTrack: "Tor wyścigowy", labelSplit: "Split", optSplit1: "Split 1", optSplit2: "Split 2", splitTabAll: "Wszystkie", labelSession: "Rodzaj Sesji",
         labelAccusedNick: "Nick osoby zgłaszanej", labelAccusedDiscord: "Discord ID osoby zgłaszanej", labelDesc: "Opis zdarzenia", labelEvidence: "Dowody (Link)",
         labelEvidenceFile: "Dowody (Plik z komputera)", labelAppealEvidenceFile: "Nowe lub dodatkowe dowody (Plik z komputera)",
         evidenceFileHint: "Możesz dołączyć kilka plików naraz — zrzuty ekranu, klipy wideo lub inne (maks. 5 plików, łącznie do 1GB). Link i pliki są opcjonalne — możesz podać jedno, drugie lub oba.",
@@ -2376,7 +2444,7 @@ const langData = {
         mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
         navNew: "New Report", navHistory: "Global History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
         secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
-        labelCategory: "Category", labelTrack: "Race Track", labelSession: "Session Type",
+        labelCategory: "Category", labelTrack: "Race Track", labelSplit: "Split", optSplit1: "Split 1", optSplit2: "Split 2", splitTabAll: "All", labelSession: "Session Type",
         labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
         labelEvidenceFile: "Evidence (File from computer)", labelAppealEvidenceFile: "New or additional evidence (File from computer)",
         evidenceFileHint: "You can attach several files at once — screenshots, video clips, or other files (max 5 files, totaling up to 1GB). Link and files are both optional — provide one, the other, or both.",
@@ -3022,6 +3090,8 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     const discordId = document.getElementById("discordId").value;
     const category = document.getElementById("category").value;
     const track = document.getElementById("track").value;
+    const splitEl = document.getElementById("split");
+    const split = splitEl ? splitEl.value : "";
     const sessionType = document.getElementById("sessionType").value;
     const accusedNick = document.getElementById("accusedNick").value;
     const accusedDiscordId = document.getElementById("accusedDiscordId").value;
@@ -3050,7 +3120,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     const fiaId = "FIA-" + String(counter).padStart(4, '0');
 
     const newReport = {
-        fiaId, nick, discordId, category, track, sessionType,
+        fiaId, nick, discordId, category, track, split, sessionType,
         accusedNick, accusedDiscordId, details, evidence,
         status: "Oczekuje", timestamp: Date.now()
     };
@@ -3069,7 +3139,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     }
 
     await database.ref("incidents/" + fiaId).set(newReport);
-    await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${sessionType}).`);
+    await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${split} - ${sessionType}).`);
     alert(langData[currentLang].alertSent + " ID: " + fiaId);
     e.target.reset();
     const evidenceFileListEl = document.getElementById("evidenceFileList");
@@ -3081,7 +3151,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
         color: 15158332,
         fields: [
             { name: "🆔 ID Zgłoszenia", value: `**${fiaId}**`, inline: true },
-            { name: "📍 Tor i Sesja", value: `${track} (${sessionType})`, inline: true }
+            { name: "📍 Tor i Sesja", value: `${track} (${split} - ${sessionType})`, inline: true }
         ],
         timestamp: new Date().toISOString()
     };
@@ -3177,7 +3247,7 @@ function fetchAndRenderHistory(discordId) {
     const container = document.getElementById("historyList");
     container.innerHTML = "";
 
-    const userReports = globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId);
+    const userReports = globalIncidents.filter(r => (r.discordId === discordId || r.accusedDiscordId === discordId) && (historySplitFilter === "ALL" || r.split === historySplitFilter));
     const userAppeals = globalAppeals.filter(a => a.discordId === discordId);
 
     if (userReports.length === 0 && userAppeals.length === 0) {
@@ -3238,7 +3308,7 @@ function fetchAndRenderHistory(discordId) {
                     <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${r.status}</span>
                 </div>
             </div>
-            <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track} | <strong>Sesja:</strong> ${r.sessionType}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track}${r.split ? ` | <strong>Split:</strong> ${r.split}` : ''} | <strong>Sesja:</strong> ${r.sessionType}</p>
             <p style="margin:2px 0; font-size:12px;"><strong>Kategoria:</strong> ${r.category}</p>
             <p style="margin:2px 0; font-size:12px;"><strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
             <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
@@ -3486,8 +3556,9 @@ function renderAdmin() {
         const matchesStatus = (filterStatus === "ALL") || (r.status === filterStatus);
         const matchesTrack = (filterTrack === "ALL") || (r.track === filterTrack);
         const matchesCategory = (filterCategory === "ALL") || (r.category === filterCategory);
+        const matchesSplit = (adminSplitFilter === "ALL") || (r.split === adminSplitFilter);
 
-        if (matchesSearch && matchesStatus && matchesTrack && matchesCategory) {
+        if (matchesSearch && matchesStatus && matchesTrack && matchesCategory && matchesSplit) {
             const tr = document.createElement("tr");
             let badgeBg = "#fbbf24";
             if (r.status === "Przyjęte") badgeBg = "#10b981";
@@ -3522,7 +3593,7 @@ function renderAdmin() {
                     ${(loggedInSteward && loggedInSteward.role === "Steward") ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
                 </td>
                 <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
-                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span><br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
+                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span>${r.split ? ` <span style="color:var(--gold); font-weight:600; font-size:11px;">(${r.split})</span>` : ''}<br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
                 <td>${r.session || r.sessionType || ""}</td>
                 <td><strong>${r.accusedNick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
                 <td>
