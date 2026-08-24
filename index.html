@@ -4192,16 +4192,19 @@ async function acceptAppeal(appealId, caseId, discordId) {
 
 async function rejectAppeal(appealId, caseId, discordId) {
     const oldAppealRej = globalAppeals.find(a => a.appealId === appealId);
+    const oldReportRej = globalIncidents.find(r => r.id === caseId);
     const reason = prompt(currentLang === 'pl' ? "Podaj powód podtrzymania pierwotnej kary:" : "Enter reason for maintaining original penalty:") || "";
     const updates = {};
     updates[`appeals/${appealId}/status`] = "Podtrzymany";
     updates[`appeals/${appealId}/rejectReason`] = reason;
+    updates[`incidents/${caseId}/status`] = "Werdykt wydany";
     await database.ref().update(updates);
     
     const stewardName = loggedInSteward ? loggedInSteward.nick : "System";
     const restoreItemsRej = [
         { path: `appeals/${appealId}/status`, data: oldAppealRej ? (oldAppealRej.status || null) : null },
-        { path: `appeals/${appealId}/rejectReason`, data: oldAppealRej ? (oldAppealRej.rejectReason || null) : null }
+        { path: `appeals/${appealId}/rejectReason`, data: oldAppealRej ? (oldAppealRej.rejectReason || null) : null },
+        { path: `incidents/${caseId}/status`, data: oldReportRej ? (oldReportRej.status || null) : null }
     ];
     await logAction(stewardName, "APPEAL", caseId, `Odrzucono apelację ${appealId}. Podtrzymano pierwotny werdykt sędziowski. Uzasadnienie: ${reason}`, { items: restoreItemsRej });
 
