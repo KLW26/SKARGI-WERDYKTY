@@ -1434,6 +1434,56 @@
     </div>
   </div>
 
+  <div id="appealVerdictEditModal" class="desc-modal">
+    <div class="desc-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 class="section-title" id="appealVerdictEditModalTitle" style="margin-bottom: 0;">Edycja werdyktu apelacji</h2>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--red);">
+        <p style="font-size: 11px; color: var(--red-text); margin-bottom: 4px;">Edytujesz finalny werdykt wydany po rozpatrzeniu apelacji. Dostęp wyłącznie dla Głównego Stewarda / ROOT.</p>
+
+        <div class="field">
+          <label>Decyzja</label>
+          <select id="editAppealVerdictDecision">
+            <option value="">Wybierz...</option>
+            <option value="Brak naruszenia">Brak naruszenia</option>
+            <option value="Naruszenie – ostrzeżenie">Naruszenie – ostrzeżenie</option>
+            <option value="Naruszenie – kara czasowa">Naruszenie – kara czasowa</option>
+            <option value="Naruszenie – Punkty Karne">Naruszenie – Punkty Karne</option>
+            <option value="Naruszenie – kara czasowa i punkty karne">Naruszenie – kara czasowa i punkty karne</option>
+            <option value="Naruszenie – dyskwalifikacja">Naruszenie – dyskwalifikacja</option>
+            <option value="Anulowanie kary">Anulowanie kary</option>
+            <option value="Apelacja rozpatrzona – Zmiana werdyktu">Apelacja rozpatrzona – Zmiana werdyktu</option>
+            <option value="Apelacja odrzucona – Werdykt podtrzymany">Apelacja odrzucona – Werdykt podtrzymany</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label>Kara czasowa</label>
+            <input type="text" id="editAppealVerdictTime" placeholder="np. +5s / brak">
+          </div>
+          <div class="field">
+            <label>Punkty karne</label>
+            <input type="text" id="editAppealVerdictPoints" placeholder="np. 2 pkt / 0 pkt">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Uzasadnienie werdyktu</label>
+          <textarea id="editAppealVerdictDetails" style="min-height: 100px;"></textarea>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn-success" onclick="saveEditedAppealVerdict()" style="flex:1;">💾 Zapisz Zmiany w Werdykcie</button>
+        <button class="btn-secondary" onclick="closeAppealVerdictEditModal()" style="flex:1;">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+
   <div class="card">
     <div class="top-bar">
       <div class="race-flag-deco" aria-hidden="true"></div>
@@ -3689,12 +3739,16 @@ function renderAdmin() {
             // Jeśli apelacja została rozpatrzona przez pełny panel werdyktu, dane finalnej
             // decyzji siedzą w decisionData powiązanej sprawy — pokaż je też tutaj, w wierszu apelacji.
             const relatedCaseForAppeal = globalIncidents.find(r => r.id === a.caseId);
+            const isHeadStewardOrRoot = isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward");
             let appVerdictHtml = "";
             if (a.status === "Zakończona" && relatedCaseForAppeal && relatedCaseForAppeal.decisionData) {
                 const dv = relatedCaseForAppeal.decisionData;
                 appVerdictHtml = `
                     <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
-                        <strong style="color:#fff;">⚖️ Werdykt apelacji:</strong><br>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+                            <strong style="color:#fff;">⚖️ Werdykt apelacji:</strong>
+                            ${isHeadStewardOrRoot ? `<button style="background:#6d28d9; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openAppealVerdictEditModal('${a.caseId}', '${a.appealId}')">✎ Edytuj werdykt</button>` : ''}
+                        </div>
                         ${dv.decision}<br>
                         <strong>Kara:</strong> ${dv.timePenalty || 'brak'} / ${dv.pointsPenalty || '0'} pkt<br>
                         <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
@@ -4404,6 +4458,84 @@ function openAppealEditModal(appealId) {
 function closeAppealEditModal() {
     document.getElementById("appealEditModal").style.display = "none";
     currentlyEditedAppealId = null;
+}
+
+let currentlyEditedAppealVerdictCaseId = null;
+
+function openAppealVerdictEditModal(caseId, appealId) {
+    // Edycja werdyktu wydanego w wyniku rozpatrzenia apelacji — tylko Główny Steward / ROOT.
+    const isRootV = loggedInSteward && loggedInSteward.role === "ROOT";
+    const isHeadStewardV = loggedInSteward && loggedInSteward.role === "Główny Steward";
+    if (!isRootV && !isHeadStewardV) {
+        alert(currentLang === 'pl' ? "Edycja werdyktu apelacji dostępna jest wyłącznie dla Głównego Stewarda." : "Editing an appeal verdict is only available to the Head Steward.");
+        return;
+    }
+    const relatedCase = globalIncidents.find(r => r.id === caseId);
+    if (!relatedCase || !relatedCase.decisionData) {
+        alert(currentLang === 'pl' ? "Brak wydanego werdyktu do edycji dla tej apelacji." : "No issued verdict to edit for this appeal.");
+        return;
+    }
+
+    currentlyEditedAppealVerdictCaseId = caseId;
+    document.getElementById("appealVerdictEditModalTitle").textContent = `${currentLang === 'pl' ? 'Werdykt apelacji' : 'Appeal verdict'} ${appealId} (${caseId})`;
+    document.getElementById("editAppealVerdictDecision").value = relatedCase.decisionData.decision || "";
+    document.getElementById("editAppealVerdictTime").value = relatedCase.decisionData.timePenalty || "";
+    document.getElementById("editAppealVerdictPoints").value = relatedCase.decisionData.pointsPenalty || "";
+    document.getElementById("editAppealVerdictDetails").value = relatedCase.decisionData.verdictDetails || "";
+
+    document.getElementById("appealVerdictEditModal").style.display = "flex";
+}
+
+function closeAppealVerdictEditModal() {
+    document.getElementById("appealVerdictEditModal").style.display = "none";
+    currentlyEditedAppealVerdictCaseId = null;
+}
+
+async function saveEditedAppealVerdict() {
+    if (!currentlyEditedAppealVerdictCaseId) return;
+
+    const isRootV = loggedInSteward && loggedInSteward.role === "ROOT";
+    const isHeadStewardV = loggedInSteward && loggedInSteward.role === "Główny Steward";
+    if (!isRootV && !isHeadStewardV) {
+        alert(currentLang === 'pl' ? "Edycja werdyktu apelacji dostępna jest wyłącznie dla Głównego Stewarda." : "Editing an appeal verdict is only available to the Head Steward.");
+        return;
+    }
+
+    const caseId = currentlyEditedAppealVerdictCaseId;
+    const relatedCase = globalIncidents.find(r => r.id === caseId);
+    if (!relatedCase || !relatedCase.decisionData) return;
+
+    const newDecision = document.getElementById("editAppealVerdictDecision").value;
+    const newTime = document.getElementById("editAppealVerdictTime").value.trim() || "brak";
+    const newPoints = document.getElementById("editAppealVerdictPoints").value.trim() || "0 pkt";
+    const newDetails = document.getElementById("editAppealVerdictDetails").value.trim();
+
+    if (!newDecision || !newDetails) {
+        alert(currentLang === 'pl' ? "Pola Decyzja oraz Uzasadnienie nie mogą być puste!" : "Decision and Reasoning cannot be empty!");
+        return;
+    }
+
+    try {
+        const oldDecisionData = relatedCase.decisionData;
+        const updatedDecisionData = {
+            ...oldDecisionData,
+            decision: newDecision,
+            timePenalty: newTime,
+            pointsPenalty: newPoints,
+            verdictDetails: newDetails
+        };
+        await database.ref("incidents/" + caseId + "/decisionData").set(updatedDecisionData);
+
+        const stewardNameV = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+        await logAction(stewardNameV, "VERDICT", caseId, `Zedytowano werdykt wydany w wyniku apelacji dla sprawy ${caseId}.`, {
+            items: [{ path: `incidents/${caseId}/decisionData`, data: cloneForRestore(oldDecisionData) }]
+        });
+
+        alert(currentLang === 'pl' ? "Werdykt apelacji został zaktualizowany." : "Appeal verdict has been updated.");
+        closeAppealVerdictEditModal();
+    } catch (err) {
+        alert("Błąd: " + err.message);
+    }
 }
 
 async function saveEditedAppeal() {
