@@ -3362,6 +3362,25 @@ function fetchAndRenderHistory(discordId) {
             if (a.status === "Podtrzymana" || a.status === "Podtrzymany") appStatusBadgeColor = "#ef4444";
             if (a.status === "Zakończona") appStatusBadgeColor = "#3b82f6";
 
+            // Apelacja rozpatrzona przez pełny panel werdyktu — finalna decyzja siedzi
+            // w decisionData powiązanej sprawy. Pokaż ją też tutaj, w karcie apelacji.
+            const relatedCaseForUserAppeal = globalIncidents.find(r => r.id === a.caseId);
+            let userAppVerdictBlock = "";
+            if (a.status === "Zakończona" && relatedCaseForUserAppeal && relatedCaseForUserAppeal.decisionData) {
+                const dv = relatedCaseForUserAppeal.decisionData;
+                userAppVerdictBlock = `
+                    <div style="margin-top:10px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #3b82f6;">
+                        <strong style="color:#fff; font-size:12px;">⚖️ ${currentLang === 'pl' ? 'Werdykt po rozpatrzeniu apelacji' : 'Verdict after appeal review'}:</strong>
+                        <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
+                            <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${dv.decision}<br>
+                            <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${dv.timePenalty || 'brak'}, Punkty: ${dv.pointsPenalty || '0'}<br>
+                            <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
+                            <small style="color:#64748b;">Sędzia: ${dv.judge}</small>
+                        </div>
+                    </div>
+                `;
+            }
+
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span style="font-weight:bold; color:var(--text); font-size:14px;">${a.appealId}</span>
@@ -3375,6 +3394,7 @@ function fetchAndRenderHistory(discordId) {
                     <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${a.reason}
                 </div>
                 ${hasEvidence(a) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(a)}</p>` : ''}
+                ${userAppVerdictBlock}
                 <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
                     ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${a.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
                     <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${a.appealId}')">💬 Czatuj o tej apelacji</button>
@@ -3666,6 +3686,23 @@ function renderAdmin() {
             if (a.status === "Zakończona") appBadgeBg = "#3b82f6";
             const appStatusText = a.status || "Nowa";
 
+            // Jeśli apelacja została rozpatrzona przez pełny panel werdyktu, dane finalnej
+            // decyzji siedzą w decisionData powiązanej sprawy — pokaż je też tutaj, w wierszu apelacji.
+            const relatedCaseForAppeal = globalIncidents.find(r => r.id === a.caseId);
+            let appVerdictHtml = "";
+            if (a.status === "Zakończona" && relatedCaseForAppeal && relatedCaseForAppeal.decisionData) {
+                const dv = relatedCaseForAppeal.decisionData;
+                appVerdictHtml = `
+                    <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
+                        <strong style="color:#fff;">⚖️ Werdykt apelacji:</strong><br>
+                        ${dv.decision}<br>
+                        <strong>Kara:</strong> ${dv.timePenalty || 'brak'} / ${dv.pointsPenalty || '0'} pkt<br>
+                        <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
+                        <small style="color:#64748b;">Sędzia: ${dv.judge}</small>
+                    </div>
+                `;
+            }
+
             let appActionsHtml = "";
             if (perms.review_appeals || isRoot) {
                 appActionsHtml += `
@@ -3685,7 +3722,7 @@ function renderAdmin() {
                 <td><strong>${a.appealId}</strong></td>
                 <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
                 <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
-                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div></td>
+                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div>${appVerdictHtml}</td>
                 <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
                     <span style="background:${appBadgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${appStatusText}</span>
