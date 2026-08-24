@@ -2013,6 +2013,9 @@
                                 <input type="checkbox" id="perm_notes" style="width: auto; margin: 0; cursor: pointer;"> Edycja notatek sędziowskich (NOTES)
                             </label>
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_edit_appeals" style="width: auto; margin: 0; cursor: pointer;"> Edycja treści apelacji (APPEDIT)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
                                 <input type="checkbox" id="perm_chat" style="width: auto; margin: 0; cursor: pointer;"> Czyszczenie historii czatu (CHAT)
                             </label>
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
@@ -2866,11 +2869,11 @@ const EXTERNAL_JUDGE_PASSWORD_HASH = "c30581a727bcb8602da75d9b68f950e8f910425bf8
 
 // Uprawnienia gościnnego sędziego — celowo ograniczone: może przeglądać i oceniać
 // zgłoszenia oraz apelacje, ale nie ma dostępu do zarządzania użytkownikami, Kosza,
-// edycji zgłoszeń/notatek ani ustawień systemu.
+// edycji zgłoszeń/notatek/apelacji ani ustawień systemu.
 const EXTERNAL_JUDGE_PERMISSIONS = {
     review_incidents: true, review_appeals: true,
     manage_users: false, access_trash: false,
-    edit_reports: false, edit_notes: false,
+    edit_reports: false, edit_notes: false, edit_appeals: false,
     clear_chat: false, manage_settings: false
 };
 
@@ -3680,7 +3683,7 @@ function renderAdmin() {
                 <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
                 <td>
                     <strong style="color:var(--text);">${r.id}</strong>
-                    ${(loggedInSteward && loggedInSteward.role === "Steward") ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
+                    ${(loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
                 </td>
                 <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
                 <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span>${r.split ? ` <span style="color:var(--gold); font-weight:600; font-size:11px;">(${r.split})</span>` : ''}<br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
@@ -3763,9 +3766,11 @@ function renderAdmin() {
                     <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}')">Rozpatrz werdykt</button>
                     <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
                     <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
-                    <button style="background:#6d28d9;" onclick="openAppealEditModal('${a.appealId}')">✎ Edytuj</button>
                     ${ a.status && a.status !== "Nowa" ? `<button style="background:#1565c0;" onclick="resendAppealVerdict('${a.appealId}')">🔁 Wyślij ponownie</button>` : '' }
                 `;
+            }
+            if (perms.edit_appeals || isRoot) {
+                appActionsHtml += `<button style="background:#6d28d9;" onclick="openAppealEditModal('${a.appealId}')">✎ Edytuj</button>`;
             }
             if (perms.access_trash || isRoot) {
                 appActionsHtml += `<button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>`;
@@ -4340,7 +4345,7 @@ async function editIncidentId(oldId) {
         return;
     }
     
-    if (loggedInSteward && loggedInSteward.role === "Steward") {
+    if (loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) {
         alert(currentLang === 'pl' ? "Twoja rola nie pozwala na edycję ID zgłoszenia." : "Your role does not allow editing the report ID.");
         return;
     }
@@ -4435,7 +4440,7 @@ async function deleteAppeal(id) {
 let currentlyEditedAppealId = null;
 
 function openAppealEditModal(appealId) {
-    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.review_appeals));
+    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.edit_appeals));
     if (!canEdit) {
         alert(currentLang === 'pl' ? "Brak uprawnień do edycji apelacji." : "Not authorized to edit appeals.");
         return;
@@ -4541,7 +4546,7 @@ async function saveEditedAppealVerdict() {
 async function saveEditedAppeal() {
     if (!currentlyEditedAppealId) return;
 
-    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.review_appeals));
+    const canEdit = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.edit_appeals));
     if (!canEdit) {
         alert(currentLang === 'pl' ? "Brak uprawnień do edycji apelacji." : "Not authorized to edit appeals.");
         return;
@@ -5448,17 +5453,18 @@ function autoAssignPermissions() {
     const pTrash = document.getElementById("perm_trash");
     const pEdit = document.getElementById("perm_edit");
     const pNotes = document.getElementById("perm_notes");
+    const pEditAppeals = document.getElementById("perm_edit_appeals");
     const pChat = document.getElementById("perm_chat");
     const pSettings = document.getElementById("perm_settings");
 
     if (role === "Główny Steward") {
-        pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pChat.checked = true; pSettings.checked = true;
+        pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pEditAppeals.checked = true; pChat.checked = true; pSettings.checked = true;
     } else if (role === "Steward") {
-        pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pChat.checked = false; pSettings.checked = false;
+        pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
     } else if (role === "Junior Steward") {
-        pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pChat.checked = false; pSettings.checked = false;
+        pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
     } else {
-        pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pChat.checked = false; pSettings.checked = false;
+        pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
     }
 }
 
@@ -5497,6 +5503,7 @@ async function saveSteward(event) {
         access_trash: document.getElementById("perm_trash").checked,
         edit_reports: document.getElementById("perm_edit").checked,
         edit_notes: document.getElementById("perm_notes").checked,
+        edit_appeals: document.getElementById("perm_edit_appeals").checked,
         clear_chat: document.getElementById("perm_chat").checked,
         manage_settings: document.getElementById("perm_settings").checked
     };
@@ -5535,6 +5542,7 @@ function editSteward(discordId) {
     document.getElementById("perm_trash").checked = !!st.permissions?.access_trash;
     document.getElementById("perm_edit").checked = !!st.permissions?.edit_reports;
     document.getElementById("perm_notes").checked = !!st.permissions?.edit_notes;
+    document.getElementById("perm_edit_appeals").checked = !!st.permissions?.edit_appeals;
     document.getElementById("perm_chat").checked = !!st.permissions?.clear_chat;
     document.getElementById("perm_settings").checked = !!st.permissions?.manage_settings;
 }
@@ -5647,6 +5655,7 @@ function renderStewardsTable() {
         if (st.permissions?.access_trash) permsHtml += `<span class="badge badge-rejected" style="font-size:9px; margin-right:4px; padding:1px 4px;" title="Kosz">TRSH</span>`;
         if (st.permissions?.edit_reports) permsHtml += `<span class="badge" style="background:#f97316; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #c2410c;" title="Edycja Treści">EDIT</span>`;
         if (st.permissions?.edit_notes) permsHtml += `<span class="badge" style="background:#14b8a6; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #0d9488;" title="Edycja Notatek">NOTES</span>`;
+        if (st.permissions?.edit_appeals) permsHtml += `<span class="badge" style="background:#8b5cf6; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #6d28d9;" title="Edycja Apelacji">APPEDIT</span>`;
         if (st.permissions?.clear_chat) permsHtml += `<span class="badge" style="background:#ef4444; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #b91c1c;" title="Czyszczenie Czatu">CHAT</span>`;
         if (st.permissions?.manage_settings) permsHtml += `<span class="badge" style="background:#6366f1; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #4338ca;" title="Ustawienia i System">SYS</span>`;
         
