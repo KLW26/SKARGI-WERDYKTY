@@ -3321,7 +3321,12 @@ function fetchAndRenderHistory(discordId) {
     container.innerHTML = "";
 
     const userReports = globalIncidents.filter(r => (r.discordId === discordId || r.accusedDiscordId === discordId) && (historySplitFilter === "ALL" || r.split === historySplitFilter));
-    const userAppeals = globalAppeals.filter(a => a.discordId === discordId);
+    const userAppeals = globalAppeals.filter(a => {
+        if (a.discordId !== discordId) return false;
+        if (historySplitFilter === "ALL") return true;
+        const relatedCase = globalIncidents.find(r => r.id === a.caseId);
+        return !!relatedCase && relatedCase.split === historySplitFilter;
+    });
 
     if (userReports.length === 0 && userAppeals.length === 0) {
         container.innerHTML = `<p style='font-size:13px; color:var(--text-dim); text-align:center;'>${currentLang === 'pl' ? 'Brak zgłoszeń powiązanych z Twoim kontem Discord.' : 'No reports linked to your Discord account.'}</p>`;
@@ -3723,10 +3728,15 @@ function renderAdmin() {
 
     const appTbody = document.getElementById("adminAppealsTableBody");
     appTbody.innerHTML = "";
-    if (globalAppeals.length === 0) {
+    const appealsForSplit = globalAppeals.filter(a => {
+        if (adminSplitFilter === "ALL") return true;
+        const relatedCase = globalIncidents.find(r => r.id === a.caseId);
+        return !!relatedCase && relatedCase.split === adminSplitFilter;
+    });
+    if (appealsForSplit.length === 0) {
         appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:12px;">Brak złożonych odwołań.</td></tr>`;
     } else {
-        const sortedAppeals = [...globalAppeals].sort((a, b) => {
+        const sortedAppeals = [...appealsForSplit].sort((a, b) => {
             const tb = new Date(b.timestamp).getTime() || 0;
             const ta = new Date(a.timestamp).getTime() || 0;
             return tb - ta;
