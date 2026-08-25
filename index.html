@@ -3470,7 +3470,16 @@ function populateAppealCaseOptions(discordId) {
     if (!select) return;
 
     const previousValue = select.value;
-    const eligibleCases = globalIncidents.filter(r => String(r.accusedDiscordId || "").trim() === String(discordId || "").trim() && r.status === "Werdykt wydany");
+    const cleanDiscordId = String(discordId || "").trim();
+    // Apelację może dziś złożyć zarówno oskarżony, jak i zgłaszający w danej sprawie —
+    // np. zgłaszający może nie zgadzać się z werdyktem "Brak naruszenia" tak samo,
+    // jak oskarżony może nie zgadzać się z nałożoną karą. Dopasowujemy więc obie role,
+    // ale tylko gdy mamy realne (niepuste) ID zalogowanego kierowcy.
+    const eligibleCases = cleanDiscordId ? globalIncidents.filter(r => {
+        const isAccused = String(r.accusedDiscordId || "").trim() === cleanDiscordId;
+        const isReporter = String(r.discordId || "").trim() === cleanDiscordId;
+        return (isAccused || isReporter) && r.status === "Werdykt wydany";
+    }) : [];
 
     select.innerHTML = "";
 
