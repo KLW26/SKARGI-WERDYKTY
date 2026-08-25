@@ -3158,14 +3158,14 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     if (submitBtn) submitBtn.disabled = true;
     try {
     const nick = document.getElementById("nick").value;
-    const discordId = document.getElementById("discordId").value;
+    const discordId = document.getElementById("discordId").value.trim();
     const category = document.getElementById("category").value;
     const track = document.getElementById("track").value;
     const splitEl = document.getElementById("split");
     const split = splitEl ? splitEl.value : "";
     const sessionType = document.getElementById("sessionType").value;
     const accusedNick = document.getElementById("accusedNick").value;
-    const accusedDiscordId = document.getElementById("accusedDiscordId").value;
+    const accusedDiscordId = document.getElementById("accusedDiscordId").value.trim();
     const details = document.getElementById("details").value;
     const evidence = document.getElementById("evidence").value;
 
@@ -3248,7 +3248,7 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     try {
     const caseId = document.getElementById("appealCaseId").value.trim().toUpperCase();
     const nick = document.getElementById("appealNick").value;
-    const discordId = document.getElementById("appealDiscordId").value;
+    const discordId = document.getElementById("appealDiscordId").value.trim();
     const reason = document.getElementById("appealReason").value;
     const evidence = document.getElementById("appealEvidence").value;
 
@@ -3470,7 +3470,7 @@ function populateAppealCaseOptions(discordId) {
     if (!select) return;
 
     const previousValue = select.value;
-    const eligibleCases = globalIncidents.filter(r => r.accusedDiscordId === discordId && r.status === "Werdykt wydany");
+    const eligibleCases = globalIncidents.filter(r => String(r.accusedDiscordId || "").trim() === String(discordId || "").trim() && r.status === "Werdykt wydany");
 
     select.innerHTML = "";
 
@@ -5871,6 +5871,11 @@ window.addEventListener("DOMContentLoaded", () => {
         if (!input) return;
         function validate() {
             const value = input.value.trim();
+            // Bez tej linii: walidacja przepuszczała ID z niewidoczną spacją na początku/końcu
+            // (bo sama sobie robiła trim tylko na potrzeby testu regex), ale w polu zostawała
+            // wersja ze spacją. Ta spacja trafiała potem do bazy i nigdy nie pasowała 1:1
+            // do czystego ID pobranego z Discorda przy logowaniu — efekt: apelacja "niedostępna".
+            if (input.value !== value) input.value = value;
             const isValid = value === "" || /^\d+$/.test(value);
             if (!isValid) {
                 input.classList.add('input-error');
