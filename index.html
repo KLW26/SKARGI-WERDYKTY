@@ -728,6 +728,80 @@
       gap: 8px;
     }
     #playerChatBox { height: 220px; }
+
+    /* === UKŁAD CZATU GRACZA: LISTA SPRAW (LEWO) + CZAT (PRAWO) === */
+    .player-chat-layout {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .player-chat-case-list {
+      width: 240px;
+      flex-shrink: 0;
+      max-height: 420px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 4px;
+    }
+    .player-chat-case-item {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--border);
+      border-radius: 3px;
+      padding: 9px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .player-chat-case-item:hover {
+      border-color: rgba(0,200,83,0.4);
+      background: rgba(0,200,83,0.06);
+    }
+    .player-chat-case-item.active {
+      border-left-color: var(--green);
+      background: rgba(0,200,83,0.1);
+    }
+    .player-chat-case-item .pcci-id {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      display: block;
+      margin-bottom: 3px;
+    }
+    .player-chat-case-item .pcci-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.3px;
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .player-chat-case-item .pcci-badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: #000;
+      flex-shrink: 0;
+    }
+    .player-chat-case-empty {
+      font-size: 12px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 20px 10px;
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+    }
+    .player-chat-panel {
+      flex-grow: 1;
+      min-width: 0;
+    }
+    @media (max-width: 700px) {
+      .player-chat-layout { flex-direction: column; }
+      .player-chat-case-list { width: 100%; max-height: 200px; }
+    }
     .msg {
       padding: 8px 14px;
       border-radius: 2px;
@@ -1666,21 +1740,30 @@
 
         <div id="playerChatBoxContainer" style="display: none; margin-top: 24px; border-top: 1px dashed #374151; padding-top: 16px;">
           <h3 class="section-title" style="font-size: 16px; border-left-color: #00c853;">💬 Czat na Żywo ze Stewardami</h3>
-          <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie powyżej (przycisk "💬 Czatuj o tej sprawie"), aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
-          <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
-            <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
-            <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
-          </div>
-          <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy powyżej, aby zobaczyć czat.</p>
-          <div id="playerChatBox" style="display:none;"></div>
-          <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
-          <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
-          <div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
-          <div class="row" id="playerChatInputRow" style="display:none;">
-            <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
-            <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
-            <input id="playerChatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
-            <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+          <p style="margin-bottom: 10px; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase;">Wybierz zgłoszenie z listy po lewej, aby rozpocząć rozmowę dotyczącą konkretnej sprawy.</p>
+
+          <div class="player-chat-layout">
+            <div id="playerChatCaseList" class="player-chat-case-list">
+              <div class="player-chat-case-empty">Ładowanie spraw...</div>
+            </div>
+
+            <div class="player-chat-panel">
+              <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
+                <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
+                <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
+              </div>
+              <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy po lewej, aby zobaczyć czat.</p>
+              <div id="playerChatBox" style="display:none;"></div>
+              <div id="playerChatFileList" class="file-preview-list chat-file-preview"></div>
+              <span class="error-message" id="playerChatFileError">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
+              <div id="playerChatUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
+              <div class="row" id="playerChatInputRow" style="display:none;">
+                <input id="playerChatMsg" type="text" placeholder="Napisz wiadomość na czacie..." onkeydown="if(event.key === 'Enter') sendPlayerChatMessage()">
+                <label class="btn-attach" for="playerChatFile" title="Dołącz plik z komputera">📎</label>
+                <input id="playerChatFile" type="file" accept="image/*,video/*,.pdf,.txt,.log" multiple style="display:none;">
+                <button type="button" onclick="sendPlayerChatMessage()" style="background: #10b981;">Wyślij</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3463,7 +3546,83 @@ function fetchAndRenderHistory(discordId) {
     }
 }
 
-function updatePlayerChatCaseSelectOptions(userDiscordId) {}
+function getPlayerChatBadge(status) {
+    let color = "#fbbf24";
+    if (status === "Przyjęte") color = "#10b981";
+    if (status === "Odrzucone") color = "#ef4444";
+    if (status === "W apelacji") color = "#eab308";
+    if (status === "Werdykt wydany") color = "#3b82f6";
+    if (status === "Podtrzymana" || status === "Podtrzymany") color = "#ef4444";
+    if (status === "Zakończona") color = "#3b82f6";
+    return color;
+}
+
+function updatePlayerChatCaseSelectOptions(userDiscordId) {
+    const listEl = document.getElementById("playerChatCaseList");
+    if (!listEl) return;
+
+    const cleanDiscordId = String(userDiscordId || "").trim();
+    if (!cleanDiscordId) {
+        listEl.innerHTML = `<div class="player-chat-case-empty">Zaloguj się przez Discord, aby zobaczyć swoje sprawy.</div>`;
+        return;
+    }
+
+    const entries = [];
+
+    globalIncidents
+        .filter(r => r.discordId === cleanDiscordId || r.accusedDiscordId === cleanDiscordId)
+        .forEach(r => entries.push({
+            caseId: r.id,
+            label: r.id,
+            meta: `${r.track || ''}${r.sessionType ? ' · ' + r.sessionType : ''}`,
+            status: r.status,
+            timestamp: r.timestamp || 0
+        }));
+
+    globalAppeals
+        .filter(a => a.discordId === cleanDiscordId)
+        .forEach(a => entries.push({
+            caseId: a.appealId,
+            label: a.appealId,
+            meta: `Apelacja${a.caseId ? ' · dot. ' + a.caseId : ''}`,
+            status: a.status,
+            timestamp: a.timestamp || 0
+        }));
+
+    listEl.innerHTML = "";
+
+    if (entries.length === 0) {
+        listEl.innerHTML = `<div class="player-chat-case-empty">Brak spraw dostępnych do czatu.</div>`;
+        return;
+    }
+
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+
+    entries.forEach(entry => {
+        const item = document.createElement("div");
+        item.className = "player-chat-case-item" + (entry.caseId === selectedPlayerCaseId ? " active" : "");
+        item.dataset.caseId = entry.caseId;
+        item.onclick = () => selectPlayerChatCase(entry.caseId);
+
+        const badgeColor = getPlayerChatBadge(entry.status);
+        item.innerHTML = `
+            <span class="pcci-id">${entry.label}</span>
+            <span class="pcci-meta">
+                <span>${entry.meta}</span>
+                ${entry.status ? `<span class="pcci-badge" style="background:${badgeColor};">${entry.status}</span>` : ''}
+            </span>
+        `;
+        listEl.appendChild(item);
+    });
+}
+
+function highlightActivePlayerChatCase() {
+    const listEl = document.getElementById("playerChatCaseList");
+    if (!listEl) return;
+    listEl.querySelectorAll(".player-chat-case-item").forEach(item => {
+        item.classList.toggle("active", item.dataset.caseId === selectedPlayerCaseId);
+    });
+}
 
 function populateAppealCaseOptions(discordId) {
     const select = document.getElementById("appealCaseId");
@@ -3532,6 +3691,7 @@ function selectPlayerChatCase(caseId) {
         container.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
+    highlightActivePlayerChatCase();
     renderPlayerChatBox();
 }
 
@@ -3546,6 +3706,8 @@ function deselectPlayerChatCase() {
     if (noCaseMsg) noCaseMsg.style.display = "block";
     if (chatBox) { chatBox.style.display = "none"; chatBox.innerHTML = ""; }
     if (inputRow) inputRow.style.display = "none";
+
+    highlightActivePlayerChatCase();
 }
 
 function resolveChatDisplayNick(m) {
@@ -5821,7 +5983,10 @@ window.addEventListener("DOMContentLoaded", () => {
     database.ref("incidents").on("value", (snapshot) => {
         globalIncidents = [];
         snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
-        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        if (authorizedHistoryDiscordId) {
+            fetchAndRenderHistory(authorizedHistoryDiscordId);
+            updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
+        }
         if (discordDriverAuth) populateAppealCaseOptions(discordDriverAuth.id);
         if (isAdminAuthenticated) {
             renderAdmin();
@@ -5832,7 +5997,10 @@ window.addEventListener("DOMContentLoaded", () => {
     database.ref("appeals").on("value", (snapshot) => {
         globalAppeals = [];
         snapshot.forEach(child => { globalAppeals.push({ id: child.key, ...child.val() }); });
-        if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
+        if (authorizedHistoryDiscordId) {
+            fetchAndRenderHistory(authorizedHistoryDiscordId);
+            updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
+        }
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
