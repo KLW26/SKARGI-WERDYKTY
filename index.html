@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+havocconnor#0<!DOCTYPE html>
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
@@ -4325,6 +4325,17 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     scrollToVerdictPanel();
 }
 
+// Dopasowuje nick do ID osoby faktycznie wskazanej jako winna w werdykcie — zamiast
+// bezwarunkowo zakładać, że winny to zawsze pierwotny oskarżony. Dzięki temu w apelacjach,
+// gdzie winnym może zostać uznany zgłaszający, w polu "Winny" pojawia się właściwy nick,
+// zgodny z osobą, która jest realnie pingowana.
+function resolveGuiltyPartyNick(report, guiltyDiscordId, fallbackUnknown) {
+    if (!report || !guiltyDiscordId) return fallbackUnknown;
+    if (report.discordId && report.discordId === guiltyDiscordId) return report.nick || fallbackUnknown;
+    if (report.accusedDiscordId && report.accusedDiscordId === guiltyDiscordId) return report.accusedNick || fallbackUnknown;
+    return fallbackUnknown;
+}
+
 async function resendVerdict(id) {
     const report = globalIncidents.find(r => r.id === id);
     if (!report || !report.decisionData) {
@@ -4340,16 +4351,23 @@ async function resendVerdict(id) {
         const t = langData[currentLang];
         const d = report.decisionData;
         const mainEvidence = await buildDiscordEvidenceValue(report);
-        const winnerNick = report.accusedNick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
-        const reporterNick = report.nick || (currentLang === 'pl' ? "Nieznany" : "Unknown");
+        const unknownLabel = currentLang === 'pl' ? "Nieznany" : "Unknown";
+        const noOneGuiltyText = langData[currentLang].noOneGuiltyText;
+        // Starsze werdykty (sprzed zapisywania guiltyDiscordId) nadal domyślają na oskarżonego —
+        // nowe korzystają z faktycznie zapisanej osoby uznanej za winną.
+        const isNoOneGuilty = !!d.noOneGuilty;
+        const guiltyDiscordId = isNoOneGuilty ? null : (d.guiltyDiscordId || report.accusedDiscordId || null);
+        const winnerNick = d.guiltyNick || resolveGuiltyPartyNick(report, guiltyDiscordId, unknownLabel);
+        const reporterNick = report.nick || unknownLabel;
         const reporterDiscordId = report.discordId || null;
+        const winnerFieldValue = isNoOneGuilty ? noOneGuiltyText : `${winnerNick} (<@${guiltyDiscordId}>)`;
 
         const embed = {
             title: t.embedTitle, color: 3447003,
             fields: [
                 { name: t.fieldCase, value: `\`${id}\``, inline: true },
                 { name: t.fieldSplit, value: report.split ? report.split : "—", inline: true },
-                { name: `⚖️ ${t.fieldWinner}`, value: `${winnerNick} (<@${report.accusedDiscordId}>)`, inline: true },
+                { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
                 { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
                 { name: t.fieldEvidence, value: mainEvidence, inline: false },
                 { name: t.fieldDecision, value: `**${d.decision}**`, inline: false },
@@ -4361,7 +4379,8 @@ async function resendVerdict(id) {
             timestamp: new Date().toISOString()
         };
 
-        const pingContent = reporterDiscordId ? `🚩 Oskarżony: <@${report.accusedDiscordId}>   |   👤 Zgłaszający: <@${reporterDiscordId}>` : `🚩 Oskarżony: <@${report.accusedDiscordId}>`;
+        const accusedPart = isNoOneGuilty ? `🤝 ${noOneGuiltyText}` : `🚩 Oskarżony: <@${guiltyDiscordId}>`;
+        const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
 
@@ -5147,6 +5166,10 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     }
 
     const mainReport = globalIncidents.find(r => r.id === originalCaseId);
+    const unknownLabel = currentLang === 'pl' ? "Nieznany" : "Unknown";
+    // Winnym w apelacji może zostać uznany zgłaszający, a nie tylko pierwotny oskarżony —
+    // dopasowujemy nick do faktycznie wybranego Discord ID (accusedId), zamiast zakładać z góry.
+    const winnerNick = verdictNoOneGuilty ? null : resolveGuiltyPartyNick(mainReport, accusedId, unknownLabel);
     const restoreItemsVerdict = [];
     if (mainReport) {
         restoreItemsVerdict.push(
@@ -5162,7 +5185,10 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             pointsPenalty: pointsPenalty,
             verdictDetails: verdictDetails,
             judge: judge,
-            issuedAt: Date.now()
+            issuedAt: Date.now(),
+            noOneGuilty: verdictNoOneGuilty,
+            guiltyDiscordId: verdictNoOneGuilty ? null : (accusedId || null),
+            guiltyNick: winnerNick
         });
     }
 
@@ -5171,10 +5197,9 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
-    const winnerNick = (mainReport && mainReport.accusedNick) ? mainReport.accusedNick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
-    const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : (currentLang === 'pl' ? "Nieznany" : "Unknown");
+    const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : unknownLabel;
     const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
-    const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick} (<@${accusedId}>)`;
+    const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick || unknownLabel} (<@${accusedId}>)`;
     const embed = {
         title: t.embedTitle, color: 3447003,
         fields: [
