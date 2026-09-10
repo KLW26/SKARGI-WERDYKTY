@@ -4307,7 +4307,11 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
     document.getElementById("accusedId").value = driverDiscordId;
     const foundCase = globalIncidents.find(r => r.id === caseId);
     const foundAppeal = globalAppeals.find(a => a.appealId === appealId);
-    currentVerdictAccusedId = driverDiscordId || null;
+    // Apelację może złożyć zarówno oskarżony, jak i zgłaszający — dlatego przyciski
+    // wyboru winnego muszą zawsze odnosić się do faktycznych stron sprawy (oskarżonego
+    // i zgłaszającego), a nie do ID osoby, która akurat złożyła apelację. Inaczej, gdy
+    // apelujący jest zgłaszającym, oba ID są identyczne i oba przyciski podświetlają się naraz.
+    currentVerdictAccusedId = foundCase ? (foundCase.accusedDiscordId || null) : (driverDiscordId || null);
     currentVerdictReporterId = foundCase ? (foundCase.discordId || null) : null;
     verdictNoOneGuilty = false;
     updateGuiltyPickerState();
