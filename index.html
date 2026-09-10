@@ -664,17 +664,19 @@
 
     .col-cb { width: 4%; text-align: center; }
     .col-id { width: 7%; }
-    .col-rep { width: 12%; }
-    .col-track { width: 15%; }
-    .col-sess { width: 10%; }
-    .col-acc { width: 13%; }
-    .col-desc { width: 21%; }
+    .col-date { width: 8%; }
+    .col-rep { width: 11%; }
+    .col-track { width: 14%; }
+    .col-sess { width: 9%; }
+    .col-acc { width: 12%; }
+    .col-desc { width: 15%; }
     .col-ev { width: 8%; }
     .col-stat { width: 10%; }
     .col-ap-id { width: 8%; }
-    .col-ap-case { width: 10%; }
-    .col-ap-driver { width: 14%; }
-    .col-ap-reason { width: 36%; }
+    .col-ap-date { width: 8%; }
+    .col-ap-case { width: 9%; }
+    .col-ap-driver { width: 13%; }
+    .col-ap-reason { width: 28%; }
     .col-ap-ev { width: 10%; }
     .col-ap-actions { width: 22%; }
 
@@ -1908,6 +1910,7 @@
               <tr>
                 <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
                 <th class="col-id">ID</th>
+                <th class="col-date">Data / Godzina</th>
                 <th class="col-rep" data-key="thReporter">Zgłaszający</th>
                 <th class="col-track">Tor / Split / Kategoria</th>
                 <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
@@ -1932,6 +1935,7 @@
             <thead>
               <tr>
                 <th class="col-ap-id">ID Apelacji</th>
+                <th class="col-ap-date">Data / Godzina</th>
                 <th class="col-ap-case">ID Zgłoszenia</th>
                 <th class="col-ap-driver">Apelujący kierowca</th>
                 <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
@@ -2363,6 +2367,18 @@ function setUploadProgress(elId, percent) {
     el.innerHTML = currentLang === 'pl'
         ? `⬆️ Przesyłanie plików... ${percent}%`
         : `⬆️ Uploading files... ${percent}%`;
+}
+
+// Formatuje znacznik czasu (timestamp w ms lub obiekt Date/ISO string) na czytelną datę + godzinę.
+// Zwraca "-" gdy brak/niepoprawny znacznik czasu (np. wpis sprzed wdrożenia tej funkcji).
+function formatTimestamp(ts) {
+    if (!ts) return "-";
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return "-";
+    return d.toLocaleString(currentLang === 'pl' ? 'pl-PL' : 'en-GB', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
 }
 
 function hasEvidence(record) {
@@ -3469,6 +3485,7 @@ function fetchAndRenderHistory(discordId) {
                     <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${r.status}</span>
                 </div>
             </div>
+            <p style="margin:2px 0 6px 0; font-size:11px; color:var(--text-dim);">🕒 ${currentLang === 'pl' ? 'Zgłoszono' : 'Reported'}: ${formatTimestamp(r.timestamp)}</p>
             <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track}${r.split ? ` | <strong>Split:</strong> ${r.split}` : ''} | <strong>Sesja:</strong> ${r.sessionType}</p>
             <p style="margin:2px 0; font-size:12px;"><strong>Kategoria:</strong> ${r.category}</p>
             <p style="margin:2px 0; font-size:12px;"><strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
@@ -3530,6 +3547,7 @@ function fetchAndRenderHistory(discordId) {
                         <span style="background:${appStatusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${a.status}</span>
                     </div>
                 </div>
+                <p style="margin:2px 0 6px 0; font-size:11px; color:var(--text-dim);">🕒 ${currentLang === 'pl' ? 'Złożono' : 'Submitted'}: ${formatTimestamp(a.timestamp)}</p>
                 <p style="margin:2px 0; font-size:12px;"><strong>${currentLang === 'pl' ? 'Apelujący' : 'Appellant'}:</strong> ${a.nick}</p>
                 <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
                     <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${a.reason}
@@ -3749,6 +3767,12 @@ function renderPlayerChatBox() {
         meta.className = "msg-meta";
         meta.textContent = `${resolveChatDisplayNick(m)} [${m.caseId || 'Ogólny'}]`;
 
+        const timeEl = document.createElement("span");
+        timeEl.className = "msg-time";
+        timeEl.style.cssText = "float:right; font-size:10px; color:var(--text-dim); font-weight:400; margin-left:8px;";
+        timeEl.textContent = formatTimestamp(m.timestamp);
+        meta.appendChild(timeEl);
+
         const bodyText = document.createTextNode(m.text);
         wrapper.appendChild(meta);
         wrapper.appendChild(bodyText);
@@ -3861,6 +3885,7 @@ function renderAdmin() {
                     <strong style="color:var(--text);">${r.id}</strong>
                     ${(loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
                 </td>
+                <td style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${formatTimestamp(r.timestamp)}</td>
                 <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
                 <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span>${r.split ? ` <span style="color:var(--gold); font-weight:600; font-size:11px;">(${r.split})</span>` : ''}<br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
                 <td>${r.session || r.sessionType || ""}</td>
@@ -3905,7 +3930,7 @@ function renderAdmin() {
         return !!relatedCase && relatedCase.split === adminSplitFilter;
     });
     if (appealsForSplit.length === 0) {
-        appTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:12px;">Brak złożonych odwołań.</td></tr>`;
+        appTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding:12px;">Brak złożonych odwołań.</td></tr>`;
     } else {
         const sortedAppeals = [...appealsForSplit].sort((a, b) => {
             const tb = new Date(b.timestamp).getTime() || 0;
@@ -3960,6 +3985,7 @@ function renderAdmin() {
 
             trA.innerHTML = `
                 <td><strong>${a.appealId}</strong></td>
+                <td style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${formatTimestamp(a.timestamp)}</td>
                 <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
                 <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
                 <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div>${appVerdictHtml}</td>
@@ -5389,6 +5415,12 @@ function renderAdminChatBox() {
             const meta = document.createElement("span");
             meta.className = "msg-meta";
             meta.textContent = `${resolveChatDisplayNick(m)} [${m.caseId || 'Ogólny'}]`;
+
+            const timeEl = document.createElement("span");
+            timeEl.className = "msg-time";
+            timeEl.style.cssText = "float:right; font-size:10px; color:var(--text-dim); font-weight:400; margin-left:8px;";
+            timeEl.textContent = formatTimestamp(m.timestamp);
+            meta.appendChild(timeEl);
 
             const bodyText = document.createTextNode(m.text);
             wrapper.appendChild(meta);
