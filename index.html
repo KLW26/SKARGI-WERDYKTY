@@ -4361,6 +4361,9 @@ async function resendVerdict(id) {
         const reporterNick = report.nick || unknownLabel;
         const reporterDiscordId = report.discordId || null;
         const winnerFieldValue = isNoOneGuilty ? noOneGuiltyText : `${winnerNick} (<@${guiltyDiscordId}>)`;
+        // Werdykt mógł zostać wydany w wyniku rozpatrzenia apelacji dla tej sprawy —
+        // wtedy w pingu zamiast "Oskarżony" powinno widnieć "Apelujący".
+        const isAppealVerdict = globalAppeals.some(a => a.caseId === id && a.status === "Zakończona");
 
         const embed = {
             title: t.embedTitle, color: 3447003,
@@ -4379,7 +4382,8 @@ async function resendVerdict(id) {
             timestamp: new Date().toISOString()
         };
 
-        const accusedPart = isNoOneGuilty ? `🤝 ${noOneGuiltyText}` : `🚩 Oskarżony: <@${guiltyDiscordId}>`;
+        const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
+        const accusedPart = isNoOneGuilty ? `🤝 ${noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${guiltyDiscordId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
@@ -5149,11 +5153,13 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const judge = (loggedInSteward && loggedInSteward.nick) ? loggedInSteward.nick : document.getElementById("judge").value;
 
     let originalCaseId = caseIdInput;
+    let isAppealVerdict = false;
     const matchApp = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
     if (matchApp) {
         originalCaseId = matchApp[1];
         const appId = matchApp[2];
         await database.ref("appeals/" + appId + "/status").set("Zakończona");
+        isAppealVerdict = true;
     } else {
         const singleAppMatch = caseIdInput.match(/APP-\d+/i);
         if (singleAppMatch) {
@@ -5161,6 +5167,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             if (foundAp) {
                 originalCaseId = foundAp.caseId;
                 await database.ref("appeals/" + foundAp.appealId + "/status").set("Zakończona");
+                isAppealVerdict = true;
             }
         }
     }
@@ -5219,7 +5226,8 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 
     try {
         const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
-        const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 Oskarżony: <@${accusedId}>`;
+        const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
+        const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${accusedId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error();
