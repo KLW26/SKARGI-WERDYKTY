@@ -5621,7 +5621,11 @@ function finalizeAutoLogin() {
     const loginSourceMsg = (loggedInSteward && loggedInSteward.id === "external-judge")
         ? `Zalogowano do panelu administracyjnego jako sędzia spoza ligi (hasłem).`
         : `Zalogowano do panelu administracyjnego przez Discord.`;
-    logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loggedInSteward ? loggedInSteward.id : "N/A", loginSourceMsg);
+    // Adres IP pobierany jest asynchronicznie, więc wpis do logu nie blokuje wejścia do panelu —
+    // dopisujemy go, gdy tylko będzie gotowy.
+    getLoginSourceInfo().then(sourceInfo => {
+        logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "AUTH", loggedInSteward ? loggedInSteward.id : "N/A", `${loginSourceMsg} [${sourceInfo}]`);
+    });
     showSection("adminSection");
     renderAdmin();
 }
@@ -5751,6 +5755,55 @@ function cloneForRestore(obj) {
     } catch (e) {
         return null;
     }
+}
+
+// Rozpoznaje przeglądarkę / system / typ urządzenia na podstawie User-Agent,
+// żeby w logach AUTH było widać "z czego" ktoś się zalogował.
+function getClientDeviceInfo() {
+    const ua = navigator.userAgent || "";
+
+    let browser = "Nieznana przeglądarka";
+    if (/Edg\//.test(ua)) browser = "Edge";
+    else if (/OPR\//.test(ua) || /Opera/.test(ua)) browser = "Opera";
+    else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = "Chrome";
+    else if (/Firefox\//.test(ua)) browser = "Firefox";
+    else if (/Safari\//.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua)) browser = "Safari";
+    else if (/Chromium/.test(ua)) browser = "Chromium";
+
+    let os = "Nieznany system";
+    if (/Windows/.test(ua)) os = "Windows";
+    else if (/Mac OS X/.test(ua)) os = "macOS";
+    else if (/Android/.test(ua)) os = "Android";
+    else if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
+    else if (/Linux/.test(ua)) os = "Linux";
+
+    const deviceType = /Mobi|Android|iPhone|iPad/.test(ua) ? "mobile" : "desktop";
+
+    return `${browser} / ${os} / ${deviceType}`;
+}
+
+// Pobiera publiczny adres IP klienta z darmowego, bezkluczowego API.
+// W razie braku dostępu (np. blokada sieci, brak internetu) po prostu zwraca null
+// i log i tak zostanie zapisany, tylko bez adresu IP.
+async function getClientIp() {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data && data.ip ? data.ip : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Buduje czytelny opis "z czego" ktoś się loguje: przeglądarka/system/urządzenie + IP (jeśli dostępne).
+async function getLoginSourceInfo() {
+    const deviceInfo = getClientDeviceInfo();
+    const ip = await getClientIp();
+    return ip ? `${deviceInfo}, IP: ${ip}` : `${deviceInfo}, IP: nieznane`;
 }
 
 // `restoreInfo` (opcjonalne) ma postać: { items: [ { path: "incidents/FIA-1", data: {...} }, ... ] }
