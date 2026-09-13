@@ -2423,19 +2423,18 @@
             <select id="spotifyPlaylistSelect" class="font-select" style="width:100%;" onchange="updateSpotifyEmbed(this.value)"></select>
           </div>
           <!--
-            PLACEHOLDER: to jest przykładowa, publiczna playlista Spotify wyłącznie do celów demo,
-            widoczna dopóki admin się nie zaloguje przez Spotify (wtedy powyższa lista podmienia src
-            na wybraną playlistę z jego konta).
-            Aby ręcznie podmienić na własną playlistę/utwór/album bez logowania:
+            Domyślna playlista pokazywana, dopóki admin nie zaloguje się przez Spotify (wtedy lista
+            wyboru wyżej podmienia src na playlistę z jego własnego konta).
+            Aby ręcznie zmienić na inną playlistę/utwór/album bez logowania:
             1. W aplikacji Spotify kliknij "..." -> Udostępnij -> Kopiuj link do osadzenia (Embed).
             2. Wklej cały wygenerowany adres URL (ten z "open.spotify.com/embed/...") w atrybucie src poniżej.
           -->
           <iframe
             id="adminSpotifyIframe"
             style="border-radius: 8px;"
-            src="https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M?utm_source=generator"
+            src="https://open.spotify.com/embed/playlist/4DLOesedlap2Ur3hLvYcPf?utm_source=generator"
             width="100%"
-            height="152"
+            height="352"
             frameborder="0"
             allowfullscreen=""
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
