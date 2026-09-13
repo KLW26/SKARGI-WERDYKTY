@@ -2421,9 +2421,13 @@
           <div id="spotifySourceWrap" style="display:none; margin-bottom: 8px;">
             <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Źródło:</label>
             <select id="spotifySourceSelect" class="font-select" style="width:100%; margin-bottom:8px;" onchange="handleSpotifySourceChange(this.value)">
+              <option value="live" selected>🔴 Teraz gra (na żywo)</option>
               <option value="playlists">🎼 Moje playlisty</option>
               <option value="liked">❤️ Ulubione utwory</option>
             </select>
+            <div id="spotifyLiveStatusWrap" style="display:none;">
+              <div id="spotifyLiveStatus" style="font-size:12px; color: var(--text-dim); margin-bottom:8px;">Sprawdzanie, co teraz gra...</div>
+            </div>
           </div>
           <div id="spotifyPlaylistPickerWrap" style="display:none; margin-bottom: 8px;">
             <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Twoja playlista:</label>
@@ -7511,6 +7515,7 @@ async function loginWithSpotifyAdmin() {
 }
 
 function logoutSpotifyAdmin() {
+    stopSpotifyLivePolling();
     localStorage.removeItem("spotify_access_token");
     localStorage.removeItem("spotify_refresh_token");
     localStorage.removeItem("spotify_token_expiry");
@@ -7625,14 +7630,64 @@ function updateSpotifyTrackEmbed(trackId) {
     if (iframe && trackId) iframe.src = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator`;
 }
 
+let spotifyLiveInterval = null;
+
+function stopSpotifyLivePolling() {
+    if (spotifyLiveInterval) {
+        clearInterval(spotifyLiveInterval);
+        spotifyLiveInterval = null;
+    }
+}
+
+function startSpotifyLivePolling() {
+    stopSpotifyLivePolling();
+    updateSpotifyNowPlaying();
+    // Odpytujemy Spotify co 15s — to jest publiczne API, nie ma tam webhooka/push, więc
+    // najprostszy sposób na "na żywo" to regularne odświeżanie.
+    spotifyLiveInterval = setInterval(updateSpotifyNowPlaying, 15000);
+}
+
+async function updateSpotifyNowPlaying() {
+    const statusEl = document.getElementById("spotifyLiveStatus");
+    try {
+        const res = await spotifyApiFetch("https://api.spotify.com/v1/me/player/currently-playing");
+        if (!res || res.status === 204 || !res.ok) {
+            if (statusEl) statusEl.textContent = "Obecnie nic nie gra na tym koncie.";
+            return;
+        }
+        const data = await res.json();
+        if (!data || !data.item) {
+            if (statusEl) statusEl.textContent = "Obecnie nic nie gra na tym koncie.";
+            return;
+        }
+        const track = data.item;
+        const artists = (track.artists || []).map(a => a.name).join(", ");
+        const pauseLabel = data.is_playing ? "" : " (zapauzowane)";
+        if (statusEl) statusEl.textContent = `🎵 Teraz gra: ${track.name} — ${artists}${pauseLabel}`;
+        updateSpotifyTrackEmbed(track.id);
+    } catch (err) {
+        console.error("Błąd pobierania aktualnie odtwarzanego utworu Spotify:", err);
+        if (statusEl) statusEl.textContent = "Nie udało się pobrać aktualnie odtwarzanego utworu.";
+    }
+}
+
 function handleSpotifySourceChange(source) {
     const playlistWrap = document.getElementById("spotifyPlaylistPickerWrap");
     const likedWrap = document.getElementById("spotifyLikedPickerWrap");
-    if (source === "liked") {
+    const liveWrap = document.getElementById("spotifyLiveStatusWrap");
+    stopSpotifyLivePolling();
+    if (source === "live") {
+        if (playlistWrap) playlistWrap.style.display = "none";
+        if (likedWrap) likedWrap.style.display = "none";
+        if (liveWrap) liveWrap.style.display = "block";
+        startSpotifyLivePolling();
+    } else if (source === "liked") {
+        if (liveWrap) liveWrap.style.display = "none";
         if (playlistWrap) playlistWrap.style.display = "none";
         if (likedWrap) likedWrap.style.display = "block";
         loadSpotifyLikedTracks();
     } else {
+        if (liveWrap) liveWrap.style.display = "none";
         if (likedWrap) likedWrap.style.display = "none";
         if (playlistWrap) playlistWrap.style.display = "block";
         loadSpotifyUserPlaylists();
