@@ -197,6 +197,144 @@
     }
     .discord-status-bar .logout-x:hover { border-color: var(--red); color: #fff; }
 
+    /* === DZWONEK POWIADOMIEŃ (CENTRUM POWIADOMIEŃ IN-APP) === */
+    .notif-bell-wrap { position: relative; margin-right: 8px; }
+    .notif-bell-btn {
+      position: relative;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 16px;
+      padding: 7px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .notif-bell-btn:hover { border-color: var(--red); color: #fff; background: rgba(225,6,0,0.1); }
+    .notif-badge {
+      position: absolute;
+      top: -6px; right: -6px;
+      background: var(--red);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      min-width: 17px;
+      height: 17px;
+      border-radius: 9px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      box-shadow: 0 0 0 2px var(--bg-panel);
+    }
+    .notif-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 340px;
+      max-height: 420px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--red);
+      border-radius: 4px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+      z-index: 200;
+      overflow: hidden;
+      flex-direction: column;
+    }
+    .notif-dropdown-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text);
+    }
+    .notif-dropdown-header button {
+      background: transparent; border: none; color: var(--text-dim);
+      font-size: 10px; cursor: pointer; text-decoration: underline;
+      text-transform: none; letter-spacing: 0; padding: 0;
+    }
+    .notif-dropdown-header button:hover { color: var(--red); }
+    .notif-dropdown-list { overflow-y: auto; max-height: 370px; }
+    .notif-item {
+      display: flex; flex-direction: column; gap: 3px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .notif-item:hover { background: rgba(225,6,0,0.08); }
+    .notif-item.unread { background: rgba(225,6,0,0.05); border-left: 3px solid var(--red); }
+    .notif-item-title { font-size: 12px; font-weight: 700; color: var(--text); }
+    .notif-item-body { font-size: 11px; color: var(--text-dim); }
+    .notif-item-time { font-size: 10px; color: var(--text-muted); }
+
+    /* === TOASTY (POWIADOMIENIA NA ŻYWO) === */
+    #toastContainer {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 320px;
+    }
+    .toast-item {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--red);
+      border-radius: 4px;
+      padding: 12px 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      opacity: 0;
+      transform: translateX(30px);
+      transition: all 0.3s ease;
+      font-size: 12px;
+    }
+    .toast-item.show { opacity: 1; transform: translateX(0); }
+    .toast-item strong { display: block; color: var(--text); font-size: 12px; margin-bottom: 4px; }
+    .toast-item div { color: var(--text-dim); font-size: 11px; }
+
+    /* === LEADERBOARD KIEROWCÓW === */
+    .leaderboard-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 4px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: background 0.15s;
+    }
+    .leaderboard-row:hover { background: rgba(225,6,0,0.06); }
+    .leaderboard-rank {
+      width: 24px; text-align: center; font-weight: 800; color: var(--text-dim); flex-shrink: 0;
+    }
+    .leaderboard-rank.top1 { color: var(--gold); }
+    .leaderboard-rank.top2 { color: #c0c0c0; }
+    .leaderboard-rank.top3 { color: #cd7f32; }
+    .leaderboard-name { flex: 1; color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .leaderboard-count { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+    .leaderboard-points { font-weight: 800; min-width: 62px; text-align: right; white-space: nowrap; }
+    .leaderboard-status { font-size: 10px; min-width: 100px; text-align: right; white-space: nowrap; }
+
+    /* === SZABLONY WERDYKTU === */
+    .template-existing-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .template-existing-row .tmpl-name { color: var(--text); font-weight: 600; flex: 1; }
+    .template-existing-row .tmpl-meta { color: var(--text-dim); font-size: 11px; }
+    .template-existing-row button {
+      background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: 2px; padding: 3px 8px; font-size: 10px; cursor: pointer;
+    }
+    .template-existing-row button:hover { border-color: var(--red); color: #fff; }
+
     /* === BLOKADA FORMULARZY / SEKCJI DO CZASU LOGOWANIA PRZEZ DISCORD === */
     #formSection, #appealSection, #historySection { position: relative; }
     .lock-overlay {
@@ -1380,6 +1518,7 @@
 </head>
 
 <body>
+<div id="toastContainer"></div>
   <div id="adminLoginModal" class="login-modal">
     <div class="login-box">
       <h1 data-key="adminPanel">Panel FIA</h1>
@@ -1599,6 +1738,66 @@
   </div>
 
 
+  <div id="verdictTemplateModal" class="desc-modal">
+    <div class="desc-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 class="section-title" style="margin-bottom: 0;">📋 Zarządzaj szablonami werdyktów</h2>
+      </div>
+      <p style="font-size: 11px; color: var(--text-dim); margin-top:-6px;">Szablony wbudowane (⭐) są stałe i nieedytowalne. Własne szablony są współdzielone przez wszystkich sędziów i zapisywane w bazie.</p>
+
+      <div id="verdictTemplateExistingList" style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin:6px 0 4px;"></div>
+
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 4px 0;">
+
+      <div style="display:flex; flex-direction:column; gap:10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--gold);">
+        <p style="font-size: 11px; color: var(--gold); margin-bottom: 4px;">➕ Nowy własny szablon</p>
+        <div class="field">
+          <label>Nazwa szablonu</label>
+          <input type="text" id="newTemplateName" placeholder="np. Blokowanie w Q na torze prostym">
+        </div>
+        <div class="field">
+          <label>Decyzja</label>
+          <select id="newTemplateDecision">
+            <option value="Brak naruszenia">Brak naruszenia</option>
+            <option value="Naruszenie – ostrzeżenie">Naruszenie – ostrzeżenie</option>
+            <option value="Naruszenie – kara czasowa">Naruszenie – kara czasowa</option>
+            <option value="Naruszenie – Punkty Karne">Naruszenie – Punkty Karne</option>
+            <option value="Naruszenie – kara czasowa i punkty karne">Naruszenie – kara czasowa i punkty karne</option>
+            <option value="Naruszenie – dyskwalifikacja">Naruszenie – dyskwalifikacja</option>
+            <option value="Anulowanie kary">Anulowanie kary</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Kara czasowa</label>
+            <input type="text" id="newTemplateTime" placeholder="np. +5s">
+          </div>
+          <div class="field">
+            <label>Punkty karne</label>
+            <input type="text" id="newTemplatePoints" placeholder="np. 2 pkt">
+          </div>
+        </div>
+        <div class="field">
+          <label>Kto winny (domyślnie po zastosowaniu szablonu)</label>
+          <select id="newTemplateGuilty">
+            <option value="accused">Oskarżony</option>
+            <option value="reporter">Zgłaszający</option>
+            <option value="none">Nikt nie winny</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Treść uzasadnienia</label>
+          <textarea id="newTemplateDetails" style="min-height: 80px;" placeholder="Gotowy tekst uzasadnienia werdyktu..."></textarea>
+        </div>
+        <button class="btn-success" onclick="saveNewVerdictTemplate()">💾 Zapisz szablon</button>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn-secondary" onclick="closeVerdictTemplateManager()" style="flex:1;">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="top-bar">
       <div class="race-flag-deco" aria-hidden="true"></div>
@@ -1627,6 +1826,23 @@
         <span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
         <span id="loggedInAsText">Zalogowano jako: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
       </span>
+
+      <div id="notifBellWrap" class="notif-bell-wrap" style="display:none;">
+        <button type="button" id="notifBellBtn" class="notif-bell-btn" onclick="toggleNotifDropdown()" title="Powiadomienia">
+          🔔<span id="notifBellBadge" class="notif-badge" style="display:none;">0</span>
+        </button>
+        <div id="notifDropdown" class="notif-dropdown">
+          <div class="notif-dropdown-header">
+            <span>Powiadomienia</span>
+            <div style="display:flex; gap:8px;">
+              <button type="button" onclick="markAllNotifRead()">Oznacz jako przeczytane</button>
+              <button type="button" onclick="clearAllNotif()">Wyczyść</button>
+            </div>
+          </div>
+          <div id="notifDropdownList" class="notif-dropdown-list"></div>
+        </div>
+      </div>
+
       <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
       <button id="usersMenuBtn" onclick="openUsersSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">👥 Użytkownicy i Role</button>
       <button id="statsMenuBtn" onclick="openStatsSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">📈 Statystyki</button>
@@ -2017,6 +2233,15 @@
         </div>
 
         <form id="responseForm">
+          <div class="field" style="margin-bottom:16px;">
+            <label style="color: var(--text-dim);">📋 Szablon werdyktu (opcjonalnie)</label>
+            <div style="display:flex; gap:6px;">
+              <select id="verdictTemplateSelect" onchange="applyVerdictTemplate()" style="flex:1;">
+                <option value="">— wybierz gotowy szablon —</option>
+              </select>
+              <button type="button" class="btn-secondary" style="padding:8px 12px; font-size:11px; white-space:nowrap;" onclick="openVerdictTemplateManager()">⚙ Zarządzaj</button>
+            </div>
+          </div>
           <div class="row">
             <div class="field">
               <label for="caseId" data-key="caseIdLabel">ID sprawy</label>
@@ -2089,6 +2314,7 @@
             <option value="9999">Cały okres</option>
           </select>
           <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportStatsCsv()">⬇ EKSPORTUJ CSV</button>
+          <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportStatsPdf()">🖨 EKSPORTUJ PDF</button>
           <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="showSection('adminSection')">Powrót do panelu</button>
         </div>
       </div>
@@ -2134,6 +2360,26 @@
           <div class="stats-group-title">📢 Najaktywniejsi zgłaszający</div>
           <div id="statsTopReporters" class="stat-rank-list"></div>
         </div>
+      </div>
+
+      <div class="stats-container-grid" style="margin-top:18px;">
+        <div class="stats-group-box">
+          <div class="stats-group-title">⏱ Rodzaj wydanych kar</div>
+          <div id="statsPenaltyTypeChart" class="stat-chart"></div>
+        </div>
+        <div class="stats-group-box">
+          <div class="stats-group-title">🕐 Zgłoszenia wg rodzaju sesji</div>
+          <div id="statsSessionChart" class="stat-chart"></div>
+        </div>
+      </div>
+
+      <div class="stats-group-box" style="margin-top:18px; border-color: var(--gold-dim);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <div class="stats-group-title" style="margin-bottom:0;">🏆 Ranking kierowców — punkty karne w sezonie</div>
+          <button class="btn-secondary" style="padding: 5px 10px; font-size: 11px;" onclick="exportLeaderboardCsv()">⬇ CSV rankingu</button>
+        </div>
+        <p style="font-size:11px; color: var(--text-dim); margin-top:-6px; margin-bottom:10px;">Kliknij kierowcę, aby zobaczyć jego pełną kartę kar poniżej.</p>
+        <div id="statsLeaderboardBody"></div>
       </div>
 
       <div class="stats-group-box" style="margin-top:18px; border-color: var(--gold-dim);">
@@ -3388,6 +3634,124 @@ function notifyAdmin(title, body) {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         try { new Notification(title, { body }); } catch (e) {}
     }
+}
+
+/* === CENTRUM POWIADOMIEŃ IN-APP (dzwonek + dropdown + toasty na żywo) ===
+   Działa niezależnie od przełącznika powiadomień przeglądarki: dzwonek i toast
+   pojawiają się zawsze dla zalogowanego admina, dźwięk/Notification tylko gdy włączone. */
+const NOTIF_CENTER_KEY = "adminNotifCenterV1";
+let adminNotifCenter = [];
+try { adminNotifCenter = JSON.parse(localStorage.getItem(NOTIF_CENTER_KEY) || "[]"); } catch (e) { adminNotifCenter = []; }
+
+function saveNotifCenter() {
+    if (adminNotifCenter.length > 50) adminNotifCenter.length = 50;
+    try { localStorage.setItem(NOTIF_CENTER_KEY, JSON.stringify(adminNotifCenter)); } catch (e) {}
+}
+
+function pushAdminNotification(type, title, body, caseId) {
+    const item = { id: Date.now() + "_" + Math.random().toString(36).slice(2, 8), type, title, body: body || "", caseId: caseId || null, ts: Date.now(), read: false };
+    adminNotifCenter.unshift(item);
+    saveNotifCenter();
+    renderNotifBell();
+    showToast(title, body);
+    if (isAdminNotifEnabled()) {
+        playNotifBeep();
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try { new Notification(title, { body }); } catch (e) {}
+        }
+    }
+}
+
+function showToast(title, body) {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+    const el = document.createElement("div");
+    el.className = "toast-item";
+    el.innerHTML = `<strong>${escapeHtml(title || "")}</strong><div>${escapeHtml(body || "")}</div>`;
+    container.appendChild(el);
+    requestAnimationFrame(() => el.classList.add("show"));
+    setTimeout(() => {
+        el.classList.remove("show");
+        setTimeout(() => el.remove(), 350);
+    }, 6000);
+}
+
+function formatNotifTime(ts) {
+    const diffMin = Math.round((Date.now() - ts) / 60000);
+    if (diffMin < 1) return "teraz";
+    if (diffMin < 60) return `${diffMin} min temu`;
+    const diffH = Math.round(diffMin / 60);
+    if (diffH < 24) return `${diffH} godz. temu`;
+    return new Date(ts).toLocaleDateString();
+}
+
+function renderNotifBell() {
+    const wrap = document.getElementById("notifBellWrap");
+    if (wrap) wrap.style.display = isAdminAuthenticated ? "block" : "none";
+    const badge = document.getElementById("notifBellBadge");
+    const unread = adminNotifCenter.filter(n => !n.read).length;
+    if (badge) {
+        badge.textContent = unread > 99 ? "99+" : String(unread);
+        badge.style.display = unread > 0 ? "flex" : "none";
+    }
+    const list = document.getElementById("notifDropdownList");
+    if (!list) return;
+    if (!adminNotifCenter.length) {
+        list.innerHTML = '<div class="stat-empty-msg" style="padding:16px;">Brak powiadomień.</div>';
+        return;
+    }
+    list.innerHTML = adminNotifCenter.slice(0, 25).map(n => `
+      <div class="notif-item ${n.read ? "" : "unread"}" onclick="openNotifItem('${n.id}')">
+        <span class="notif-item-title">${escapeHtml(n.title)}</span>
+        <span class="notif-item-body">${escapeHtml(n.body)}</span>
+        <span class="notif-item-time">${formatNotifTime(n.ts)}</span>
+      </div>
+    `).join("");
+}
+
+function toggleNotifDropdown() {
+    const dd = document.getElementById("notifDropdown");
+    if (!dd) return;
+    const opening = dd.style.display !== "flex";
+    dd.style.display = opening ? "flex" : "none";
+}
+
+document.addEventListener("click", (e) => {
+    const wrap = document.getElementById("notifBellWrap");
+    const dd = document.getElementById("notifDropdown");
+    if (!wrap || !dd || dd.style.display !== "flex") return;
+    if (!wrap.contains(e.target)) dd.style.display = "none";
+});
+
+function openNotifItem(id) {
+    const item = adminNotifCenter.find(n => n.id === id);
+    if (!item) return;
+    item.read = true;
+    saveNotifCenter();
+    renderNotifBell();
+    const dd = document.getElementById("notifDropdown");
+    if (dd) dd.style.display = "none";
+    if (!isAdminAuthenticated) return;
+    showSection("adminSection");
+    if (item.type === "incident" && item.caseId) {
+        const searchInput = document.getElementById("adminSearch");
+        if (searchInput) { searchInput.value = item.caseId; renderAdmin(); }
+        setTimeout(() => { const wrapEl = document.getElementById("incidentsListWrap"); if (wrapEl) wrapEl.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
+    } else if (item.type === "appeal") {
+        setTimeout(() => { const wrapEl = document.getElementById("appealsListWrap"); if (wrapEl) wrapEl.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
+    }
+}
+
+function markAllNotifRead() {
+    adminNotifCenter.forEach(n => n.read = true);
+    saveNotifCenter();
+    renderNotifBell();
+}
+
+function clearAllNotif() {
+    adminNotifCenter = [];
+    saveNotifCenter();
+    renderNotifBell();
 }
 
 function toggleAdminNotifications() {
@@ -5478,6 +5842,7 @@ function adminLogout() {
         if(document.getElementById("usersMenuBtn")) {
             document.getElementById("usersMenuBtn").style.display = "none";
         }
+        renderNotifBell();
         updateLoggedInAsLabel();
         showSection('formSection');
         if (authorizedHistoryDiscordId) fetchAndRenderHistory(authorizedHistoryDiscordId);
@@ -5649,6 +6014,142 @@ function handleDecisionChange() {
     }
 }
 
+/* === GOTOWE SZABLONY WERDYKTÓW === */
+const builtInVerdictTemplates = [
+    { name: "Brak naruszenia — zgłoszenie bezpodstawne", decision: "Brak naruszenia", time: "", points: "", guilty: "none",
+      details: "Po dokładnej analizie dostarczonych dowodów Stewardzi nie stwierdzili naruszenia regulaminu sportowego. Zgłoszenie zostaje odrzucone jako bezpodstawne." },
+    { name: "Ostrzeżenie — drobne wykroczenie", decision: "Naruszenie – ostrzeżenie", time: "", points: "", guilty: "accused",
+      details: "Stewardzi stwierdzili drobne naruszenie regulaminu sportowego. Kierowca otrzymuje oficjalne ostrzeżenie bez dalszych konsekwencji." },
+    { name: "Przekroczenie granic toru", decision: "Naruszenie – kara czasowa", time: "+5s", points: "", guilty: "accused",
+      details: "Stwierdzono wielokrotne przekraczanie granic toru bez oddania uzyskanej przewagi. Kierowca otrzymuje karę czasową +5 sekund." },
+    { name: "Spowodowanie kolizji", decision: "Naruszenie – kara czasowa i punkty karne", time: "+10s", points: "2 pkt", guilty: "accused",
+      details: "Kierowca ponosi pełną odpowiedzialność za spowodowanie kolizji z innym zawodnikiem. Nałożona zostaje kara czasowa +10 sekund oraz 2 punkty karne." },
+    { name: "Niebezpieczny powrót na tor", decision: "Naruszenie – Punkty Karne", time: "", points: "3 pkt", guilty: "accused",
+      details: "Kierowca powrócił na tor w sposób stwarzający bezpośrednie zagrożenie dla innych zawodników. Nałożone zostają 3 punkty karne." },
+    { name: "Rażące naruszenie — dyskwalifikacja", decision: "Naruszenie – dyskwalifikacja", time: "", points: "", guilty: "accused",
+      details: "Stwierdzono rażące naruszenie regulaminu sportowego, zagrażające bezpieczeństwu innych uczestników sesji. Kierowca zostaje zdyskwalifikowany z bieżącej sesji." },
+    { name: "Anulowanie wcześniejszej kary", decision: "Anulowanie kary", time: "", points: "", guilty: "none",
+      details: "Po ponownej analizie sprawy Stewardzi decydują o anulowaniu wcześniej nałożonej kary." }
+];
+let customVerdictTemplates = [];
+
+function loadVerdictTemplates() {
+    database.ref("settings/verdictTemplates").on("value", (snap) => {
+        customVerdictTemplates = [];
+        const data = snap.val();
+        if (data) {
+            Object.entries(data).forEach(([id, t]) => customVerdictTemplates.push({ id, ...t }));
+        }
+        populateVerdictTemplateSelect();
+        renderExistingTemplatesList();
+    });
+}
+
+function populateVerdictTemplateSelect() {
+    const select = document.getElementById("verdictTemplateSelect");
+    if (!select) return;
+    const prevValue = select.value;
+    let html = '<option value="">— wybierz gotowy szablon —</option>';
+    html += '<optgroup label="⭐ Wbudowane">';
+    builtInVerdictTemplates.forEach((t, i) => { html += `<option value="built:${i}">${escapeHtml(t.name)}</option>`; });
+    html += '</optgroup>';
+    if (customVerdictTemplates.length) {
+        html += '<optgroup label="🛠 Własne (współdzielone)">';
+        customVerdictTemplates.forEach(t => { html += `<option value="custom:${t.id}">${escapeHtml(t.name)}</option>`; });
+        html += '</optgroup>';
+    }
+    select.innerHTML = html;
+    select.value = prevValue || "";
+}
+
+function applyVerdictTemplate() {
+    const select = document.getElementById("verdictTemplateSelect");
+    if (!select || !select.value) return;
+    const [kind, key] = select.value.split(":");
+    let tmpl = null;
+    if (kind === "built") tmpl = builtInVerdictTemplates[parseInt(key, 10)];
+    else if (kind === "custom") tmpl = customVerdictTemplates.find(t => t.id === key);
+    if (!tmpl) return;
+
+    const decisionSelect = document.getElementById("decision");
+    const timeInput = document.getElementById("timePenalty");
+    const pointsInput = document.getElementById("pointsPenalty");
+    const detailsArea = document.getElementById("verdictDetails");
+
+    if (decisionSelect) { decisionSelect.value = tmpl.decision || ""; handleDecisionChange(); }
+    if (timeInput) timeInput.value = tmpl.time || "";
+    if (pointsInput) pointsInput.value = tmpl.points || "";
+    if (detailsArea) detailsArea.value = tmpl.details || "";
+
+    if (tmpl.guilty === "none") {
+        pickGuiltyParty("none");
+    } else if (tmpl.guilty === "accused" && currentVerdictAccusedId) {
+        pickGuiltyParty("accused");
+    } else if (tmpl.guilty === "reporter" && currentVerdictReporterId) {
+        pickGuiltyParty("reporter");
+    }
+}
+
+function openVerdictTemplateManager() {
+    document.getElementById("verdictTemplateModal").style.display = "flex";
+    renderExistingTemplatesList();
+}
+function closeVerdictTemplateManager() {
+    document.getElementById("verdictTemplateModal").style.display = "none";
+}
+
+function renderExistingTemplatesList() {
+    const box = document.getElementById("verdictTemplateExistingList");
+    if (!box) return;
+    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    let html = "";
+    builtInVerdictTemplates.forEach(t => {
+        html += `<div class="template-existing-row"><span class="tmpl-name">⭐ ${escapeHtml(t.name)}</span><span class="tmpl-meta">${escapeHtml(t.decision)}</span></div>`;
+    });
+    customVerdictTemplates.forEach(t => {
+        html += `<div class="template-existing-row">
+          <span class="tmpl-name">🛠 ${escapeHtml(t.name)}</span>
+          <span class="tmpl-meta">${escapeHtml(t.decision || "")}</span>
+          ${canManage ? `<button type="button" onclick="deleteVerdictTemplate('${t.id}')">🗑 Usuń</button>` : ""}
+        </div>`;
+    });
+    box.innerHTML = html || '<div class="stat-empty-msg">Brak szablonów.</div>';
+}
+
+function saveNewVerdictTemplate() {
+    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canManage) { alert("Brak uprawnień do dodawania szablonów werdyktów!"); return; }
+    const name = document.getElementById("newTemplateName").value.trim();
+    if (!name) { alert("Podaj nazwę szablonu."); return; }
+    const newTemplate = {
+        name,
+        decision: document.getElementById("newTemplateDecision").value,
+        time: document.getElementById("newTemplateTime").value.trim(),
+        points: document.getElementById("newTemplatePoints").value.trim(),
+        guilty: document.getElementById("newTemplateGuilty").value,
+        details: document.getElementById("newTemplateDetails").value.trim(),
+        createdBy: loggedInSteward ? loggedInSteward.nick : "ADMIN",
+        createdAt: Date.now()
+    };
+    const newRef = database.ref("settings/verdictTemplates").push();
+    newRef.set(newTemplate).then(() => {
+        document.getElementById("newTemplateName").value = "";
+        document.getElementById("newTemplateTime").value = "";
+        document.getElementById("newTemplatePoints").value = "";
+        document.getElementById("newTemplateDetails").value = "";
+        logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SETTINGS", "verdictTemplate", `Dodano nowy szablon werdyktu: "${name}".`);
+    }).catch(err => alert("Błąd zapisu szablonu: " + err.message));
+}
+
+function deleteVerdictTemplate(id) {
+    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canManage) { alert("Brak uprawnień do usuwania szablonów werdyktów!"); return; }
+    if (!confirm("Usunąć ten szablon werdyktu na stałe?")) return;
+    database.ref("settings/verdictTemplates/" + id).remove().then(() => {
+        logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SETTINGS", "verdictTemplate", `Usunięto szablon werdyktu (ID: ${id}).`);
+    }).catch(err => alert("Błąd: " + err.message));
+}
+
 function exportDatabase() {
     const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
     if (!canExport) {
@@ -5726,6 +6227,22 @@ function renderStats() {
     incidents.forEach(r => { if (r.track) trackCounts[r.track] = (trackCounts[r.track] || 0) + 1; });
     const topTrackEntry = Object.entries(trackCounts).sort((a, b) => b[1] - a[1])[0];
 
+    // Trend względem poprzedniego okresu o tej samej długości (tylko gdy zakres nie jest "Cały okres").
+    let trendHtml = "";
+    if (rangeDays !== 9999) {
+        const prevCutoffStart = cutoff - rangeDays * 86400000;
+        const prevIncidents = globalIncidents.filter(r => (r.timestamp || 0) >= prevCutoffStart && (r.timestamp || 0) < cutoff);
+        const diff = incidents.length - prevIncidents.length;
+        const pct = prevIncidents.length ? Math.round((diff / prevIncidents.length) * 100) : (incidents.length ? 100 : 0);
+        const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "→";
+        const color = diff > 0 ? "var(--red-text)" : diff < 0 ? "var(--green-text)" : "var(--text-dim)";
+        trendHtml = `<div class="stat-box"><span>Trend vs poprz. okres</span><strong style="font-size:15px; color:${color};">${arrow} ${diff >= 0 ? "+" : ""}${diff} (${pct >= 0 ? "+" : ""}${pct}%)</strong></div>`;
+    }
+
+    const guiltyIncidentsForAvg = incidents.filter(r => r.decisionData && !r.decisionData.noOneGuilty && r.decisionData.decision && r.decisionData.decision !== "Brak naruszenia");
+    const totalPtsIssued = guiltyIncidentsForAvg.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0);
+    const avgPts = guiltyIncidentsForAvg.length ? (totalPtsIssued / guiltyIncidentsForAvg.length).toFixed(1) : "0";
+
     const summaryGrid = document.getElementById("statsSummaryGrid");
     if (summaryGrid) {
         summaryGrid.innerHTML = `
@@ -5736,6 +6253,8 @@ function renderStats() {
               <div class="stat-box"><span>Apelacje</span><strong>${appeals.length}</strong></div>
               <div class="stat-box"><span>Śr. czas rozpatrzenia</span><strong style="font-size:15px;">${formatDuration(avgResMs)}</strong></div>
               <div class="stat-box"><span>Najaktywniejszy tor</span><strong style="font-size:13px;">${topTrackEntry ? `${topTrackEntry[0]} (${topTrackEntry[1]})` : "—"}</strong></div>
+              <div class="stat-box"><span>Śr. punkty karne / incydent</span><strong style="font-size:15px;">${avgPts} pkt</strong></div>
+              ${trendHtml}
             </div>
           </div>`;
     }
@@ -5802,6 +6321,133 @@ function renderStats() {
     const reporterCounts = {};
     incidents.forEach(r => { if (r.nick) reporterCounts[r.nick] = (reporterCounts[r.nick] || 0) + 1; });
     renderRankList("statsTopReporters", Object.entries(reporterCounts).sort((a, b) => b[1] - a[1]).slice(0, 10));
+
+    // Rodzaj wydanych kar w okresie: ostrzeżenie / czasowa / punktowa / czasowa+punktowa / dyskwalifikacja / brak naruszenia
+    const penaltyTypeCounts = {};
+    incidents.forEach(r => {
+        if (!r.decisionData || !r.decisionData.decision) return;
+        const label = r.decisionData.decision.length > 22 ? r.decisionData.decision.slice(0, 21) + "…" : r.decisionData.decision;
+        penaltyTypeCounts[label] = (penaltyTypeCounts[label] || 0) + 1;
+    });
+    const penaltyTypeEntries = Object.entries(penaltyTypeCounts).sort((a, b) => b[1] - a[1]);
+    renderBarChart("statsPenaltyTypeChart", penaltyTypeEntries.map(([label, count]) => ({ label, count })));
+
+    // Rozkład zgłoszeń wg rodzaju sesji (Kwalifikacje / Wyścig / Trening itd. — zależnie od konfiguracji toru).
+    const sessionCounts = {};
+    incidents.forEach(r => { if (r.sessionType) sessionCounts[r.sessionType] = (sessionCounts[r.sessionType] || 0) + 1; });
+    const sessionEntries = Object.entries(sessionCounts).sort((a, b) => b[1] - a[1]);
+    renderBarChart("statsSessionChart", sessionEntries.map(([label, count]) => ({ label: label.length > 16 ? label.slice(0, 15) + "…" : label, count })));
+
+    renderLeaderboard();
+}
+
+/* === RANKING KIEROWCÓW (LEADERBOARD PUNKTÓW KARNYCH) === */
+function computeLeaderboard(limit) {
+    limit = limit || 25;
+    const seasonStart = seasonSettings.start || 0;
+    const map = {};
+    globalIncidents.forEach(r => {
+        const d = r.decisionData;
+        if (!d || d.noOneGuilty || !d.decision || d.decision === "Brak naruszenia") return;
+        const key = d.guiltyDiscordId || d.guiltyNick;
+        if (!key) return;
+        if (!map[key]) map[key] = { key, name: d.guiltyNick || key, id: d.guiltyDiscordId || null, seasonPoints: 0, totalPoints: 0, count: 0 };
+        const pts = parsePenaltyPoints(d.pointsPenalty);
+        map[key].totalPoints += pts;
+        map[key].count++;
+        if ((d.issuedAt || 0) >= seasonStart) map[key].seasonPoints += pts;
+    });
+    return Object.values(map).sort((a, b) => b.seasonPoints - a.seasonPoints || b.totalPoints - a.totalPoints).slice(0, limit);
+}
+
+function renderLeaderboard() {
+    const box = document.getElementById("statsLeaderboardBody");
+    if (!box) return;
+    const threshold = seasonSettings.threshold || 12;
+    const rows = computeLeaderboard(25);
+    if (!rows.length) { box.innerHTML = '<div class="stat-empty-msg">Brak danych o karach kierowców w bazie.</div>'; return; }
+    box.innerHTML = rows.map((r, i) => {
+        let color = "#10b981", label = "W normie";
+        if (threshold && r.seasonPoints >= threshold) { color = "#ef4444"; label = "⚠ Próg przekroczony"; }
+        else if (threshold && (r.seasonPoints / threshold) >= 0.7) { color = "#fbbf24"; label = "Blisko progu"; }
+        const rankClass = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
+        const queryVal = r.id || r.name;
+        return `<div class="leaderboard-row" onclick="jumpToDriverCard('${escapeHtml(String(queryVal)).replace(/'/g, "\\'")}')" title="Kliknij, aby zobaczyć kartę kierowcy">
+          <span class="leaderboard-rank ${rankClass}">${i + 1}</span>
+          <span class="leaderboard-name">${escapeHtml(r.name)}</span>
+          <span class="leaderboard-count">${r.count} kar</span>
+          <span class="leaderboard-points" style="color:${color};">${r.seasonPoints} pkt</span>
+          <span class="leaderboard-status" style="color:${color};">${label}</span>
+        </div>`;
+    }).join("");
+}
+
+function jumpToDriverCard(query) {
+    const input = document.getElementById("driverCardSearchInput");
+    if (input) input.value = query;
+    searchDriverCard(query);
+    const resultBox = document.getElementById("driverCardResult");
+    if (resultBox) resultBox.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function exportLeaderboardCsv() {
+    const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canExport) { alert("Brak uprawnień do eksportu danych!"); return; }
+    const rows = [["Pozycja", "Kierowca", "Discord ID", "Punkty w sezonie", "Punkty łącznie", "Liczba kar"]];
+    computeLeaderboard(200).forEach((r, i) => {
+        rows.push([i + 1, r.name || "", r.id || "", r.seasonPoints, r.totalPoints, r.count]);
+    });
+    const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `FIA_SYSTEM_RANKING_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+}
+
+/* === EKSPORT RAPORTU STATYSTYK DO PDF (przez okno wydruku przeglądarki) === */
+function exportStatsPdf() {
+    const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canExport) { alert("Brak uprawnień do eksportu danych!"); return; }
+
+    const rangeSelect = document.getElementById("statsRangeSelect");
+    const rangeLabel = rangeSelect ? rangeSelect.options[rangeSelect.selectedIndex].textContent : "";
+    const grab = id => { const el = document.getElementById(id); return el ? el.innerHTML : ""; };
+
+    const win = window.open("", "_blank");
+    if (!win) { alert("Przeglądarka zablokowała okno wydruku. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie."); return; }
+
+    win.document.write(`<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>Raport FIA System</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #14161c; padding: 28px; }
+        h1 { font-size: 20px; border-bottom: 3px solid #e10600; padding-bottom: 10px; margin-bottom: 4px; }
+        .meta { color: #666; font-size: 11px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin-top: 26px; margin-bottom: 8px; border-left: 4px solid #e10600; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .admin-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+        .stat-box { border: 1px solid #ddd; padding: 10px 14px; border-radius: 4px; flex: 1; min-width: 140px; }
+        .stat-box span { display: block; font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-box strong { display: block; font-size: 17px; margin-top: 4px; }
+        .leaderboard-row, .stat-rank-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 12px; }
+        .leaderboard-status, .notif-item-time { display: none; }
+        @media print { body { padding: 10px; } }
+      </style></head><body>
+      <h1>FIA System — Raport Statystyk</h1>
+      <div class="meta">Zakres: ${rangeLabel} &nbsp;·&nbsp; Wygenerowano: ${new Date().toLocaleString("pl-PL")}</div>
+      <h2>Podsumowanie okresu</h2>
+      ${grab("statsSummaryGrid")}
+      <h2>Ranking kierowców — punkty karne w sezonie</h2>
+      ${grab("statsLeaderboardBody")}
+      <h2>Najczęściej karani kierowcy</h2>
+      ${grab("statsTopGuilty")}
+      <h2>Aktywność sędziów</h2>
+      ${grab("statsTopJudges")}
+      <h2>Najaktywniejsi zgłaszający</h2>
+      ${grab("statsTopReporters")}
+      </body></html>`);
+    win.document.close();
+    setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 400);
 }
 
 function parsePenaltyPoints(str) {
@@ -5868,6 +6514,7 @@ function loadSeasonSettings() {
         if (thresholdInput) thresholdInput.value = seasonSettings.threshold;
         const resultBox = document.getElementById("driverCardResult");
         if (resultBox && resultBox.dataset.lastQuery) searchDriverCard(resultBox.dataset.lastQuery);
+        renderLeaderboard();
     });
 }
 
@@ -6415,6 +7062,8 @@ function finalizeAutoLogin() {
     applyStewardPermissions();
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
+    renderNotifBell();
+    populateVerdictTemplateSelect();
     const loginSourceMsg = (loggedInSteward && loggedInSteward.id === "external-judge")
         ? `Zalogowano do panelu administracyjnego jako sędzia spoza ligi (hasłem).`
         : `Zalogowano do panelu administracyjnego przez Discord.`;
@@ -6840,7 +7489,7 @@ window.addEventListener("DOMContentLoaded", () => {
         if (knownIncidentIds) {
             globalIncidents.forEach(r => {
                 if (!knownIncidentIds.has(r.id) && r.status === "Oczekuje") {
-                    notifyAdmin("🆕 Nowe zgłoszenie", `${r.fiaId || r.id} — ${r.nick || "Kierowca"} zgłasza ${r.accusedNick || "nieznanego kierowcę"} (${r.track || ""}).`);
+                    pushAdminNotification("incident", "🆕 Nowe zgłoszenie", `${r.fiaId || r.id} — ${r.nick || "Kierowca"} zgłasza ${r.accusedNick || "nieznanego kierowcę"} (${r.track || ""}).`, r.fiaId || r.id);
                 }
             });
         }
@@ -6865,7 +7514,7 @@ window.addEventListener("DOMContentLoaded", () => {
         if (knownAppealIds) {
             globalAppeals.forEach(a => {
                 if (!knownAppealIds.has(a.id) && a.status === "Nowa") {
-                    notifyAdmin("⚖️ Nowa apelacja", `${a.appealId || a.id} — ${a.nick || "Kierowca"} odwołuje się od sprawy ${a.caseId || "?"}.`);
+                    pushAdminNotification("appeal", "⚖️ Nowa apelacja", `${a.appealId || a.id} — ${a.nick || "Kierowca"} odwołuje się od sprawy ${a.caseId || "?"}.`, a.appealId || a.id);
                 }
             });
         }
@@ -6891,6 +7540,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     loadSeasonSettings();
+    loadVerdictTemplates();
 
     database.ref("chat").on("value", (snapshot) => {
         const data = snapshot.val();
