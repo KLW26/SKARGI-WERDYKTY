@@ -7784,10 +7784,17 @@ async function runSpotifySearch() {
     if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Szukanie..."; }
 
     try {
-        const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track,playlist&limit=15`;
+        const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track,playlist&limit=10`;
         const res = await spotifyApiFetch(url);
-        if (!res || !res.ok) {
+        if (!res) {
             if (statusEl) statusEl.textContent = "Nie udało się wyszukać (zaloguj się przez Spotify powyżej).";
+            return;
+        }
+        if (!res.ok) {
+            let apiMsg = "";
+            try { const errBody = await res.json(); apiMsg = errBody && errBody.error && errBody.error.message ? errBody.error.message : ""; } catch (e) {}
+            console.error("Błąd wyszukiwania Spotify:", res.status, apiMsg);
+            if (statusEl) statusEl.textContent = `Błąd wyszukiwania (${res.status})${apiMsg ? ": " + apiMsg : ""}.`;
             return;
         }
         const data = await res.json();
@@ -7867,16 +7874,24 @@ async function loadSpotifyPlaylistTracks(playlistId, playlistName) {
     if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Wczytywanie utworów..."; }
 
     try {
-        let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=items(track(id,name,artists(name))),next`;
+        let url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100&fields=items(item(id,name,artists(name))),next`;
         let allTracks = [];
         let guard = 0;
+        let blockedForOtherUser = false;
         // Spotify zwraca max 100 utworów na stronę — pobieramy kolejne strony (next),
         // żeby zebrać KAŻDY utwór z playlisty, nawet jeśli ma ich kilkaset.
+        // Uwaga (zmiana Spotify z lutego/marca 2026): pełną zawartość (items) API zwraca
+        // tylko dla WŁASNYCH playlist admina — dla cudzych playlist przychodzą same metadane
+        // (bez listy utworów), więc dla nich pokazujemy komunikat zamiast pustej listy.
         while (url && guard < 50) {
             const res = await spotifyApiFetch(url);
-            if (!res || !res.ok) break;
+            if (!res) break;
+            if (!res.ok) {
+                if (res.status === 403 || res.status === 404) blockedForOtherUser = true;
+                break;
+            }
             const data = await res.json();
-            (data.items || []).forEach(item => { if (item && item.track) allTracks.push(item.track); });
+            (data.items || []).forEach(entry => { if (entry && entry.item) allTracks.push(entry.item); });
             url = data.next || null;
             guard++;
         }
@@ -7885,7 +7900,12 @@ async function loadSpotifyPlaylistTracks(playlistId, playlistName) {
         itemsEl.innerHTML = "";
 
         if (!allTracks.length) {
-            if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Ta playlista nie ma utworów lub nie udało się ich pobrać."; }
+            if (statusEl) {
+                statusEl.style.display = "block";
+                statusEl.textContent = blockedForOtherUser
+                    ? "Spotify pozwala pobrać listę utworów tylko dla Twoich własnych playlist — dla cudzych playlist API zwraca jedynie nazwę i opis (od zmian Spotify z 2026 r.). Odtwarzacz powyżej i tak odtwarza całą playlistę."
+                    : "Ta playlista nie ma utworów lub nie udało się ich pobrać.";
+            }
             return;
         }
 
