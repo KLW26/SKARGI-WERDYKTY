@@ -7724,7 +7724,14 @@ async function loadSpotifyLikedTracks() {
     select.innerHTML = "<option>Ładowanie ulubionych utworów...</option>";
     try {
         const res = await spotifyApiFetch("https://api.spotify.com/v1/me/tracks?limit=50");
-        if (!res || !res.ok) { select.innerHTML = "<option>Nie udało się pobrać ulubionych utworów</option>"; return; }
+        if (!res) { select.innerHTML = "<option>Nie udało się pobrać ulubionych (zaloguj się przez Spotify powyżej)</option>"; return; }
+        if (!res.ok) {
+            let apiMsg = "";
+            try { const errBody = await res.json(); apiMsg = errBody && errBody.error && errBody.error.message ? errBody.error.message : ""; } catch (e) {}
+            console.error("Błąd pobierania ulubionych utworów Spotify:", res.status, apiMsg);
+            select.innerHTML = `<option>Błąd ${res.status}${apiMsg ? ": " + apiMsg : " (konto może nie być dodane do listy dozwolonych użytkowników aplikacji w Spotify Developer Dashboard)"}</option>`;
+            return;
+        }
         const data = await res.json();
         select.innerHTML = "";
         (data.items || []).forEach(item => {
@@ -7752,7 +7759,14 @@ async function loadSpotifyUserPlaylists() {
     if (pickerWrap) pickerWrap.style.display = "block";
     try {
         const res = await spotifyApiFetch("https://api.spotify.com/v1/me/playlists?limit=50");
-        if (!res || !res.ok) { select.innerHTML = "<option>Nie udało się pobrać playlist</option>"; return; }
+        if (!res) { select.innerHTML = "<option>Nie udało się pobrać playlist (zaloguj się przez Spotify powyżej)</option>"; return; }
+        if (!res.ok) {
+            let apiMsg = "";
+            try { const errBody = await res.json(); apiMsg = errBody && errBody.error && errBody.error.message ? errBody.error.message : ""; } catch (e) {}
+            console.error("Błąd pobierania playlist Spotify:", res.status, apiMsg);
+            select.innerHTML = `<option>Błąd ${res.status}${apiMsg ? ": " + apiMsg : " (konto może nie być dodane do listy dozwolonych użytkowników aplikacji w Spotify Developer Dashboard)"}</option>`;
+            return;
+        }
         const data = await res.json();
         select.innerHTML = "";
         (data.items || []).forEach(pl => {
