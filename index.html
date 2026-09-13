@@ -1515,10 +1515,12 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 
 <body>
 <div id="toastContainer"></div>
+<div id="verdictPngTemplate" style="position:fixed; top:0; left:-99999px; z-index:-1;"></div>
   <div id="adminLoginModal" class="login-modal">
     <div class="login-box">
       <h1 data-key="adminPanel">Panel FIA</h1>
@@ -4119,6 +4121,9 @@ function fetchAndRenderHistory(discordId) {
                         <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
                         ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                         <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                        <div style="margin-top:8px;">
+                            <button type="button" style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer;" onclick="renderVerdictToPng('${r.id}', this)">🖼 ${currentLang === 'pl' ? 'Pobierz jako PNG' : 'Download as PNG'}</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -4643,6 +4648,7 @@ function renderAdmin() {
                                 <strong style="color:#fff;">⚖️ Werdykt:</strong>
                                 <div style="display:flex; gap:4px;">
                                     <button style="background:#1565c0; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="resendVerdict('${r.id}')">🔁 Wyślij ponownie</button>
+                                    <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${r.id}', this)">🖼 PNG</button>
                                     ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
                                 </div>
                             </div>
@@ -4702,7 +4708,10 @@ function renderAdmin() {
                     <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
                             <strong style="color:#fff;">⚖️ Werdykt apelacji:</strong>
-                            ${isHeadStewardOrRoot ? `<button style="background:#6d28d9; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openAppealVerdictEditModal('${a.caseId}', '${a.appealId}')">✎ Edytuj werdykt</button>` : ''}
+                            <div style="display:flex; gap:4px;">
+                                <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${a.caseId}', this)">🖼 PNG</button>
+                                ${isHeadStewardOrRoot ? `<button style="background:#6d28d9; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openAppealVerdictEditModal('${a.caseId}', '${a.appealId}')">✎ Edytuj werdykt</button>` : ''}
+                            </div>
                         </div>
                         ${dv.decision}<br>
                         <strong>Kara:</strong> ${dv.timePenalty || 'brak'} / ${dv.pointsPenalty || '0'} pkt<br>
@@ -6148,6 +6157,124 @@ function deleteVerdictTemplate(id) {
     database.ref("settings/verdictTemplates/" + id).remove().then(() => {
         logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SETTINGS", "verdictTemplate", `Usunięto szablon werdyktu (ID: ${id}).`);
     }).catch(err => alert("Błąd: " + err.message));
+}
+
+/* === RENDEROWANIE WERDYKTU JAKO OBRAZEK PNG ===
+   Buduje off-screen graficzną kartę werdyktu w stylu FIA i zapisuje ją
+   jako plik PNG przy pomocy biblioteki html2canvas (ładowanej z CDN). */
+function buildVerdictPngHtml(r) {
+    const d = r.decisionData;
+    const isDismissed = d.decision === "Brak naruszenia" || d.decision === "Anulowanie kary";
+    const timeStr = d.timePenalty && String(d.timePenalty).trim() ? d.timePenalty : "brak";
+    const pointsStr = d.pointsPenalty && String(d.pointsPenalty).trim() ? d.pointsPenalty : "0 pkt";
+    const issuedDate = d.issuedAt ? new Date(d.issuedAt).toLocaleString("pl-PL") : new Date().toLocaleString("pl-PL");
+    const eventDate = r.timestamp ? new Date(r.timestamp).toLocaleDateString("pl-PL") : "—";
+    const accusedBorder = d.noOneGuilty ? "#1f2937" : "#e10600";
+    const accusedTag = d.noOneGuilty ? "OSKARŻONY" : "OSKARŻONY — UZNANY WINNYM";
+
+    return `
+      <div style="width:900px; background:#04050a; color:#e8eaf0; font-family:'Barlow Condensed',Arial,sans-serif;">
+        <div style="background:linear-gradient(135deg,#0d1220,#04050a); padding:26px 36px; border-bottom:4px solid #e10600;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div style="font-size:13px; letter-spacing:4px; color:#ffd700; font-weight:700;">FIA SYSTEM ZGŁOSZEŃ</div>
+              <div style="font-size:34px; font-weight:900; letter-spacing:1px; color:#fff; margin-top:2px;">DECYZJA STEWARDÓW</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; color:#6b7280; letter-spacing:2px;">SPRAWA NR</div>
+              <div style="font-size:22px; font-weight:800; color:#e10600;">${escapeHtml(r.fiaId || r.id)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:28px 36px;">
+          <div style="display:flex; gap:24px; margin-bottom:20px; font-size:13px; color:#9ca3af; flex-wrap:wrap;">
+            <div><strong style="color:#e8eaf0;">Tor:</strong> ${escapeHtml(r.track || "—")}</div>
+            <div><strong style="color:#e8eaf0;">Split:</strong> ${escapeHtml(r.split || "—")}</div>
+            <div><strong style="color:#e8eaf0;">Sesja:</strong> ${escapeHtml(r.sessionType || "—")}</div>
+            <div><strong style="color:#e8eaf0;">Data zdarzenia:</strong> ${eventDate}</div>
+          </div>
+
+          <div style="display:flex; gap:16px; margin-bottom:24px;">
+            <div style="flex:1; background:#0d1220; border:1px solid #1f2937; border-radius:6px; padding:14px 18px;">
+              <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">ZGŁASZAJĄCY</div>
+              <div style="font-size:18px; font-weight:700; color:#e8eaf0;">${escapeHtml(r.nick || "—")}</div>
+              <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(r.discordId || "—")}</div>
+            </div>
+            <div style="flex:1; background:#0d1220; border:1px solid ${accusedBorder}; border-radius:6px; padding:14px 18px;">
+              <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">${accusedTag}</div>
+              <div style="font-size:18px; font-weight:700; color:#e8eaf0;">${escapeHtml(r.accusedNick || "—")}</div>
+              <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(r.accusedDiscordId || "—")}</div>
+            </div>
+          </div>
+
+          <div style="background:${isDismissed ? "#0d1220" : "linear-gradient(135deg,#3a0a0a,#1a0505)"}; border:1px solid ${isDismissed ? "#1f2937" : "#e10600"}; border-radius:8px; padding:20px 24px; margin-bottom:20px;">
+            <div style="font-size:11px; letter-spacing:2px; color:${isDismissed ? "#6b7280" : "#ffd700"}; margin-bottom:6px;">DECYZJA</div>
+            <div style="font-size:24px; font-weight:900; text-transform:uppercase; color:${isDismissed ? "#10b981" : "#fff"}; margin-bottom:14px;">${escapeHtml(d.decision || "—")}</div>
+            <div style="display:flex; gap:14px;">
+              <div style="flex:1; background:rgba(0,0,0,0.3); border-radius:6px; padding:10px 14px; text-align:center;">
+                <div style="font-size:9px; letter-spacing:1px; color:#9ca3af;">KARA CZASOWA</div>
+                <div style="font-size:20px; font-weight:800; color:#fff; margin-top:2px;">${escapeHtml(timeStr)}</div>
+              </div>
+              <div style="flex:1; background:rgba(0,0,0,0.3); border-radius:6px; padding:10px 14px; text-align:center;">
+                <div style="font-size:9px; letter-spacing:1px; color:#9ca3af;">PUNKTY KARNE</div>
+                <div style="font-size:20px; font-weight:800; color:#ffd700; margin-top:2px;">${escapeHtml(pointsStr)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:6px; font-size:11px; letter-spacing:2px; color:#6b7280;">UZASADNIENIE</div>
+          <div style="font-size:14px; line-height:1.6; color:#d1d5db; font-style:italic; background:#0d1220; border-left:3px solid #e10600; padding:14px 18px; border-radius:4px;">
+            "${escapeHtml(d.verdictDetails || "—")}"
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 36px; background:#0a0d16; border-top:1px solid #1f2937; font-size:11px; color:#6b7280;">
+          <div>Sędzia prowadzący: <strong style="color:#e8eaf0;">${escapeHtml(d.judge || "—")}</strong></div>
+          <div>Wydano: ${escapeHtml(issuedDate)}</div>
+        </div>
+      </div>
+    `;
+}
+
+async function renderVerdictToPng(caseId, buttonEl) {
+    const r = globalIncidents.find(x => x.id === caseId || x.fiaId === caseId);
+    if (!r || !r.decisionData) {
+        alert(currentLang === 'pl' ? "Brak wydanego werdyktu dla tej sprawy." : "No issued verdict found for this case.");
+        return;
+    }
+    if (typeof html2canvas === "undefined") {
+        alert(currentLang === 'pl'
+            ? "Biblioteka do generowania obrazów nie została załadowana (sprawdź połączenie z internetem) i odśwież stronę."
+            : "The image generation library failed to load (check your internet connection) — try refreshing the page.");
+        return;
+    }
+
+    const originalLabel = buttonEl ? buttonEl.textContent : null;
+    if (buttonEl) { buttonEl.disabled = true; buttonEl.textContent = "⏳ ..."; }
+
+    const holder = document.getElementById("verdictPngTemplate");
+    holder.innerHTML = buildVerdictPngHtml(r);
+
+    try {
+        const canvas = await html2canvas(holder.firstElementChild, { backgroundColor: "#04050a", scale: 2, useCORS: true });
+        await new Promise(resolve => {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `FIA_WERDYKT_${String(r.fiaId || r.id).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
+                document.body.appendChild(a); a.click(); a.remove();
+                URL.revokeObjectURL(url);
+                resolve();
+            }, "image/png");
+        });
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd generowania obrazu PNG: " : "Error generating PNG image: ") + err.message);
+    } finally {
+        holder.innerHTML = "";
+        if (buttonEl) { buttonEl.disabled = false; buttonEl.textContent = originalLabel; }
+    }
 }
 
 function exportDatabase() {
