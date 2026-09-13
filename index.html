@@ -5937,6 +5937,17 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     // dopasowujemy nick do faktycznie wybranego Discord ID (accusedId), zamiast zakładać z góry.
     const winnerNick = verdictNoOneGuilty ? null : resolveGuiltyPartyNick(mainReport, accusedId, unknownLabel);
     const restoreItemsVerdict = [];
+    const decisionDataToSave = {
+        decision: decision,
+        timePenalty: timePenalty,
+        pointsPenalty: pointsPenalty,
+        verdictDetails: verdictDetails,
+        judge: judge,
+        issuedAt: Date.now(),
+        noOneGuilty: verdictNoOneGuilty,
+        guiltyDiscordId: verdictNoOneGuilty ? null : (accusedId || null),
+        guiltyNick: winnerNick
+    };
     if (mainReport) {
         restoreItemsVerdict.push(
             { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
@@ -5945,17 +5956,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         );
         await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
         await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
-        await database.ref("incidents/" + originalCaseId + "/decisionData").set({
-            decision: decision,
-            timePenalty: timePenalty,
-            pointsPenalty: pointsPenalty,
-            verdictDetails: verdictDetails,
-            judge: judge,
-            issuedAt: Date.now(),
-            noOneGuilty: verdictNoOneGuilty,
-            guiltyDiscordId: verdictNoOneGuilty ? null : (accusedId || null),
-            guiltyNick: winnerNick
-        });
+        await database.ref("incidents/" + originalCaseId + "/decisionData").set(decisionDataToSave);
     }
 
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
@@ -5983,12 +5984,53 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         timestamp: new Date().toISOString()
     };
 
+    // Wygeneruj wizualną kartę werdyktu (PNG) — ten sam styl, co przy przycisku "Pobierz jako PNG".
+    // Jeśli się powiedzie, to ona (a nie same pola tekstowe) trafi na Discorda; dowód zostaje
+    // osobnym, klikalnym polem w embedzie, bo linku w obrazku kliknąć się nie da.
+    let verdictPngBlob = null;
+    let verdictPngFilename = null;
+    try {
+        if (typeof html2canvas !== "undefined") {
+            const reportForPng = Object.assign({}, mainReport, {
+                id: originalCaseId,
+                fiaId: (mainReport && mainReport.fiaId) || originalCaseId,
+                decisionData: decisionDataToSave
+            });
+            const pngHolder = document.getElementById("verdictPngTemplate");
+            pngHolder.innerHTML = buildVerdictPngHtml(reportForPng);
+            const canvas = await html2canvas(pngHolder.firstElementChild, { backgroundColor: "#04050a", scale: 2, useCORS: true });
+            verdictPngBlob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+            verdictPngFilename = `FIA_WERDYKT_${String(originalCaseId).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
+            pngHolder.innerHTML = "";
+        }
+    } catch (err) {
+        console.error("Błąd generowania obrazu PNG werdyktu:", err);
+    }
+
     try {
         const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
         const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
         const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${accusedId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
-        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+
+        let res;
+        if (verdictPngBlob) {
+            const pngEmbed = {
+                title: t.embedTitle, color: 3447003,
+                fields: [
+                    { name: t.fieldEvidence, value: mainEvidence, inline: false }
+                ],
+                image: { url: `attachment://${verdictPngFilename}` },
+                timestamp: new Date().toISOString()
+            };
+            const formData = new FormData();
+            formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [pngEmbed] }));
+            formData.append("files[0]", verdictPngBlob, verdictPngFilename);
+            res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
+        } else {
+            // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
+            res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+        }
         if (!res.ok) throw new Error();
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
         currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
@@ -6258,17 +6300,15 @@ async function renderVerdictToPng(caseId, buttonEl) {
 
     try {
         const canvas = await html2canvas(holder.firstElementChild, { backgroundColor: "#04050a", scale: 2, useCORS: true });
-        await new Promise(resolve => {
-            canvas.toBlob(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `FIA_WERDYKT_${String(r.fiaId || r.id).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
-                document.body.appendChild(a); a.click(); a.remove();
-                URL.revokeObjectURL(url);
-                resolve();
-            }, "image/png");
-        });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+        const filename = `FIA_WERDYKT_${String(r.fiaId || r.id).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd generowania obrazu PNG: " : "Error generating PNG image: ") + err.message);
     } finally {
