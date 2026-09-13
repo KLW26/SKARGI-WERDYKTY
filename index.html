@@ -7496,6 +7496,71 @@ const SPOTIFY_CLIENT_ID = "dc92c2a93ea84e3cbe721f35d6a784da";
 const SPOTIFY_REDIRECT_URI = window.location.origin + window.location.pathname;
 const SPOTIFY_SCOPES = "playlist-read-private user-read-currently-playing user-read-playback-state user-library-read";
 
+// === TOKEN KLIENTA (Client Credentials Flow) — używany TYLKO do wyszukiwarki ===
+// W przeciwieństwie do logowania osobistego (powyżej), ten token reprezentuje samą
+// aplikację, a nie konkretnego użytkownika — dzięki temu NIE podlega limitowi 5 kont
+// (allowlist) trybu Development Mode i wyszukiwanie działa dla każdego, bez logowania.
+// Nie da się nim jednak pobrać niczyich prywatnych danych (playlist, ulubionych) —
+// do tego nadal potrzebne jest logowanie osobiste powyżej.
+//
+// ⚠️ UWAGA BEZPIECZEŃSTWA: Client Secret wpisany poniżej będzie WIDOCZNY dla każdego,
+// kto otworzy źródło tej strony (Ctrl+U) — każdy mógłby go skopiować i używać w Twoim
+// imieniu (limity zapytań, itp.). Nadaje się to WYŁĄCZNIE do prywatnego/wewnętrznego
+// panelu, do którego dostęp mają tylko zaufane osoby. Nigdy nie umieszczaj tego pliku
+// na w pełni publicznej stronie bez zabezpieczenia dostępu do niej.
+// Client Secret znajdziesz na developer.spotify.com/dashboard -> Twoja aplikacja ->
+// Settings -> "Client Secret" (przycisk "View client secret").
+const SPOTIFY_CLIENT_SECRET = "c1d9a08c9c0947ac9085edd2f1768451";
+
+async function spotifyGetClientCredentialsToken() {
+    const cachedToken = localStorage.getItem("spotify_cc_token");
+    const cachedExpiry = Number(localStorage.getItem("spotify_cc_token_expiry") || 0);
+    if (cachedToken && Date.now() < cachedExpiry - 5000) return cachedToken;
+
+    if (!SPOTIFY_CLIENT_SECRET || SPOTIFY_CLIENT_SECRET === "WKLEJ_TU_SWOJ_CLIENT_SECRET") {
+        console.error("Nie ustawiono SPOTIFY_CLIENT_SECRET — wyszukiwarka nie może pobrać tokenu klienta.");
+        return null;
+    }
+
+    try {
+        const res = await fetch("https://accounts.spotify.com/api/token", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": "Basic " + btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
+            },
+            body: new URLSearchParams({ grant_type: "client_credentials" })
+        });
+        if (!res.ok) {
+            console.error("Błąd pobierania tokenu klienta Spotify:", res.status, await res.text().catch(() => ""));
+            return null;
+        }
+        const data = await res.json();
+        localStorage.setItem("spotify_cc_token", data.access_token);
+        localStorage.setItem("spotify_cc_token_expiry", String(Date.now() + (data.expires_in * 1000)));
+        return data.access_token;
+    } catch (err) {
+        console.error("Błąd sieci przy pobieraniu tokenu klienta Spotify:", err);
+        return null;
+    }
+}
+
+// Fetch dla wyszukiwarki: używa tokenu klienta (nie wymaga logowania osobistego admina).
+async function spotifyClientCredentialsFetch(url) {
+    const token = await spotifyGetClientCredentialsToken();
+    if (!token) return null;
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) {
+        // Token mógł wygasnąć mimo zapisanej daty ważności — wymuszamy pobranie nowego.
+        localStorage.removeItem("spotify_cc_token");
+        localStorage.removeItem("spotify_cc_token_expiry");
+        const freshToken = await spotifyGetClientCredentialsToken();
+        if (!freshToken) return null;
+        res = await fetch(url, { headers: { Authorization: `Bearer ${freshToken}` } });
+    }
+    return res;
+}
+
 function spotifyGenerateRandomString(length) {
     const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     const randomValues = crypto.getRandomValues(new Uint8Array(length));
@@ -7799,9 +7864,9 @@ async function runSpotifySearch() {
 
     try {
         const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track,playlist&limit=10`;
-        const res = await spotifyApiFetch(url);
+        const res = await spotifyClientCredentialsFetch(url);
         if (!res) {
-            if (statusEl) statusEl.textContent = "Nie udało się wyszukać (zaloguj się przez Spotify powyżej).";
+            if (statusEl) statusEl.textContent = "Nie udało się wyszukać — sprawdź, czy w kodzie ustawiono poprawny SPOTIFY_CLIENT_SECRET.";
             return;
         }
         if (!res.ok) {
