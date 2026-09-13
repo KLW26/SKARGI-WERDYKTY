@@ -2424,6 +2424,7 @@
               <option value="live" selected>🔴 Teraz gra (na żywo)</option>
               <option value="playlists">🎼 Moje playlisty</option>
               <option value="liked">❤️ Ulubione utwory</option>
+              <option value="search">🔍 Szukaj (dowolny utwór / playlista na Spotify)</option>
             </select>
             <div id="spotifyLiveStatusWrap" style="display:none;">
               <div id="spotifyLiveStatus" style="font-size:12px; color: var(--text-dim); margin-bottom:8px;">Sprawdzanie, co teraz gra...</div>
@@ -2431,11 +2432,28 @@
           </div>
           <div id="spotifyPlaylistPickerWrap" style="display:none; margin-bottom: 8px;">
             <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Twoja playlista:</label>
-            <select id="spotifyPlaylistSelect" class="font-select" style="width:100%;" onchange="updateSpotifyEmbed(this.value)"></select>
+            <select id="spotifyPlaylistSelect" class="font-select" style="width:100%;" onchange="selectSpotifyPlaylist(this.value, this.options[this.selectedIndex] ? this.options[this.selectedIndex].text : '')"></select>
           </div>
           <div id="spotifyLikedPickerWrap" style="display:none; margin-bottom: 8px;">
             <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Ulubiony utwór:</label>
             <select id="spotifyLikedSelect" class="font-select" style="width:100%;" onchange="updateSpotifyTrackEmbed(this.value)"></select>
+          </div>
+          <div id="spotifySearchWrap" style="display:none; margin-bottom: 8px;">
+            <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Szukaj na Spotify (utwory i playlisty wszystkich użytkowników):</label>
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+              <input type="text" id="spotifySearchInput" class="font-select" style="flex:1; width:auto; text-transform:none; letter-spacing:normal;" placeholder="Wpisz nazwę utworu, artysty lub playlisty..." onkeydown="if(event.key==='Enter'){event.preventDefault(); runSpotifySearch();}">
+              <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:11px; white-space:nowrap;" onclick="runSpotifySearch()">🔍 Szukaj</button>
+            </div>
+            <div id="spotifySearchStatus" style="font-size:12px; color: var(--text-dim); margin-bottom:6px; display:none;"></div>
+            <div id="spotifySearchPlaylistResults" style="max-height:180px; overflow-y:auto; margin-bottom:8px;"></div>
+            <div id="spotifySearchTrackResults" style="max-height:180px; overflow-y:auto;"></div>
+          </div>
+          <div id="spotifyTrackListWrap" style="display:none; margin-bottom: 8px;">
+            <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">
+              Utwory w playliście <span id="spotifyTrackListPlaylistName" style="color: var(--text); text-transform:none; letter-spacing:normal;"></span>:
+            </label>
+            <div id="spotifyTrackListStatus" style="font-size:12px; color: var(--text-dim); margin-bottom:6px; display:none;"></div>
+            <div id="spotifyTrackListItems" style="max-height:240px; overflow-y:auto;"></div>
           </div>
           <!--
             Domyślna playlista pokazywana, dopóki admin nie zaloguje się przez Spotify (wtedy lista
@@ -7675,20 +7693,26 @@ function handleSpotifySourceChange(source) {
     const playlistWrap = document.getElementById("spotifyPlaylistPickerWrap");
     const likedWrap = document.getElementById("spotifyLikedPickerWrap");
     const liveWrap = document.getElementById("spotifyLiveStatusWrap");
+    const searchWrap = document.getElementById("spotifySearchWrap");
+    const trackListWrap = document.getElementById("spotifyTrackListWrap");
     stopSpotifyLivePolling();
+    if (playlistWrap) playlistWrap.style.display = "none";
+    if (likedWrap) likedWrap.style.display = "none";
+    if (liveWrap) liveWrap.style.display = "none";
+    if (searchWrap) searchWrap.style.display = "none";
+    // Lista utworów playlisty jest wspólna dla "Moje playlisty" i "Szukaj" — ukrywamy ją tylko
+    // gdy przechodzimy do źródła, w którym pojęcie "playlista" nie ma zastosowania.
+    if (trackListWrap && source !== "playlists" && source !== "search") trackListWrap.style.display = "none";
+
     if (source === "live") {
-        if (playlistWrap) playlistWrap.style.display = "none";
-        if (likedWrap) likedWrap.style.display = "none";
         if (liveWrap) liveWrap.style.display = "block";
         startSpotifyLivePolling();
     } else if (source === "liked") {
-        if (liveWrap) liveWrap.style.display = "none";
-        if (playlistWrap) playlistWrap.style.display = "none";
         if (likedWrap) likedWrap.style.display = "block";
         loadSpotifyLikedTracks();
+    } else if (source === "search") {
+        if (searchWrap) searchWrap.style.display = "block";
     } else {
-        if (liveWrap) liveWrap.style.display = "none";
-        if (likedWrap) likedWrap.style.display = "none";
         if (playlistWrap) playlistWrap.style.display = "block";
         loadSpotifyUserPlaylists();
     }
@@ -7737,11 +7761,145 @@ async function loadSpotifyUserPlaylists() {
             opt.textContent = pl.name;
             select.appendChild(opt);
         });
-        if (data.items && data.items.length) updateSpotifyEmbed(data.items[0].id);
+        if (data.items && data.items.length) selectSpotifyPlaylist(data.items[0].id, data.items[0].name);
         else select.innerHTML = "<option>Brak playlist na koncie</option>";
     } catch (err) {
         console.error("Błąd pobierania playlist Spotify:", err);
         select.innerHTML = "<option>Błąd pobierania playlist</option>";
+    }
+}
+
+// === WYSZUKIWANIE: dowolny utwór lub playlista na całym Spotify, nie tylko konto admina ===
+async function runSpotifySearch() {
+    const input = document.getElementById("spotifySearchInput");
+    const statusEl = document.getElementById("spotifySearchStatus");
+    const playlistResultsEl = document.getElementById("spotifySearchPlaylistResults");
+    const trackResultsEl = document.getElementById("spotifySearchTrackResults");
+    if (!input || !playlistResultsEl || !trackResultsEl) return;
+    const query = input.value.trim();
+    if (!query) return;
+
+    playlistResultsEl.innerHTML = "";
+    trackResultsEl.innerHTML = "";
+    if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Szukanie..."; }
+
+    try {
+        const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track,playlist&limit=15`;
+        const res = await spotifyApiFetch(url);
+        if (!res || !res.ok) {
+            if (statusEl) statusEl.textContent = "Nie udało się wyszukać (zaloguj się przez Spotify powyżej).";
+            return;
+        }
+        const data = await res.json();
+        if (statusEl) statusEl.style.display = "none";
+
+        const playlists = (data.playlists && data.playlists.items || []).filter(Boolean);
+        const tracks = (data.tracks && data.tracks.items || []).filter(Boolean);
+
+        if (playlists.length) {
+            const header = document.createElement("div");
+            header.style.cssText = "font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom:4px;";
+            header.textContent = "Playlisty:";
+            playlistResultsEl.appendChild(header);
+            playlists.forEach(pl => {
+                const owner = pl.owner && pl.owner.display_name ? pl.owner.display_name : "";
+                playlistResultsEl.appendChild(makeSpotifyResultRow(
+                    `🎼 ${escapeHtml(pl.name)}${owner ? ` <span style="color:var(--text-dim);">— ${escapeHtml(owner)}</span>` : ""}`,
+                    () => selectSpotifyPlaylist(pl.id, pl.name)
+                ));
+            });
+        }
+
+        if (tracks.length) {
+            const header = document.createElement("div");
+            header.style.cssText = "font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom:4px;";
+            header.textContent = "Utwory:";
+            trackResultsEl.appendChild(header);
+            tracks.forEach(track => {
+                const artists = (track.artists || []).map(a => a.name).join(", ");
+                trackResultsEl.appendChild(makeSpotifyResultRow(
+                    `🎵 ${escapeHtml(track.name)}${artists ? ` <span style="color:var(--text-dim);">— ${escapeHtml(artists)}</span>` : ""}`,
+                    () => updateSpotifyTrackEmbed(track.id)
+                ));
+            });
+        }
+
+        if (!playlists.length && !tracks.length) {
+            if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Brak wyników."; }
+        }
+    } catch (err) {
+        console.error("Błąd wyszukiwania Spotify:", err);
+        if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Błąd wyszukiwania."; }
+    }
+}
+
+// Tworzy klikalny wiersz wyniku (utwór lub playlista) używany zarówno w wynikach
+// wyszukiwania, jak i w liście utworów playlisty.
+function makeSpotifyResultRow(innerHtml, onClick) {
+    const row = document.createElement("div");
+    row.innerHTML = innerHtml;
+    row.style.cssText = "padding:7px 10px; border:1px solid var(--border); border-radius:3px; margin-bottom:4px; font-size:12px; color: var(--text); cursor:pointer; transition: all 0.15s; background: rgba(255,255,255,0.02);";
+    row.addEventListener("mouseenter", () => { row.style.borderColor = "var(--red)"; row.style.background = "rgba(225,6,0,0.08)"; });
+    row.addEventListener("mouseleave", () => { row.style.borderColor = "var(--border)"; row.style.background = "rgba(255,255,255,0.02)"; });
+    row.addEventListener("click", onClick);
+    return row;
+}
+
+// Wybór playlisty (własnej lub z wyszukiwania): osadza playlistę i doczytuje
+// KOMPLETNĄ listę jej utworów (z paginacją, nie tylko pierwsze 50), żeby każdy
+// utwór dało się otworzyć osobno.
+function selectSpotifyPlaylist(playlistId, playlistName) {
+    if (!playlistId) return;
+    updateSpotifyEmbed(playlistId);
+    loadSpotifyPlaylistTracks(playlistId, playlistName || "");
+}
+
+async function loadSpotifyPlaylistTracks(playlistId, playlistName) {
+    const wrap = document.getElementById("spotifyTrackListWrap");
+    const nameEl = document.getElementById("spotifyTrackListPlaylistName");
+    const statusEl = document.getElementById("spotifyTrackListStatus");
+    const itemsEl = document.getElementById("spotifyTrackListItems");
+    if (!wrap || !itemsEl) return;
+
+    wrap.style.display = "block";
+    if (nameEl) nameEl.textContent = playlistName ? `„${playlistName}”` : "";
+    itemsEl.innerHTML = "";
+    if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Wczytywanie utworów..."; }
+
+    try {
+        let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=items(track(id,name,artists(name))),next`;
+        let allTracks = [];
+        let guard = 0;
+        // Spotify zwraca max 100 utworów na stronę — pobieramy kolejne strony (next),
+        // żeby zebrać KAŻDY utwór z playlisty, nawet jeśli ma ich kilkaset.
+        while (url && guard < 50) {
+            const res = await spotifyApiFetch(url);
+            if (!res || !res.ok) break;
+            const data = await res.json();
+            (data.items || []).forEach(item => { if (item && item.track) allTracks.push(item.track); });
+            url = data.next || null;
+            guard++;
+        }
+
+        if (statusEl) statusEl.style.display = "none";
+        itemsEl.innerHTML = "";
+
+        if (!allTracks.length) {
+            if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Ta playlista nie ma utworów lub nie udało się ich pobrać."; }
+            return;
+        }
+
+        allTracks.forEach(track => {
+            if (!track || !track.id) return;
+            const artists = (track.artists || []).map(a => a.name).join(", ");
+            itemsEl.appendChild(makeSpotifyResultRow(
+                `🎵 ${escapeHtml(track.name)}${artists ? ` <span style="color:var(--text-dim);">— ${escapeHtml(artists)}</span>` : ""}`,
+                () => updateSpotifyTrackEmbed(track.id)
+            ));
+        });
+    } catch (err) {
+        console.error("Błąd pobierania utworów playlisty Spotify:", err);
+        if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Błąd pobierania utworów."; }
     }
 }
 
