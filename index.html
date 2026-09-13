@@ -1646,6 +1646,197 @@
       background: rgba(200,16,46,0.08);
       color: var(--text);
     }
+
+    /* === MOTYW "NEON" — cyberpunkowy fiolet/cyjan === */
+    html[data-theme="neon"] {
+      --red: #ff2ec4;
+      --red-dim: #9a1a78;
+      --gold: #00f0ff;
+      --gold-dim: #0090a0;
+      --bg-void: #05030c;
+      --bg-deep: #0a0618;
+      --bg-panel: #100a22;
+      --bg-card: #150e2c;
+      --bg-input: #0a0618;
+      --border: rgba(0,240,255,0.15);
+      --border-hot: rgba(255,46,196,0.45);
+      --text: #ecebfa;
+      --text-dim: #8b86b8;
+      --text-muted: #4b466e;
+      --green: #00ff9c;
+      --blue: #00c8ff;
+      --amber-text: #ffcf4d;
+      --green-text: #26ffb0;
+      --red-text: #ff5f9e;
+      --purple-text: #c084fc;
+    }
+    html[data-theme="neon"] body {
+      background-image:
+        radial-gradient(circle at 15% 10%, rgba(255,46,196,0.10), transparent 45%),
+        radial-gradient(circle at 85% 90%, rgba(0,240,255,0.10), transparent 45%),
+        linear-gradient(180deg, #05030c, #0a0618);
+      background-attachment: fixed;
+    }
+    html[data-theme="neon"] h1,
+    html[data-theme="neon"] .section-title,
+    html[data-theme="neon"] .stat-box strong {
+      text-shadow: 0 0 12px rgba(0,240,255,0.35);
+    }
+    html[data-theme="neon"] h1 span {
+      color: var(--red);
+      -webkit-text-fill-color: var(--red);
+      background: none;
+      text-shadow: 0 0 14px rgba(255,46,196,0.55);
+    }
+    html[data-theme="neon"] .card,
+    html[data-theme="neon"] .login-box,
+    html[data-theme="neon"] .desc-box,
+    html[data-theme="neon"] .stats-group-box,
+    html[data-theme="neon"] .table-wrapper,
+    html[data-theme="neon"] .verdict-panel {
+      border: 1px solid rgba(0,240,255,0.18);
+      box-shadow: 0 0 18px rgba(0,240,255,0.05);
+    }
+    html[data-theme="neon"] .top-bar {
+      border-bottom: 2px solid var(--gold);
+      box-shadow: 0 2px 16px rgba(0,240,255,0.15);
+    }
+    html[data-theme="neon"] .theme-btn,
+    html[data-theme="neon"] .font-select,
+    html[data-theme="neon"] .lang-btn,
+    html[data-theme="neon"] .btn-secondary {
+      border-color: rgba(0,240,255,0.25);
+    }
+    html[data-theme="neon"] .theme-btn:hover,
+    html[data-theme="neon"] .font-select:hover,
+    html[data-theme="neon"] .lang-btn:hover {
+      border-color: var(--red);
+      background: rgba(255,46,196,0.1);
+      color: #fff;
+    }
+
+    /* === MOTYW "GOLD" — ciemny, bursztynowo-złoty (motyw zwycięstwa) === */
+    html[data-theme="gold"] {
+      --red: #d4a017;
+      --red-dim: #8a6a0e;
+      --gold: #ffe08a;
+      --gold-dim: #b8902f;
+      --bg-void: #0a0805;
+      --bg-deep: #100c07;
+      --bg-panel: #17130c;
+      --bg-card: #1c170e;
+      --bg-input: #0a0805;
+      --border: rgba(255,224,138,0.12);
+      --border-hot: rgba(212,160,23,0.45);
+      --text: #f2ead9;
+      --text-dim: #a3947a;
+      --text-muted: #5c5240;
+      --green: #7fd858;
+      --blue: #4a9bd6;
+      --amber-text: #ffcf6b;
+      --green-text: #9bdc7a;
+      --red-text: #f0876f;
+      --purple-text: #c9a8f5;
+    }
+    html[data-theme="gold"] body {
+      background-image:
+        radial-gradient(circle at 50% 0%, rgba(212,160,23,0.08), transparent 55%),
+        linear-gradient(180deg, #0a0805, #100c07);
+      background-attachment: fixed;
+    }
+    html[data-theme="gold"] h1 span {
+      color: var(--gold);
+      -webkit-text-fill-color: var(--gold);
+      background: none;
+      text-shadow: 0 0 10px rgba(255,224,138,0.35);
+    }
+    html[data-theme="gold"] .card,
+    html[data-theme="gold"] .login-box,
+    html[data-theme="gold"] .desc-box,
+    html[data-theme="gold"] .stats-group-box,
+    html[data-theme="gold"] .table-wrapper,
+    html[data-theme="gold"] .verdict-panel {
+      border: 1px solid rgba(255,224,138,0.16);
+    }
+    html[data-theme="gold"] .top-bar {
+      border-bottom: 3px solid var(--red);
+    }
+    html[data-theme="gold"] .theme-btn,
+    html[data-theme="gold"] .font-select,
+    html[data-theme="gold"] .lang-btn,
+    html[data-theme="gold"] .btn-secondary {
+      border-color: rgba(255,224,138,0.25);
+    }
+    html[data-theme="gold"] .theme-btn:hover,
+    html[data-theme="gold"] .font-select:hover,
+    html[data-theme="gold"] .lang-btn:hover {
+      border-color: var(--gold);
+      background: rgba(212,160,23,0.12);
+      color: #fff;
+    }
+
+    /* === MOTYW "TELEMETRY" — niebiesko-techniczny, jak ekran telemetrii === */
+    html[data-theme="telemetry"] {
+      --red: #0091ff;
+      --red-dim: #005a9e;
+      --gold: #7cf5d0;
+      --gold-dim: #3a9e85;
+      --bg-void: #030608;
+      --bg-deep: #05090d;
+      --bg-panel: #081019;
+      --bg-card: #0b1420;
+      --bg-input: #05090d;
+      --border: rgba(0,145,255,0.14);
+      --border-hot: rgba(0,145,255,0.45);
+      --text: #dbeaf5;
+      --text-dim: #5f7c93;
+      --text-muted: #34495a;
+      --green: #00e5a0;
+      --blue: #0091ff;
+      --amber-text: #ffb84d;
+      --green-text: #4dffc8;
+      --red-text: #ff6b6b;
+      --purple-text: #8fb8ff;
+      --font-heading: 'Rajdhani', sans-serif;
+    }
+    html[data-theme="telemetry"] body {
+      background-image:
+        repeating-linear-gradient(0deg, rgba(0,145,255,0.035) 0px, rgba(0,145,255,0.035) 1px, transparent 1px, transparent 24px),
+        repeating-linear-gradient(90deg, rgba(0,145,255,0.035) 0px, rgba(0,145,255,0.035) 1px, transparent 1px, transparent 24px),
+        linear-gradient(180deg, #030608, #05090d);
+      background-attachment: fixed;
+    }
+    html[data-theme="telemetry"] h1 span {
+      color: var(--gold);
+      -webkit-text-fill-color: var(--gold);
+      background: none;
+      text-shadow: 0 0 10px rgba(124,245,208,0.4);
+    }
+    html[data-theme="telemetry"] .card,
+    html[data-theme="telemetry"] .login-box,
+    html[data-theme="telemetry"] .desc-box,
+    html[data-theme="telemetry"] .stats-group-box,
+    html[data-theme="telemetry"] .table-wrapper,
+    html[data-theme="telemetry"] .verdict-panel {
+      border: 1px solid rgba(0,145,255,0.2);
+    }
+    html[data-theme="telemetry"] .top-bar {
+      border-bottom: 2px solid var(--blue);
+      box-shadow: 0 2px 14px rgba(0,145,255,0.2);
+    }
+    html[data-theme="telemetry"] .theme-btn,
+    html[data-theme="telemetry"] .font-select,
+    html[data-theme="telemetry"] .lang-btn,
+    html[data-theme="telemetry"] .btn-secondary {
+      border-color: rgba(0,145,255,0.28);
+    }
+    html[data-theme="telemetry"] .theme-btn:hover,
+    html[data-theme="telemetry"] .font-select:hover,
+    html[data-theme="telemetry"] .lang-btn:hover {
+      border-color: var(--gold);
+      background: rgba(0,145,255,0.12);
+      color: #fff;
+    }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -1885,7 +2076,7 @@
       <div style="display:flex; align-items:center;">
         <div id="appearanceControls" style="display:none; align-items:center;">
           <div class="font-select-wrap">
-            <select class="font-select" id="fontSelect" onchange="applyFont(this.value); localStorage.setItem('siteFont', this.value);" title="Wybór czcionki strony">
+            <select class="font-select" id="fontSelect" onchange="setGlobalFont(this.value);" title="Wybór czcionki strony">
               <option value="default">CZCIONKA: BARLOW</option>
               <option value="modern">CZCIONKA: INTER</option>
               <option value="racing">CZCIONKA: ORBITRON</option>
@@ -1894,10 +2085,13 @@
             </select>
           </div>
           <div class="font-select-wrap">
-            <select class="font-select" id="themeSelect" onchange="localStorage.setItem('siteTheme', this.value); applyTheme(this.value);" title="Wybór wyglądu strony">
+            <select class="font-select" id="themeSelect" onchange="setGlobalTheme(this.value);" title="Wybór wyglądu strony">
               <option value="dark">WYGLĄD: CIEMNY</option>
               <option value="light">WYGLĄD: JASNY</option>
               <option value="graphite">WYGLĄD: GRAFIT</option>
+              <option value="neon">WYGLĄD: NEON</option>
+              <option value="gold">WYGLĄD: ZŁOTY</option>
+              <option value="telemetry">WYGLĄD: TELEMETRIA</option>
             </select>
           </div>
           <input type="file" id="bgFileInput" accept="image/*" style="display:none;" onchange="handleBgFileSelect(this.files[0])">
@@ -3285,10 +3479,49 @@ function initAdminTrackFilter() {
 }
 
 function applyTheme(theme) {
-    const valid = ["dark", "light", "graphite"].includes(theme) ? theme : "dark";
+    const valid = ["dark", "light", "graphite", "neon", "gold", "telemetry"].includes(theme) ? theme : "dark";
     document.documentElement.setAttribute("data-theme", valid);
     const select = document.getElementById("themeSelect");
     if (select) select.value = valid;
+}
+
+/* === GLOBALNY WYGLĄD STRONY (Firebase — dotyczy WSZYSTKICH użytkowników na każdym urządzeniu) === */
+let appearanceSyncing = false; // blokuje pętlę zapis->odczyt podczas nakładania zdalnych ustawień
+
+function setGlobalTheme(theme) {
+    localStorage.setItem('siteTheme', theme); // natychmiastowy podgląd + fallback offline
+    applyTheme(theme);
+    if (appearanceSyncing) return;
+    database.ref("settings/appearance/theme").set(theme).catch(err => console.error("Błąd zapisu motywu:", err));
+}
+
+function setGlobalFont(font) {
+    localStorage.setItem('siteFont', font);
+    applyFont(font);
+    if (appearanceSyncing) return;
+    database.ref("settings/appearance/font").set(font).catch(err => console.error("Błąd zapisu czcionki:", err));
+}
+
+function listenToAppearanceSettings() {
+    database.ref("settings/appearance").on("value", snap => {
+        const data = snap.val() || {};
+        appearanceSyncing = true;
+        applyTheme(data.theme || "dark");
+        applyFont(data.font || "default");
+        localStorage.setItem('siteTheme', data.theme || "dark");
+        localStorage.setItem('siteFont', data.font || "default");
+
+        if (data.background) {
+            applyCustomBackground(data.background);
+            const opacity = data.backgroundOpacity != null ? data.backgroundOpacity : 100;
+            setBackgroundOpacity(opacity, false);
+            const slider = document.getElementById("bgOpacitySlider");
+            if (slider) slider.value = opacity;
+        } else {
+            removeCustomBackground(false);
+        }
+        appearanceSyncing = false;
+    });
 }
 
 /* === WYBÓR CZCIONKI STRONY === */
@@ -3335,6 +3568,14 @@ function handleBgFileSelect(file) {
             try {
                 localStorage.setItem('siteBackground', dataUrl);
                 applyCustomBackground(dataUrl);
+                database.ref("settings/appearance").update({
+                    background: dataUrl,
+                    backgroundOpacity: 100
+                }).catch(err => {
+                    alert(currentLang === 'pl'
+                        ? 'Nie udało się zapisać tła globalnie (błąd Firebase) — sprawdź połączenie: ' + err.message
+                        : 'Failed to save background globally (Firebase error) — check connection: ' + err.message);
+                });
             } catch (err) {
                 alert(currentLang === 'pl'
                     ? 'Nie udało się zapisać tła — plik jest zbyt duży na pamięć przeglądarki.'
@@ -3359,13 +3600,17 @@ function applyCustomBackground(dataUrl) {
     if (opacityWrap) opacityWrap.style.display = 'inline-block';
 }
 
-function setBackgroundOpacity(value) {
+function setBackgroundOpacity(value, sync = true) {
     const layer = document.getElementById('customBgLayer');
     if (layer) layer.style.opacity = (Number(value) / 100).toString();
     localStorage.setItem('siteBackgroundOpacity', value);
+    if (sync && !appearanceSyncing) {
+        database.ref("settings/appearance/backgroundOpacity").set(Number(value))
+            .catch(err => console.error("Błąd zapisu przezroczystości tła:", err));
+    }
 }
 
-function removeCustomBackground() {
+function removeCustomBackground(sync = true) {
     localStorage.removeItem('siteBackground');
     localStorage.removeItem('siteBackgroundOpacity');
     const layer = document.getElementById('customBgLayer');
@@ -3379,6 +3624,10 @@ function removeCustomBackground() {
     if (slider) slider.value = 100;
     const fileInput = document.getElementById('bgFileInput');
     if (fileInput) fileInput.value = '';
+    if (sync && !appearanceSyncing) {
+        database.ref("settings/appearance").update({ background: null, backgroundOpacity: null })
+            .catch(err => console.error("Błąd usuwania tła globalnie:", err));
+    }
 }
 
 
@@ -7699,6 +7948,7 @@ function renderUsersAndLogs() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    // Podgląd natychmiastowy z lokalnej pamięci (bez migotania), zanim Firebase odpowie.
     const savedTheme = localStorage.getItem("siteTheme");
     applyTheme(savedTheme || "dark");
 
@@ -7710,11 +7960,15 @@ window.addEventListener("DOMContentLoaded", () => {
         applyCustomBackground(savedBg);
         const savedOpacity = localStorage.getItem("siteBackgroundOpacity");
         if (savedOpacity) {
-            setBackgroundOpacity(savedOpacity);
+            setBackgroundOpacity(savedOpacity, false);
             const slider = document.getElementById("bgOpacitySlider");
             if (slider) slider.value = savedOpacity;
         }
     }
+
+    // Globalne ustawienia wyglądu (motyw/czcionka/tło) z Firebase — obowiązują
+    // dla WSZYSTKICH odwiedzających, na każdym urządzeniu, i nadpisują wersję lokalną.
+    listenToAppearanceSettings();
 
     // Lista stewardów musi być dostępna od startu strony, żeby logowanie mogło
     // zidentyfikować, KTO się loguje (po Discord ID) i wczytać jego uprawnienia.
