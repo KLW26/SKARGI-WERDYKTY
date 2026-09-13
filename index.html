@@ -1739,67 +1739,6 @@
     </div>
   </div>
 
-
-  <div id="verdictTemplateModal" class="desc-modal">
-    <div class="desc-box">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-        <h2 class="section-title" style="margin-bottom: 0;">📋 Zarządzaj szablonami werdyktów</h2>
-      </div>
-      <p style="font-size: 11px; color: var(--text-dim); margin-top:-6px;">Szablony wbudowane (⭐) są stałe i nieedytowalne. Własne szablony są współdzielone przez wszystkich sędziów i zapisywane w bazie.</p>
-
-      <div id="verdictTemplateExistingList" style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin:6px 0 4px;"></div>
-
-      <hr style="border: 0; border-top: 1px solid var(--border); margin: 4px 0;">
-
-      <div style="display:flex; flex-direction:column; gap:10px; background: var(--bg-deep); padding: 14px; border-radius: 4px; border: 1px dashed var(--gold);">
-        <p style="font-size: 11px; color: var(--gold); margin-bottom: 4px;">➕ Nowy własny szablon</p>
-        <div class="field">
-          <label>Nazwa szablonu</label>
-          <input type="text" id="newTemplateName" placeholder="np. Blokowanie w Q na torze prostym">
-        </div>
-        <div class="field">
-          <label>Decyzja</label>
-          <select id="newTemplateDecision">
-            <option value="Brak naruszenia">Brak naruszenia</option>
-            <option value="Naruszenie – ostrzeżenie">Naruszenie – ostrzeżenie</option>
-            <option value="Naruszenie – kara czasowa">Naruszenie – kara czasowa</option>
-            <option value="Naruszenie – Punkty Karne">Naruszenie – Punkty Karne</option>
-            <option value="Naruszenie – kara czasowa i punkty karne">Naruszenie – kara czasowa i punkty karne</option>
-            <option value="Naruszenie – dyskwalifikacja">Naruszenie – dyskwalifikacja</option>
-            <option value="Anulowanie kary">Anulowanie kary</option>
-          </select>
-        </div>
-        <div class="row">
-          <div class="field">
-            <label>Kara czasowa</label>
-            <input type="text" id="newTemplateTime" placeholder="np. +5s">
-          </div>
-          <div class="field">
-            <label>Punkty karne</label>
-            <input type="text" id="newTemplatePoints" placeholder="np. 2 pkt">
-          </div>
-        </div>
-        <div class="field">
-          <label>Kto winny (domyślnie po zastosowaniu szablonu)</label>
-          <select id="newTemplateGuilty">
-            <option value="accused">Oskarżony</option>
-            <option value="reporter">Zgłaszający</option>
-            <option value="none">Nikt nie winny</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Treść uzasadnienia</label>
-          <textarea id="newTemplateDetails" style="min-height: 80px;" placeholder="Gotowy tekst uzasadnienia werdyktu..."></textarea>
-        </div>
-        <button class="btn-success" onclick="saveNewVerdictTemplate()">💾 Zapisz szablon</button>
-      </div>
-
-      <div style="display: flex; gap: 8px; margin-top: 12px;">
-        <button class="btn-secondary" onclick="closeVerdictTemplateManager()" style="flex:1;">Zamknij</button>
-      </div>
-    </div>
-  </div>
-
   <div class="card">
     <div class="top-bar">
       <div class="race-flag-deco" aria-hidden="true"></div>
@@ -2200,7 +2139,10 @@
       <div id="appealsListWrap" class="collapsible-list-wrap">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 32px; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
           <h2 class="section-title appeal-title" style="margin-bottom: 0;">⚖️ Zarządzanie Aktywnymi Apelacjami</h2>
-          <button id="btnToggleAppeals" class="btn-toggle-list" onclick="toggleCollapsibleList('appealsListWrap','btnToggleAppeals')">⬆ ZWIŃ LISTĘ APELACJI</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="btnDeleteAllAppeals" class="btn-danger" style="display:none;" onclick="deleteAllAppeals()">🗑 Usuń wszystkie apelacje</button>
+            <button id="btnToggleAppeals" class="btn-toggle-list" onclick="toggleCollapsibleList('appealsListWrap','btnToggleAppeals')">⬆ ZWIŃ LISTĘ APELACJI</button>
+          </div>
         </div>
         <div class="table-wrapper" style="border-color: rgba(255,215,0,0.2);">
           <table>
@@ -2235,15 +2177,6 @@
         </div>
 
         <form id="responseForm">
-          <div class="field" style="margin-bottom:16px;">
-            <label style="color: var(--text-dim);">📋 Szablon werdyktu (opcjonalnie)</label>
-            <div style="display:flex; gap:6px;">
-              <select id="verdictTemplateSelect" onchange="applyVerdictTemplate()" style="flex:1;">
-                <option value="">— wybierz gotowy szablon —</option>
-              </select>
-              <button type="button" class="btn-secondary" style="padding:8px 12px; font-size:11px; white-space:nowrap;" onclick="openVerdictTemplateManager()">⚙ Zarządzaj</button>
-            </div>
-          </div>
           <div class="row">
             <div class="field">
               <label for="caseId" data-key="caseIdLabel">ID sprawy</label>
@@ -3887,6 +3820,9 @@ function applyStewardPermissions() {
     const trashBtn = document.getElementById("openTrashBtn");
     if (trashBtn) trashBtn.style.display = (isRoot || perms.access_trash) ? "inline-block" : "none";
 
+    const deleteAllAppealsBtn = document.getElementById("btnDeleteAllAppeals");
+    if (deleteAllAppealsBtn) deleteAllAppealsBtn.style.display = (isRoot || perms.access_trash) ? "inline-block" : "none";
+
     const bulkBar = document.getElementById("bulkBar");
     if (bulkBar && !isRoot && !perms.review_incidents) bulkBar.style.display = "none";
 }
@@ -5426,6 +5362,35 @@ async function deleteAppeal(id) {
     }
 }
 
+async function deleteAllAppeals() {
+    const isRootDel = loggedInSteward?.role === "ROOT" || loggedInSteward?.role === "Główny Steward";
+    const canDeleteAll = isRootDel || !!(loggedInSteward?.permissions && loggedInSteward.permissions.access_trash);
+    if (!canDeleteAll) return;
+    // Migawka na stałe — globalAppeals odświeży się (na pusto) w trakcie usuwania,
+    // gdy tylko pierwsze wpisy znikną z bazy, więc licznik liczymy raz, na starcie.
+    const appealsSnapshot = [...globalAppeals];
+    if (appealsSnapshot.length === 0) {
+        alert(currentLang === 'pl' ? "Brak apelacji do usunięcia." : "No appeals to delete.");
+        return;
+    }
+    const confirmMsg = currentLang === 'pl'
+        ? `Czy na pewno chcesz usunąć WSZYSTKIE apelacje naraz (${appealsSnapshot.length} szt.)? Trafią do Kosza — będzie można je stamtąd przywrócić.`
+        : `Are you sure you want to delete ALL appeals at once (${appealsSnapshot.length})? They will go to Trash and can be restored from there.`;
+    if (!confirm(confirmMsg)) return;
+    try {
+        const updates = {};
+        for (const a of appealsSnapshot) {
+            const { id: _drop, ...data } = a;
+            await moveToTrash("appeal", a.id, data);
+            updates[`appeals/${a.id}`] = null;
+        }
+        await database.ref().update(updates);
+        alert(currentLang === 'pl' ? `Usunięto ${appealsSnapshot.length} apelacji. Możesz je przywrócić z Kosza.` : `Deleted ${appealsSnapshot.length} appeals. You can restore them from Trash.`);
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas usuwania wszystkich apelacji: " : "Error deleting all appeals: ") + err.message);
+    }
+}
+
 let currentlyEditedAppealId = null;
 
 function openAppealEditModal(appealId) {
@@ -6063,142 +6028,6 @@ function handleDecisionChange() {
         timeField.style.display = "flex";
         pointsField.style.display = "flex";
     }
-}
-
-/* === GOTOWE SZABLONY WERDYKTÓW === */
-const builtInVerdictTemplates = [
-    { name: "Brak naruszenia — zgłoszenie bezpodstawne", decision: "Brak naruszenia", time: "", points: "", guilty: "none",
-      details: "Po dokładnej analizie dostarczonych dowodów Stewardzi nie stwierdzili naruszenia regulaminu sportowego. Zgłoszenie zostaje odrzucone jako bezpodstawne." },
-    { name: "Ostrzeżenie — drobne wykroczenie", decision: "Naruszenie – ostrzeżenie", time: "", points: "", guilty: "accused",
-      details: "Stewardzi stwierdzili drobne naruszenie regulaminu sportowego. Kierowca otrzymuje oficjalne ostrzeżenie bez dalszych konsekwencji." },
-    { name: "Przekroczenie granic toru", decision: "Naruszenie – kara czasowa", time: "+5s", points: "", guilty: "accused",
-      details: "Stwierdzono wielokrotne przekraczanie granic toru bez oddania uzyskanej przewagi. Kierowca otrzymuje karę czasową +5 sekund." },
-    { name: "Spowodowanie kolizji", decision: "Naruszenie – kara czasowa i punkty karne", time: "+10s", points: "2 pkt", guilty: "accused",
-      details: "Kierowca ponosi pełną odpowiedzialność za spowodowanie kolizji z innym zawodnikiem. Nałożona zostaje kara czasowa +10 sekund oraz 2 punkty karne." },
-    { name: "Niebezpieczny powrót na tor", decision: "Naruszenie – Punkty Karne", time: "", points: "3 pkt", guilty: "accused",
-      details: "Kierowca powrócił na tor w sposób stwarzający bezpośrednie zagrożenie dla innych zawodników. Nałożone zostają 3 punkty karne." },
-    { name: "Rażące naruszenie — dyskwalifikacja", decision: "Naruszenie – dyskwalifikacja", time: "", points: "", guilty: "accused",
-      details: "Stwierdzono rażące naruszenie regulaminu sportowego, zagrażające bezpieczeństwu innych uczestników sesji. Kierowca zostaje zdyskwalifikowany z bieżącej sesji." },
-    { name: "Anulowanie wcześniejszej kary", decision: "Anulowanie kary", time: "", points: "", guilty: "none",
-      details: "Po ponownej analizie sprawy Stewardzi decydują o anulowaniu wcześniej nałożonej kary." }
-];
-let customVerdictTemplates = [];
-
-function loadVerdictTemplates() {
-    database.ref("settings/verdictTemplates").on("value", (snap) => {
-        customVerdictTemplates = [];
-        const data = snap.val();
-        if (data) {
-            Object.entries(data).forEach(([id, t]) => customVerdictTemplates.push({ id, ...t }));
-        }
-        populateVerdictTemplateSelect();
-        renderExistingTemplatesList();
-    });
-}
-
-function populateVerdictTemplateSelect() {
-    const select = document.getElementById("verdictTemplateSelect");
-    if (!select) return;
-    const prevValue = select.value;
-    let html = '<option value="">— wybierz gotowy szablon —</option>';
-    html += '<optgroup label="⭐ Wbudowane">';
-    builtInVerdictTemplates.forEach((t, i) => { html += `<option value="built:${i}">${escapeHtml(t.name)}</option>`; });
-    html += '</optgroup>';
-    if (customVerdictTemplates.length) {
-        html += '<optgroup label="🛠 Własne (współdzielone)">';
-        customVerdictTemplates.forEach(t => { html += `<option value="custom:${t.id}">${escapeHtml(t.name)}</option>`; });
-        html += '</optgroup>';
-    }
-    select.innerHTML = html;
-    select.value = prevValue || "";
-}
-
-function applyVerdictTemplate() {
-    const select = document.getElementById("verdictTemplateSelect");
-    if (!select || !select.value) return;
-    const [kind, key] = select.value.split(":");
-    let tmpl = null;
-    if (kind === "built") tmpl = builtInVerdictTemplates[parseInt(key, 10)];
-    else if (kind === "custom") tmpl = customVerdictTemplates.find(t => t.id === key);
-    if (!tmpl) return;
-
-    const decisionSelect = document.getElementById("decision");
-    const timeInput = document.getElementById("timePenalty");
-    const pointsInput = document.getElementById("pointsPenalty");
-    const detailsArea = document.getElementById("verdictDetails");
-
-    if (decisionSelect) { decisionSelect.value = tmpl.decision || ""; handleDecisionChange(); }
-    if (timeInput) timeInput.value = tmpl.time || "";
-    if (pointsInput) pointsInput.value = tmpl.points || "";
-    if (detailsArea) detailsArea.value = tmpl.details || "";
-
-    if (tmpl.guilty === "none") {
-        pickGuiltyParty("none");
-    } else if (tmpl.guilty === "accused" && currentVerdictAccusedId) {
-        pickGuiltyParty("accused");
-    } else if (tmpl.guilty === "reporter" && currentVerdictReporterId) {
-        pickGuiltyParty("reporter");
-    }
-}
-
-function openVerdictTemplateManager() {
-    document.getElementById("verdictTemplateModal").style.display = "flex";
-    renderExistingTemplatesList();
-}
-function closeVerdictTemplateManager() {
-    document.getElementById("verdictTemplateModal").style.display = "none";
-}
-
-function renderExistingTemplatesList() {
-    const box = document.getElementById("verdictTemplateExistingList");
-    if (!box) return;
-    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
-    let html = "";
-    builtInVerdictTemplates.forEach(t => {
-        html += `<div class="template-existing-row"><span class="tmpl-name">⭐ ${escapeHtml(t.name)}</span><span class="tmpl-meta">${escapeHtml(t.decision)}</span></div>`;
-    });
-    customVerdictTemplates.forEach(t => {
-        html += `<div class="template-existing-row">
-          <span class="tmpl-name">🛠 ${escapeHtml(t.name)}</span>
-          <span class="tmpl-meta">${escapeHtml(t.decision || "")}</span>
-          ${canManage ? `<button type="button" onclick="deleteVerdictTemplate('${t.id}')">🗑 Usuń</button>` : ""}
-        </div>`;
-    });
-    box.innerHTML = html || '<div class="stat-empty-msg">Brak szablonów.</div>';
-}
-
-function saveNewVerdictTemplate() {
-    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
-    if (!canManage) { alert("Brak uprawnień do dodawania szablonów werdyktów!"); return; }
-    const name = document.getElementById("newTemplateName").value.trim();
-    if (!name) { alert("Podaj nazwę szablonu."); return; }
-    const newTemplate = {
-        name,
-        decision: document.getElementById("newTemplateDecision").value,
-        time: document.getElementById("newTemplateTime").value.trim(),
-        points: document.getElementById("newTemplatePoints").value.trim(),
-        guilty: document.getElementById("newTemplateGuilty").value,
-        details: document.getElementById("newTemplateDetails").value.trim(),
-        createdBy: loggedInSteward ? loggedInSteward.nick : "ADMIN",
-        createdAt: Date.now()
-    };
-    const newRef = database.ref("settings/verdictTemplates").push();
-    newRef.set(newTemplate).then(() => {
-        document.getElementById("newTemplateName").value = "";
-        document.getElementById("newTemplateTime").value = "";
-        document.getElementById("newTemplatePoints").value = "";
-        document.getElementById("newTemplateDetails").value = "";
-        logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SETTINGS", "verdictTemplate", `Dodano nowy szablon werdyktu: "${name}".`);
-    }).catch(err => alert("Błąd zapisu szablonu: " + err.message));
-}
-
-function deleteVerdictTemplate(id) {
-    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
-    if (!canManage) { alert("Brak uprawnień do usuwania szablonów werdyktów!"); return; }
-    if (!confirm("Usunąć ten szablon werdyktu na stałe?")) return;
-    database.ref("settings/verdictTemplates/" + id).remove().then(() => {
-        logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "SETTINGS", "verdictTemplate", `Usunięto szablon werdyktu (ID: ${id}).`);
-    }).catch(err => alert("Błąd: " + err.message));
 }
 
 /* === RENDEROWANIE WERDYKTU JAKO OBRAZEK PNG ===
@@ -7230,7 +7059,6 @@ function finalizeAutoLogin() {
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
     renderNotifBell();
-    populateVerdictTemplateSelect();
     const loginSourceMsg = (loggedInSteward && loggedInSteward.id === "external-judge")
         ? `Zalogowano do panelu administracyjnego jako sędzia spoza ligi (hasłem).`
         : `Zalogowano do panelu administracyjnego przez Discord.`;
@@ -7707,7 +7535,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     loadSeasonSettings();
-    loadVerdictTemplates();
 
     database.ref("chat").on("value", (snapshot) => {
         const data = snapshot.val();
