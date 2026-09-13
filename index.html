@@ -2404,6 +2404,46 @@
         </div>
       </div>
 
+      <div id="adminSpotifyBox" style="margin-bottom: 16px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+          <button type="button" class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="toggleAdminSpotifyPlayer()">
+            🎵 <span id="spotifyToggleLabel">POKAŻ ODTWARZACZ SPOTIFY</span>
+          </button>
+          <button type="button" id="spotifyLoginBtn" class="discord-login-btn" style="background:#1db954; display:none;" onclick="loginWithSpotifyAdmin()">
+            🎧 <span>Zaloguj się przez Spotify</span>
+          </button>
+          <div id="spotifyConnectedBar" class="discord-status-bar" style="display:none;">
+            🎧 Połączono jako:&nbsp;<strong id="spotifyConnectedName" style="color: var(--text);"></strong>
+            <button type="button" class="logout-x" onclick="logoutSpotifyAdmin()">Rozłącz</button>
+          </div>
+        </div>
+        <div id="adminSpotifyPlayerWrap" style="display:none; margin-top: 10px;">
+          <div id="spotifyPlaylistPickerWrap" style="display:none; margin-bottom: 8px;">
+            <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Twoja playlista:</label>
+            <select id="spotifyPlaylistSelect" class="font-select" style="width:100%;" onchange="updateSpotifyEmbed(this.value)"></select>
+          </div>
+          <!--
+            PLACEHOLDER: to jest przykładowa, publiczna playlista Spotify wyłącznie do celów demo,
+            widoczna dopóki admin się nie zaloguje przez Spotify (wtedy powyższa lista podmienia src
+            na wybraną playlistę z jego konta).
+            Aby ręcznie podmienić na własną playlistę/utwór/album bez logowania:
+            1. W aplikacji Spotify kliknij "..." -> Udostępnij -> Kopiuj link do osadzenia (Embed).
+            2. Wklej cały wygenerowany adres URL (ten z "open.spotify.com/embed/...") w atrybucie src poniżej.
+          -->
+          <iframe
+            id="adminSpotifyIframe"
+            style="border-radius: 8px;"
+            src="https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M?utm_source=generator"
+            width="100%"
+            height="152"
+            frameborder="0"
+            allowfullscreen=""
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy">
+          </iframe>
+        </div>
+      </div>
+
       <div class="stats-container-grid">
         <div class="stats-group-box">
           <div class="stats-group-title">📊 Incydenty główne</div>
@@ -2869,6 +2909,10 @@ const DISCORD_OAUTH_SCOPE = "identify";
 const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
 const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
 const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
+// Webhook wysyłający powiadomienie za każdym razem, gdy ktoś (steward lub kierowca) napisze
+// nową wiadomość na czacie sprawy. Wklej tu URL webhooka wybranego kanału Discord — jeśli
+// zostawisz puste, powiadomienia o czacie będą po prostu wyłączone (bez błędów w konsoli).
+const CHAT_MESSAGE_WEBHOOK = "https://discord.com/api/webhooks/1543928093725425664/YHmK_dTdt6aW-YzfXqQP_k8z-wNfsG3LAqhrhHbf1nwFxX-NWr2SZeh2buSc-Y5YKZ-d";
 
 const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024;
 const MAX_EVIDENCE_FILES = 5;
@@ -7350,6 +7394,272 @@ function renderAdminChatBox() {
     adminChatBox.scrollTop = adminChatBox.scrollHeight;
 }
 
+// Zwraca listę Discord ID osób, które warto pomingować przy nowej wiadomości stewarda
+// na czacie danej sprawy: najpierw sprawdza, kto już wcześniej pisał tam jako gracz,
+// a jeśli czat jest jeszcze pusty — sięga po zgłaszającego/oskarżonego z samej sprawy.
+function findChatPingTargets(caseId, excludeDiscordId) {
+    const ids = new Set();
+    if (globalChatData) {
+        Object.values(globalChatData).forEach(m => {
+            if (m.caseId === caseId && m.role === "player" && m.userDiscordId && m.userDiscordId !== excludeDiscordId) {
+                ids.add(m.userDiscordId);
+            }
+        });
+    }
+    if (!ids.size) {
+        const relatedAppeal = (typeof globalAppeals !== "undefined" ? globalAppeals : []).find(a => a.appealId === caseId);
+        if (relatedAppeal && relatedAppeal.discordId) ids.add(relatedAppeal.discordId);
+        const relatedReport = (typeof globalIncidents !== "undefined" ? globalIncidents : []).find(r => r.id === caseId);
+        if (relatedReport) {
+            if (relatedReport.discordId) ids.add(relatedReport.discordId);
+            if (relatedReport.accusedDiscordId) ids.add(relatedReport.accusedDiscordId);
+        }
+    }
+    return Array.from(ids);
+}
+
+// Wysyła powiadomienie webhook o nowej wiadomości na czacie sprawy. Cicho przerywa,
+// jeśli CHAT_MESSAGE_WEBHOOK nie został skonfigurowany.
+async function sendChatMessageWebhook(msgData, caseId, pingContent) {
+    if (!CHAT_MESSAGE_WEBHOOK) return;
+    const preview = (msgData.text || "").trim().slice(0, 500);
+    const embed = {
+        title: "💬 Nowa wiadomość na czacie sprawy",
+        color: 3900151,
+        fields: [
+            { name: "📁 Sprawa", value: `**${caseId || "Ogólny"}**`, inline: true },
+            { name: "👤 Od", value: msgData.nick || "—", inline: true }
+        ],
+        timestamp: new Date().toISOString()
+    };
+    if (preview) embed.fields.push({ name: "✉️ Treść", value: preview, inline: false });
+    if (msgData.files && msgData.files.length) embed.fields.push({ name: "📎 Załączniki", value: String(msgData.files.length), inline: true });
+    try {
+        await fetch(CHAT_MESSAGE_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: pingContent || "", embeds: [embed] })
+        });
+    } catch (err) {
+        console.error("Błąd wysyłania powiadomienia webhook o wiadomości na czacie:", err);
+    }
+}
+
+function toggleAdminSpotifyPlayer() {
+    const wrap = document.getElementById("adminSpotifyPlayerWrap");
+    const label = document.getElementById("spotifyToggleLabel");
+    if (!wrap) return;
+    const isHidden = wrap.style.display === "none";
+    wrap.style.display = isHidden ? "block" : "none";
+    if (label) label.textContent = isHidden ? "UKRYJ ODTWARZACZ SPOTIFY" : "POKAŻ ODTWARZACZ SPOTIFY";
+}
+
+// === LOGOWANIE PRZEZ SPOTIFY (OAuth 2.0 Authorization Code + PKCE) ===
+// Nie wymaga backendu ani Client Secret — bezpieczne do użycia w czystym JS po stronie klienta.
+// Client ID pochodzi z aplikacji założonej na developer.spotify.com (wymaga konta Premium).
+const SPOTIFY_CLIENT_ID = "dc92c2a93ea84e3cbe721f35d6a784da";
+// Adres przekierowania jest wyliczany dynamicznie z adresu bieżącej strony — MUSI on być
+// identyczny (znak w znak) z adresem wpisanym w polu "Redirect URI" w ustawieniach
+// aplikacji na developer.spotify.com, inaczej logowanie zwróci błąd "INVALID_CLIENT: Invalid redirect URI".
+const SPOTIFY_REDIRECT_URI = window.location.origin + window.location.pathname;
+const SPOTIFY_SCOPES = "playlist-read-private user-read-currently-playing user-read-playback-state";
+
+function spotifyGenerateRandomString(length) {
+    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const randomValues = crypto.getRandomValues(new Uint8Array(length));
+    let text = "";
+    randomValues.forEach(val => { text += possible[val % possible.length]; });
+    return text;
+}
+
+async function spotifySha256(plain) {
+    const data = new TextEncoder().encode(plain);
+    return crypto.subtle.digest("SHA-256", data);
+}
+
+function spotifyBase64UrlEncode(buffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+}
+
+async function loginWithSpotifyAdmin() {
+    const codeVerifier = spotifyGenerateRandomString(64);
+    sessionStorage.setItem("spotify_code_verifier", codeVerifier);
+    const hashed = await spotifySha256(codeVerifier);
+    const codeChallenge = spotifyBase64UrlEncode(hashed);
+    const params = new URLSearchParams({
+        client_id: SPOTIFY_CLIENT_ID,
+        response_type: "code",
+        redirect_uri: SPOTIFY_REDIRECT_URI,
+        scope: SPOTIFY_SCOPES,
+        code_challenge_method: "S256",
+        code_challenge: codeChallenge
+    });
+    window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+function logoutSpotifyAdmin() {
+    localStorage.removeItem("spotify_access_token");
+    localStorage.removeItem("spotify_refresh_token");
+    localStorage.removeItem("spotify_token_expiry");
+    renderSpotifyConnectedUI();
+}
+
+// Wywoływane raz przy starcie strony — jeśli w adresie jest ?code=..., to znaczy że właśnie
+// wróciliśmy z ekranu logowania Spotify i trzeba wymienić kod na token dostępu.
+async function handleSpotifyRedirectCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    const spotifyError = urlParams.get("error");
+    if (!code && !spotifyError) return;
+
+    if (spotifyError) {
+        console.error("Błąd logowania Spotify:", spotifyError);
+        window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+        return;
+    }
+
+    const codeVerifier = sessionStorage.getItem("spotify_code_verifier");
+    window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+    if (!codeVerifier) return;
+
+    try {
+        const body = new URLSearchParams({
+            client_id: SPOTIFY_CLIENT_ID,
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: SPOTIFY_REDIRECT_URI,
+            code_verifier: codeVerifier
+        });
+        const res = await fetch("https://accounts.spotify.com/api/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body
+        });
+        const data = await res.json();
+        if (data.access_token) {
+            localStorage.setItem("spotify_access_token", data.access_token);
+            localStorage.setItem("spotify_refresh_token", data.refresh_token || "");
+            localStorage.setItem("spotify_token_expiry", String(Date.now() + (data.expires_in * 1000)));
+        } else {
+            console.error("Nie udało się uzyskać tokena Spotify:", data);
+        }
+    } catch (err) {
+        console.error("Błąd wymiany kodu Spotify na token dostępu:", err);
+    } finally {
+        sessionStorage.removeItem("spotify_code_verifier");
+        renderSpotifyConnectedUI();
+        const wrap = document.getElementById("adminSpotifyPlayerWrap");
+        const label = document.getElementById("spotifyToggleLabel");
+        if (wrap && localStorage.getItem("spotify_access_token")) {
+            wrap.style.display = "block";
+            if (label) label.textContent = "UKRYJ ODTWARZACZ SPOTIFY";
+        }
+    }
+}
+
+async function spotifyRefreshAccessToken() {
+    const refreshToken = localStorage.getItem("spotify_refresh_token");
+    if (!refreshToken) { logoutSpotifyAdmin(); return null; }
+    try {
+        const body = new URLSearchParams({
+            client_id: SPOTIFY_CLIENT_ID,
+            grant_type: "refresh_token",
+            refresh_token: refreshToken
+        });
+        const res = await fetch("https://accounts.spotify.com/api/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body
+        });
+        const data = await res.json();
+        if (data.access_token) {
+            localStorage.setItem("spotify_access_token", data.access_token);
+            localStorage.setItem("spotify_token_expiry", String(Date.now() + (data.expires_in * 1000)));
+            if (data.refresh_token) localStorage.setItem("spotify_refresh_token", data.refresh_token);
+            return data.access_token;
+        }
+    } catch (err) {
+        console.error("Błąd odświeżania tokena Spotify:", err);
+    }
+    logoutSpotifyAdmin();
+    return null;
+}
+
+async function spotifyApiFetch(url) {
+    let token = localStorage.getItem("spotify_access_token");
+    if (!token) return null;
+    const expiry = Number(localStorage.getItem("spotify_token_expiry") || 0);
+    if (Date.now() > expiry - 5000) {
+        token = await spotifyRefreshAccessToken();
+        if (!token) return null;
+    }
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) {
+        token = await spotifyRefreshAccessToken();
+        if (!token) return null;
+        res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    }
+    return res;
+}
+
+function updateSpotifyEmbed(playlistId) {
+    const iframe = document.getElementById("adminSpotifyIframe");
+    if (iframe && playlistId) iframe.src = `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator`;
+}
+
+async function loadSpotifyUserPlaylists() {
+    const select = document.getElementById("spotifyPlaylistSelect");
+    const pickerWrap = document.getElementById("spotifyPlaylistPickerWrap");
+    if (!select) return;
+    select.innerHTML = "<option>Ładowanie playlist...</option>";
+    if (pickerWrap) pickerWrap.style.display = "block";
+    try {
+        const res = await spotifyApiFetch("https://api.spotify.com/v1/me/playlists?limit=50");
+        if (!res || !res.ok) { select.innerHTML = "<option>Nie udało się pobrać playlist</option>"; return; }
+        const data = await res.json();
+        select.innerHTML = "";
+        (data.items || []).forEach(pl => {
+            const opt = document.createElement("option");
+            opt.value = pl.id;
+            opt.textContent = pl.name;
+            select.appendChild(opt);
+        });
+        if (data.items && data.items.length) updateSpotifyEmbed(data.items[0].id);
+        else select.innerHTML = "<option>Brak playlist na koncie</option>";
+    } catch (err) {
+        console.error("Błąd pobierania playlist Spotify:", err);
+        select.innerHTML = "<option>Błąd pobierania playlist</option>";
+    }
+}
+
+async function fetchSpotifyProfile() {
+    const res = await spotifyApiFetch("https://api.spotify.com/v1/me");
+    if (!res || !res.ok) return null;
+    return res.json();
+}
+
+async function renderSpotifyConnectedUI() {
+    const loginBtn = document.getElementById("spotifyLoginBtn");
+    const connectedBar = document.getElementById("spotifyConnectedBar");
+    const nameEl = document.getElementById("spotifyConnectedName");
+    const pickerWrap = document.getElementById("spotifyPlaylistPickerWrap");
+    const token = localStorage.getItem("spotify_access_token");
+    if (!token) {
+        if (loginBtn) loginBtn.style.display = "inline-flex";
+        if (connectedBar) connectedBar.style.display = "none";
+        if (pickerWrap) pickerWrap.style.display = "none";
+        return;
+    }
+    if (loginBtn) loginBtn.style.display = "none";
+    if (connectedBar) connectedBar.style.display = "flex";
+    const profile = await fetchSpotifyProfile();
+    if (nameEl) nameEl.textContent = profile ? (profile.display_name || profile.id) : "—";
+    loadSpotifyUserPlaylists();
+}
+
 async function sendChatMessage() {
     const selectedCaseId = document.getElementById("chatCaseSelect")?.value || "";
     const msgInput = document.getElementById("chatMsg");
@@ -7394,6 +7704,10 @@ async function sendChatMessage() {
     if (fileInput) fileInput.value = "";
     const chatFileListEl = document.getElementById("chatFileList");
     if (chatFileListEl) chatFileListEl.innerHTML = "";
+
+    const chatPingTargets = findChatPingTargets(selectedCaseId || "Ogólny", "admin");
+    const chatPingContent = chatPingTargets.map(id => `<@${id}>`).join(" ");
+    sendChatMessageWebhook(msgData, selectedCaseId || "Ogólny", chatPingContent);
 }
 
 async function clearChat() {
@@ -7472,6 +7786,9 @@ async function sendPlayerChatMessage() {
     if (fileInput) fileInput.value = "";
     const playerChatFileListEl = document.getElementById("playerChatFileList");
     if (playerChatFileListEl) playerChatFileListEl.innerHTML = "";
+
+    // Ping roli stewardów — ta sama rola, która jest pingowana przy nowych zgłoszeniach/apelacjach.
+    sendChatMessageWebhook(msgData, selectedPlayerCaseId, "<@&1443302932811616346> <@&1463610534309007380>");
 }
 
 // ============================================================
@@ -8056,6 +8373,10 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     loadSeasonSettings();
+
+    handleSpotifyRedirectCallback().then(() => {
+        if (localStorage.getItem("spotify_access_token")) renderSpotifyConnectedUI();
+    });
 
     database.ref("chat").on("value", (snapshot) => {
         const data = snapshot.val();
