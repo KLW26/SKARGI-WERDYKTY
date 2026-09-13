@@ -2418,9 +2418,20 @@
           </div>
         </div>
         <div id="adminSpotifyPlayerWrap" style="display:none; margin-top: 10px;">
+          <div id="spotifySourceWrap" style="display:none; margin-bottom: 8px;">
+            <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Źródło:</label>
+            <select id="spotifySourceSelect" class="font-select" style="width:100%; margin-bottom:8px;" onchange="handleSpotifySourceChange(this.value)">
+              <option value="playlists">🎼 Moje playlisty</option>
+              <option value="liked">❤️ Ulubione utwory</option>
+            </select>
+          </div>
           <div id="spotifyPlaylistPickerWrap" style="display:none; margin-bottom: 8px;">
             <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Twoja playlista:</label>
             <select id="spotifyPlaylistSelect" class="font-select" style="width:100%;" onchange="updateSpotifyEmbed(this.value)"></select>
+          </div>
+          <div id="spotifyLikedPickerWrap" style="display:none; margin-bottom: 8px;">
+            <label style="font-size:11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; display:block; margin-bottom:4px;">Ulubiony utwór:</label>
+            <select id="spotifyLikedSelect" class="font-select" style="width:100%;" onchange="updateSpotifyTrackEmbed(this.value)"></select>
           </div>
           <!--
             Domyślna playlista pokazywana, dopóki admin nie zaloguje się przez Spotify (wtedy lista
@@ -7461,7 +7472,7 @@ const SPOTIFY_CLIENT_ID = "dc92c2a93ea84e3cbe721f35d6a784da";
 // identyczny (znak w znak) z adresem wpisanym w polu "Redirect URI" w ustawieniach
 // aplikacji na developer.spotify.com, inaczej logowanie zwróci błąd "INVALID_CLIENT: Invalid redirect URI".
 const SPOTIFY_REDIRECT_URI = window.location.origin + window.location.pathname;
-const SPOTIFY_SCOPES = "playlist-read-private user-read-currently-playing user-read-playback-state";
+const SPOTIFY_SCOPES = "playlist-read-private user-read-currently-playing user-read-playback-state user-library-read";
 
 function spotifyGenerateRandomString(length) {
     const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -7609,6 +7620,51 @@ function updateSpotifyEmbed(playlistId) {
     if (iframe && playlistId) iframe.src = `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator`;
 }
 
+function updateSpotifyTrackEmbed(trackId) {
+    const iframe = document.getElementById("adminSpotifyIframe");
+    if (iframe && trackId) iframe.src = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator`;
+}
+
+function handleSpotifySourceChange(source) {
+    const playlistWrap = document.getElementById("spotifyPlaylistPickerWrap");
+    const likedWrap = document.getElementById("spotifyLikedPickerWrap");
+    if (source === "liked") {
+        if (playlistWrap) playlistWrap.style.display = "none";
+        if (likedWrap) likedWrap.style.display = "block";
+        loadSpotifyLikedTracks();
+    } else {
+        if (likedWrap) likedWrap.style.display = "none";
+        if (playlistWrap) playlistWrap.style.display = "block";
+        loadSpotifyUserPlaylists();
+    }
+}
+
+async function loadSpotifyLikedTracks() {
+    const select = document.getElementById("spotifyLikedSelect");
+    if (!select) return;
+    select.innerHTML = "<option>Ładowanie ulubionych utworów...</option>";
+    try {
+        const res = await spotifyApiFetch("https://api.spotify.com/v1/me/tracks?limit=50");
+        if (!res || !res.ok) { select.innerHTML = "<option>Nie udało się pobrać ulubionych utworów</option>"; return; }
+        const data = await res.json();
+        select.innerHTML = "";
+        (data.items || []).forEach(item => {
+            const track = item.track;
+            if (!track) return;
+            const opt = document.createElement("option");
+            opt.value = track.id;
+            const artists = (track.artists || []).map(a => a.name).join(", ");
+            opt.textContent = artists ? `${track.name} — ${artists}` : track.name;
+            select.appendChild(opt);
+        });
+        if (data.items && data.items.length) updateSpotifyTrackEmbed(select.options[0].value);
+        else select.innerHTML = "<option>Brak ulubionych utworów na koncie</option>";
+    } catch (err) {
+        console.error("Błąd pobierania ulubionych utworów Spotify:", err);
+        select.innerHTML = "<option>Błąd pobierania ulubionych utworów</option>";
+    }
+}
+
 async function loadSpotifyUserPlaylists() {
     const select = document.getElementById("spotifyPlaylistSelect");
     const pickerWrap = document.getElementById("spotifyPlaylistPickerWrap");
@@ -7645,18 +7701,24 @@ async function renderSpotifyConnectedUI() {
     const connectedBar = document.getElementById("spotifyConnectedBar");
     const nameEl = document.getElementById("spotifyConnectedName");
     const pickerWrap = document.getElementById("spotifyPlaylistPickerWrap");
+    const sourceWrap = document.getElementById("spotifySourceWrap");
+    const likedWrap = document.getElementById("spotifyLikedPickerWrap");
     const token = localStorage.getItem("spotify_access_token");
     if (!token) {
         if (loginBtn) loginBtn.style.display = "inline-flex";
         if (connectedBar) connectedBar.style.display = "none";
         if (pickerWrap) pickerWrap.style.display = "none";
+        if (sourceWrap) sourceWrap.style.display = "none";
+        if (likedWrap) likedWrap.style.display = "none";
         return;
     }
     if (loginBtn) loginBtn.style.display = "none";
     if (connectedBar) connectedBar.style.display = "flex";
+    if (sourceWrap) sourceWrap.style.display = "block";
     const profile = await fetchSpotifyProfile();
     if (nameEl) nameEl.textContent = profile ? (profile.display_name || profile.id) : "—";
-    loadSpotifyUserPlaylists();
+    const sourceSelect = document.getElementById("spotifySourceSelect");
+    handleSpotifySourceChange(sourceSelect ? sourceSelect.value : "playlists");
 }
 
 async function sendChatMessage() {
