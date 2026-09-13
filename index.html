@@ -8375,7 +8375,7 @@ window.addEventListener("DOMContentLoaded", () => {
     loadSeasonSettings();
 
     handleSpotifyRedirectCallback().then(() => {
-        if (localStorage.getItem("spotify_access_token")) renderSpotifyConnectedUI();
+        renderSpotifyConnectedUI();
     });
 
     database.ref("chat").on("value", (snapshot) => {
