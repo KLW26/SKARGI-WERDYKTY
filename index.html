@@ -264,6 +264,8 @@
     }
     html[data-theme="light"] .btn-toggle-list { color: var(--text-dim); }
     html[data-theme="light"] .btn-toggle-list:hover { color: var(--text); }
+    .btn-toggle-list:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-toggle-list:disabled:hover { border-color: var(--border); color: var(--text-dim); background: rgba(255,255,255,0.04); }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -586,6 +588,29 @@
       font-weight: 600;
     }
     .admin-stats { display: flex; gap: 8px; }
+
+    /* === WYKRESY STATYSTYK (bez zewnętrznych bibliotek) === */
+    .stat-chart { display: flex; align-items: flex-end; gap: 6px; min-height: 140px; padding-top: 10px; overflow-x: auto; }
+    .stat-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 26px; flex: 1; height: 140px; }
+    .stat-bar-col .bar { width: 100%; max-width: 34px; background: linear-gradient(180deg, var(--red), var(--red-dim)); border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s; position: relative; }
+    .stat-bar-col .bar:hover::after {
+      content: attr(data-val);
+      position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-deep); border: 1px solid var(--border); border-radius: 3px;
+      padding: 1px 6px; font-size: 10px; color: var(--text); white-space: nowrap;
+    }
+    .stat-bar-col .bar-label { font-size: 9px; color: var(--text-dim); margin-top: 6px; text-align: center; max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-bar-col .bar-count { font-size: 10px; color: var(--text); margin-bottom: 2px; }
+    .stat-rank-list { display: flex; flex-direction: column; gap: 6px; }
+    .stat-rank-item { display: flex; align-items: center; gap: 10px; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 3px; padding: 8px 10px; font-size: 12px; }
+    .stat-rank-item .rank-pos { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: var(--gold); width: 18px; }
+    .stat-rank-item .rank-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-rank-item .rank-count { font-weight: 700; color: var(--red-text); }
+    .stat-empty-msg { color: var(--text-dim); font-size: 12px; padding: 20px; text-align: center; }
+    th.sortable-th { cursor: pointer; user-select: none; }
+    th.sortable-th:hover { color: var(--text); }
+    th.sortable-th .sort-arrow { opacity: 0.5; font-size: 9px; margin-left: 3px; }
+
     .stat-box {
       flex: 1;
       background: var(--bg-deep);
@@ -1559,6 +1584,20 @@
     </div>
   </div>
 
+  <div id="reportPreviewModal" class="desc-modal">
+    <div class="desc-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 class="section-title" style="margin-bottom: 0;">👁 Podgląd zgłoszenia</h2>
+      </div>
+      <div id="reportPreviewBody" style="background:#111827; color:#e8eaf0; padding:14px; border-radius:10px; font-size:13px; line-height:1.6; white-space:pre-wrap; max-height:340px; overflow-y:auto; border:1px solid #374151;"></div>
+      <small style="display:block; margin-top:8px; color: var(--text-dim); font-size:11px;">Sprawdź dane przed wysłaniem — po kliknięciu "Wyślij teraz" zgłoszenie trafi do stewardów.</small>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn-secondary" onclick="closeReportPreview()" style="flex:1;">✏️ Wróć do edycji</button>
+        <button class="btn-success" onclick="confirmSendFromPreview()" style="flex:1;">📨 Wyślij teraz</button>
+      </div>
+    </div>
+  </div>
+
 
   <div class="card">
     <div class="top-bar">
@@ -1590,6 +1629,7 @@
       </span>
       <button id="adminMenuBtn" class="btn-secondary" style="border: 1px solid #ef4444;" onclick="isAdminAuthenticated ? showSection('adminSection') : openAdminLogin()" data-key="navAdmin">Panel Administracyjny</button>
       <button id="usersMenuBtn" onclick="openUsersSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">👥 Użytkownicy i Role</button>
+      <button id="statsMenuBtn" onclick="openStatsSection()" style="display: none; color: var(--gold); border-bottom: 3px solid transparent;">📈 Statystyki</button>
     </div>
 
     <div id="formSection" class="section active">
@@ -1646,7 +1686,11 @@
             <span class="error-message" id="accusedDiscordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
           </div>
         </div>
-        <div class="field"><label data-key="labelDesc">Opis zdarzenia</label><textarea id="details" required></textarea></div>
+        <div class="field">
+          <label data-key="labelDesc">Opis zdarzenia</label>
+          <textarea id="details" required maxlength="2000"></textarea>
+          <small id="detailsCharCounter" style="display:block; text-align:right; font-size:11px; color: var(--text-dim); margin-top:2px;">0 / 2000</small>
+        </div>
         <div class="field">
           <label data-key="labelEvidence">Dowody (Link)</label>
           <input id="evidence" type="text" placeholder="https://...">
@@ -1660,7 +1704,11 @@
           <span class="error-message" id="evidenceFileError" data-key="evidenceFileTooBig">Możesz dodać maksymalnie 5 plików, łącznie do 1GB.</span>
           <div id="evidenceUploadProgress" style="display:none; font-size:11px; color:var(--text-dim); margin-top:4px;"></div>
         </div>
-        <button type="submit" id="reportSubmitBtn" data-key="btnSubmit">Prześlij Zgłoszenie</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button type="submit" id="reportSubmitBtn" data-key="btnSubmit" style="flex:1;">Prześlij Zgłoszenie</button>
+          <button type="button" class="btn-secondary" style="padding: 10px 16px; white-space:nowrap;" onclick="openReportPreview()">👁 Podgląd</button>
+        </div>
+        <small id="draftSavedNote" style="display:none; color: var(--green-text); font-size: 11px; margin-top:6px;">💾 Szkic zgłoszenia zapisywany automatycznie w tej przeglądarce.</small>
       </form>
     </div>
 
@@ -1696,7 +1744,11 @@
             <span class="error-message" id="appealDiscordIdError">Podaj numeryczne Discord ID (tylko cyfry), a nie nick lub User#1234.</span>
           </div>
         </div>
-        <div class="field"><label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label><textarea id="appealReason" required placeholder="Wpisz szczegółowe argumenty..."></textarea></div>
+        <div class="field">
+          <label data-key="labelAppealReason">Uzasadnienie apelacji (dlaczego kara jest niesłuszna / obrona)</label>
+          <textarea id="appealReason" required maxlength="2000" placeholder="Wpisz szczegółowe argumenty..."></textarea>
+          <small id="appealReasonCharCounter" style="display:block; text-align:right; font-size:11px; color: var(--text-dim); margin-top:2px;">0 / 2000</small>
+        </div>
         <div class="field"><label data-key="labelAppealEvidence">Nowe lub dodatkowe dowody (Link)</label><input id="appealEvidence" type="text" placeholder="https://..."></div>
         <div class="field">
           <label data-key="labelAppealEvidenceFile">Nowe lub dodatkowe dowody (Pliki z komputera)</label>
@@ -1831,6 +1883,7 @@
           <button id="btnScrollToVerdict" class="btn-toggle-list" style="border-color: var(--gold-dim);" onclick="scrollToVerdictPanel()">⬇ PRZEJDŹ DO WERDYKTU</button>
           <button style="font-size:11px; padding: 6px 14px;" onclick="showSection('chatSection')" data-key="btnOpenChat">💬 CZAT SĘDZIÓW</button>
           <button id="openTrashBtn" style="font-size:11px; padding: 6px 14px; background:#374151; border:1px solid #64748b;" onclick="openTrash()">🗑 KOSZ (<span id="trashCountBtn">0</span>)</button>
+          <button id="btnToggleNotif" class="btn-secondary" style="padding: 6px 14px; font-size: 11px; opacity:0.6;" onclick="toggleAdminNotifications()" title="Powiadomienia przeglądarki o nowych zgłoszeniach i apelacjach">🔕 POWIADOMIENIA</button>
           <button id="btnExportDb" class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportDatabase()">⬇ EKSPORTUJ</button>
           <button id="btnResetIdCounter" class="btn-danger" style="padding: 6px 14px; font-size: 11px;" onclick="resetIDCounter()" data-key="btnResetId">↺ RESETUJ ID</button>
           <button id="btnResetAppealId" style="background:#4c1d95; border: 1px solid #6d28d9; padding: 6px 14px; font-size: 11px; border-radius:2px; font-weight:700; cursor:pointer; color:white; letter-spacing:1px; font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;" onclick="resetAppealIDCounter()">↺ ID APELACJI</button>
@@ -1909,20 +1962,21 @@
             <thead>
               <tr>
                 <th class="col-cb"><input type="checkbox" id="selectAllCheckboxes" onclick="toggleSelectAll(this)"></th>
-                <th class="col-id">ID</th>
-                <th class="col-date">Data / Godzina</th>
-                <th class="col-rep" data-key="thReporter">Zgłaszający</th>
-                <th class="col-track">Tor / Split / Kategoria</th>
+                <th class="col-id sortable-th" data-sort="id" onclick="setAdminSort('id')">ID<span class="sort-arrow"></span></th>
+                <th class="col-date sortable-th" data-sort="date" onclick="setAdminSort('date')">Data / Godzina<span class="sort-arrow"></span></th>
+                <th class="col-rep sortable-th" data-sort="reporter" onclick="setAdminSort('reporter')"><span data-key="thReporter">Zgłaszający</span><span class="sort-arrow"></span></th>
+                <th class="col-track sortable-th" data-sort="track" onclick="setAdminSort('track')">Tor / Split / Kategoria<span class="sort-arrow"></span></th>
                 <th class="col-sess" data-key="labelSession">Rodzaj Sesji</th>
-                <th class="col-acc" data-key="thAccused">Oskarżony (Nick / ID)</th>
+                <th class="col-acc sortable-th" data-sort="accused" onclick="setAdminSort('accused')"><span data-key="thAccused">Oskarżony (Nick / ID)</span><span class="sort-arrow"></span></th>
                 <th class="col-desc" data-key="labelDesc">Opis zdarzenia</th>
                 <th class="col-ev" data-key="labelEvidence">Dowody</th>
-                <th class="col-stat" data-key="thStatus">Status / Akcje</th>
+                <th class="col-stat sortable-th" data-sort="status" onclick="setAdminSort('status')"><span data-key="thStatus">Status / Akcje</span><span class="sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="adminTableBody"></tbody>
           </table>
         </div>
+        <div id="adminPaginationControls" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px;"></div>
       </div>
 
       <div id="appealsListWrap" class="collapsible-list-wrap">
@@ -2022,6 +2076,87 @@
         </form>
       </div>
 
+    </div>
+
+    <div id="statsSection" class="section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+        <h2 class="section-title" style="margin-bottom: 0;">📈 Statystyki i Raporty</h2>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <select id="statsRangeSelect" class="filter-select" onchange="renderStats()" style="min-width:160px;">
+            <option value="14">Ostatnie 14 dni</option>
+            <option value="30">Ostatnie 30 dni</option>
+            <option value="90">Ostatnie 90 dni</option>
+            <option value="9999">Cały okres</option>
+          </select>
+          <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="exportStatsCsv()">⬇ EKSPORTUJ CSV</button>
+          <button class="btn-secondary" style="padding: 6px 14px; font-size: 11px;" onclick="showSection('adminSection')">Powrót do panelu</button>
+        </div>
+      </div>
+
+      <div class="stats-container-grid" id="statsSummaryGrid"></div>
+
+      <div class="stats-group-box" style="margin-top:18px;">
+        <div class="stats-group-title">📅 Zgłoszenia w czasie</div>
+        <div id="statsTimeChart" class="stat-chart"></div>
+      </div>
+
+      <div class="stats-container-grid" style="margin-top:18px;">
+        <div class="stats-group-box">
+          <div class="stats-group-title">🏁 Zgłoszenia wg toru</div>
+          <div id="statsTrackChart" class="stat-chart"></div>
+        </div>
+        <div class="stats-group-box">
+          <div class="stats-group-title">🚦 Zgłoszenia wg kategorii</div>
+          <div id="statsCategoryChart" class="stat-chart"></div>
+        </div>
+      </div>
+
+      <div class="stats-container-grid" style="margin-top:18px;">
+        <div class="stats-group-box">
+          <div class="stats-group-title">🔴 Najczęściej karani kierowcy</div>
+          <div id="statsTopGuilty" class="stat-rank-list"></div>
+        </div>
+        <div class="stats-group-box">
+          <div class="stats-group-title">⚖️ Aktywność sędziów</div>
+          <div id="statsTopJudges" class="stat-rank-list"></div>
+        </div>
+      </div>
+
+      <div class="stats-container-grid" style="margin-top:18px;">
+        <div class="stats-group-box">
+          <div class="stats-group-title">🥧 Rozkład statusów</div>
+          <div id="statsStatusPieWrap" style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+            <div id="statsStatusPie" style="width:130px; height:130px; border-radius:50%; flex-shrink:0;"></div>
+            <div id="statsStatusLegend" style="display:flex; flex-direction:column; gap:6px; font-size:12px;"></div>
+          </div>
+        </div>
+        <div class="stats-group-box">
+          <div class="stats-group-title">📢 Najaktywniejsi zgłaszający</div>
+          <div id="statsTopReporters" class="stat-rank-list"></div>
+        </div>
+      </div>
+
+      <div class="stats-group-box" style="margin-top:18px; border-color: var(--gold-dim);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <div class="stats-group-title" style="margin-bottom:0;">🚗 Karta kierowcy — punkty karne w sezonie</div>
+          <div id="seasonSettingsBox" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label style="font-size:11px; color: var(--text-dim);">Początek sezonu:
+              <input type="date" id="seasonStartInput" style="margin-left:4px; padding:4px 6px; font-size:11px;">
+            </label>
+            <label style="font-size:11px; color: var(--text-dim);">Próg dyskwalifikacji (pkt):
+              <input type="number" id="seasonThresholdInput" min="1" style="margin-left:4px; width:60px; padding:4px 6px; font-size:11px;">
+            </label>
+            <button id="btnSaveSeasonSettings" class="btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="saveSeasonSettings()">💾 Zapisz</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px;">
+          <input type="text" id="driverCardSearchInput" class="search-input" placeholder="Wpisz Discord ID lub nick kierowcy..." onkeydown="if(event.key==='Enter'){event.preventDefault(); searchDriverCard();}">
+          <button class="btn-secondary" style="padding: 8px 16px; white-space:nowrap;" onclick="searchDriverCard()">🔍 Szukaj</button>
+        </div>
+
+        <div id="driverCardResult"></div>
+      </div>
     </div>
 
     <div id="usersSection" class="section">
@@ -3228,6 +3363,149 @@ function applyDriverAuthUI() {
     }
 }
 
+/* === POWIADOMIENIA PRZEGLĄDARKI DLA ADMINA === */
+function isAdminNotifEnabled() {
+    return localStorage.getItem("adminNotifPref") === "on";
+}
+
+function playNotifBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.35);
+    } catch (e) { /* Web Audio niedostępne — pomiń dźwięk */ }
+}
+
+function notifyAdmin(title, body) {
+    if (!isAdminNotifEnabled()) return;
+    playNotifBeep();
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try { new Notification(title, { body }); } catch (e) {}
+    }
+}
+
+function toggleAdminNotifications() {
+    const btn = document.getElementById("btnToggleNotif");
+    if (isAdminNotifEnabled()) {
+        localStorage.setItem("adminNotifPref", "off");
+        if (btn) { btn.textContent = "🔕 POWIADOMIENIA"; btn.style.opacity = "0.6"; }
+        return;
+    }
+    const enable = () => {
+        localStorage.setItem("adminNotifPref", "on");
+        if (btn) { btn.textContent = "🔔 POWIADOMIENIA"; btn.style.opacity = "1"; }
+        playNotifBeep();
+    };
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission().then(() => enable());
+    } else {
+        enable();
+    }
+}
+
+function initAdminNotifButton() {
+    const btn = document.getElementById("btnToggleNotif");
+    if (!btn) return;
+    if (isAdminNotifEnabled()) { btn.textContent = "🔔 POWIADOMIENIA"; btn.style.opacity = "1"; }
+    else { btn.textContent = "🔕 POWIADOMIENIA"; btn.style.opacity = "0.6"; }
+}
+
+/* === PODGLĄD ZGŁOSZENIA PRZED WYSŁANIEM === */
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function openReportPreview() {
+    const val = id => { const el = document.getElementById(id); return el ? el.value : ""; };
+    const nick = val("nick") || "—";
+    const discordId = val("discordId") || "—";
+    const category = val("category") || "—";
+    const track = val("track") || "—";
+    const split = val("split") || "—";
+    const sessionType = val("sessionType") || "—";
+    const accusedNick = val("accusedNick") || "—";
+    const accusedDiscordId = val("accusedDiscordId") || "—";
+    const details = val("details") || "(brak opisu)";
+    const evidence = val("evidence") || "(brak linku)";
+    const fileInput = document.getElementById("evidenceFile");
+    const fileCount = fileInput ? fileInput.files.length : 0;
+
+    const body = document.getElementById("reportPreviewBody");
+    if (!body) return;
+    body.innerHTML =
+        `<strong>Zgłaszający:</strong> ${escapeHtml(nick)} (<code>${escapeHtml(discordId)}</code>)\n` +
+        `<strong>Oskarżony:</strong> ${escapeHtml(accusedNick)} (<code>${escapeHtml(accusedDiscordId)}</code>)\n` +
+        `<strong>Tor / Split / Sesja:</strong> ${escapeHtml(track)} / ${escapeHtml(split)} / ${escapeHtml(sessionType)}\n` +
+        `<strong>Kategoria:</strong> ${escapeHtml(category)}\n` +
+        `<strong>Dowody:</strong> ${escapeHtml(evidence)}${fileCount ? ` + ${fileCount} plik(ów) załączonych` : ""}\n\n` +
+        `<strong>Opis zdarzenia:</strong>\n${escapeHtml(details)}`;
+
+    const modal = document.getElementById("reportPreviewModal");
+    if (modal) modal.style.display = "flex";
+}
+
+function closeReportPreview() {
+    const modal = document.getElementById("reportPreviewModal");
+    if (modal) modal.style.display = "none";
+}
+
+function confirmSendFromPreview() {
+    closeReportPreview();
+    const form = document.getElementById("complaintForm");
+    if (!form) return;
+    if (form.requestSubmit) form.requestSubmit();
+    else form.dispatchEvent(new Event("submit", { cancelable: true }));
+}
+
+/* === AUTOZAPIS SZKICU ZGŁOSZENIA I LICZNIK ZNAKÓW === */
+const REPORT_DRAFT_KEY = "fiaReportDraft";
+const REPORT_DRAFT_FIELDS = ["nick", "discordId", "category", "track", "split", "sessionType", "accusedNick", "accusedDiscordId", "details", "evidence"];
+
+function saveReportDraft() {
+    const draft = {};
+    REPORT_DRAFT_FIELDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) draft[id] = el.value;
+    });
+    try { localStorage.setItem(REPORT_DRAFT_KEY, JSON.stringify(draft)); } catch (e) {}
+}
+
+function restoreReportDraft() {
+    let raw;
+    try { raw = localStorage.getItem(REPORT_DRAFT_KEY); } catch (e) { return; }
+    if (!raw) return;
+    try {
+        const draft = JSON.parse(raw);
+        const hasContent = Object.values(draft).some(v => v && String(v).trim().length);
+        if (!hasContent) return;
+        REPORT_DRAFT_FIELDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && draft[id] !== undefined && !el.readOnly) el.value = draft[id];
+        });
+        const note = document.getElementById("draftSavedNote");
+        if (note) { note.style.display = "block"; note.textContent = "💾 Przywrócono zapisany wcześniej szkic zgłoszenia."; }
+        updateDetailsCharCounter();
+    } catch (e) {}
+}
+
+function clearReportDraft() {
+    try { localStorage.removeItem(REPORT_DRAFT_KEY); } catch (e) {}
+    const note = document.getElementById("draftSavedNote");
+    if (note) note.style.display = "none";
+}
+
+function updateDetailsCharCounter() {
+    const el = document.getElementById("details");
+    const counter = document.getElementById("detailsCharCounter");
+    if (el && counter) counter.textContent = `${el.value.length} / 2000`;
+}
+
 function applyStewardPermissions() {
     const perms = loggedInSteward?.permissions || {};
     // Główny Steward (i ROOT) mają pełny dostęp niezależnie od pojedynczych checkboxów
@@ -3236,6 +3514,9 @@ function applyStewardPermissions() {
 
     const usersBtn = document.getElementById("usersMenuBtn");
     if (usersBtn) usersBtn.style.display = (isRoot || perms.manage_users) ? "block" : "none";
+
+    const statsBtn = document.getElementById("statsMenuBtn");
+    if (statsBtn) statsBtn.style.display = isAdminAuthenticated ? "block" : "none";
 
     const trashBtn = document.getElementById("openTrashBtn");
     if (trashBtn) trashBtn.style.display = (isRoot || perms.access_trash) ? "inline-block" : "none";
@@ -3312,6 +3593,8 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${split} - ${sessionType}).`);
     alert(langData[currentLang].alertSent + " ID: " + fiaId);
     e.target.reset();
+    clearReportDraft();
+    updateDetailsCharCounter();
     const evidenceFileListEl = document.getElementById("evidenceFileList");
     if (evidenceFileListEl) evidenceFileListEl.innerHTML = "";
     handleCategoryChange();
@@ -3791,7 +4074,84 @@ function renderPlayerChatBox() {
     playerChatBox.scrollTop = playerChatBox.scrollHeight;
 }
 
+let adminSortColumn = "date";
+let adminSortDir = "desc";
+let adminCurrentPage = 1;
+let adminPageSize = 25;
+let adminLastFilterSignature = "";
+
+function setAdminPageSize(size) {
+    adminPageSize = parseInt(size, 10) || 25;
+    adminCurrentPage = 1;
+    renderAdmin();
+}
+
+function goToAdminPage(page) {
+    adminCurrentPage = page;
+    renderAdmin();
+}
+
+function renderAdminPagination(totalItems, totalPages) {
+    const el = document.getElementById("adminPaginationControls");
+    if (!el) return;
+    if (totalItems === 0) { el.innerHTML = ""; return; }
+    const start = (adminCurrentPage - 1) * adminPageSize + 1;
+    const end = Math.min(adminCurrentPage * adminPageSize, totalItems);
+
+    let pageButtons = "";
+    const maxButtons = 7;
+    let from = Math.max(1, adminCurrentPage - Math.floor(maxButtons / 2));
+    let to = Math.min(totalPages, from + maxButtons - 1);
+    from = Math.max(1, to - maxButtons + 1);
+    for (let p = from; p <= to; p++) {
+        pageButtons += `<button class="btn-toggle-list" style="min-width:30px; ${p === adminCurrentPage ? 'background:var(--red); color:#fff; border-color:var(--red);' : ''}" onclick="goToAdminPage(${p})">${p}</button>`;
+    }
+
+    el.innerHTML = `
+      <span style="font-size:11px; color: var(--text-dim);">Pokazuje ${start}–${end} z ${totalItems}</span>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <button class="btn-toggle-list" ${adminCurrentPage <= 1 ? "disabled" : ""} onclick="goToAdminPage(${adminCurrentPage - 1})">‹</button>
+        ${pageButtons}
+        <button class="btn-toggle-list" ${adminCurrentPage >= totalPages ? "disabled" : ""} onclick="goToAdminPage(${adminCurrentPage + 1})">›</button>
+      </div>
+      <select class="filter-select" style="min-width:auto; padding:4px 8px; font-size:11px;" onchange="setAdminPageSize(this.value)">
+        <option value="25" ${adminPageSize === 25 ? "selected" : ""}>25 / stronę</option>
+        <option value="50" ${adminPageSize === 50 ? "selected" : ""}>50 / stronę</option>
+        <option value="100" ${adminPageSize === 100 ? "selected" : ""}>100 / stronę</option>
+      </select>
+    `;
+}
+
+function setAdminSort(column) {
+    if (adminSortColumn === column) {
+        adminSortDir = adminSortDir === "asc" ? "desc" : "asc";
+    } else {
+        adminSortColumn = column;
+        adminSortDir = column === "date" ? "desc" : "asc";
+    }
+    renderAdmin();
+}
+
+function getAdminSortValue(r, column) {
+    switch (column) {
+        case "date": return r.timestamp || 0;
+        case "id": return (r.fiaId || r.id || "").toLowerCase();
+        case "reporter": return (r.nick || "").toLowerCase();
+        case "track": return (r.track || "").toLowerCase();
+        case "accused": return (r.accusedNick || "").toLowerCase();
+        case "status": return (r.status || "").toLowerCase();
+        default: return 0;
+    }
+}
+
+function updateAdminSortArrows() {
+    document.querySelectorAll('#incidentsListWrap th.sortable-th .sort-arrow').forEach(el => { el.textContent = ""; });
+    const activeTh = document.querySelector(`#incidentsListWrap th.sortable-th[data-sort="${adminSortColumn}"] .sort-arrow`);
+    if (activeTh) activeTh.textContent = adminSortDir === "asc" ? "▲" : "▼";
+}
+
 function renderAdmin() {
+    initAdminNotifButton();
     const tbody = document.getElementById("adminTableBody");
     tbody.innerHTML = "";
     const t = langData[currentLang];
@@ -3839,19 +4199,39 @@ function renderAdmin() {
     });
 
     const sortedIncidents = [...globalIncidents].sort((a, b) => {
-        const tb = new Date(b.timestamp).getTime() || 0;
-        const ta = new Date(a.timestamp).getTime() || 0;
-        return tb - ta;
+        const va = getAdminSortValue(a, adminSortColumn);
+        const vb = getAdminSortValue(b, adminSortColumn);
+        let cmp = (typeof va === "number" && typeof vb === "number") ? (va - vb) : String(va).localeCompare(String(vb), "pl");
+        return adminSortDir === "asc" ? cmp : -cmp;
     });
+    updateAdminSortArrows();
 
-    sortedIncidents.forEach(r => {
-        const matchesSearch = r.nick.toLowerCase().includes(searchQuery) || (r.accusedNick || "").toLowerCase().includes(searchQuery) || r.track.toLowerCase().includes(searchQuery) || r.id.toLowerCase().includes(searchQuery);
+    // Pełnotekstowe wyszukiwanie: obejmuje też opis zdarzenia, notatki i treść werdyktu,
+    // nie tylko nick / tor / ID jak wcześniej.
+    const filteredIncidents = sortedIncidents.filter(r => {
+        const haystack = [
+            r.nick, r.accusedNick, r.track, r.id, r.fiaId, r.category, r.details, r.evidence, r.notes,
+            r.decisionData ? r.decisionData.decision : "",
+            r.decisionData ? r.decisionData.verdictDetails : "",
+            r.decisionData ? r.decisionData.judge : ""
+        ].filter(Boolean).join(" ").toLowerCase();
+        const matchesSearch = haystack.includes(searchQuery);
         const matchesStatus = (filterStatus === "ALL") || (r.status === filterStatus);
         const matchesTrack = (filterTrack === "ALL") || (r.track === filterTrack);
         const matchesCategory = (filterCategory === "ALL") || (r.category === filterCategory);
         const matchesSplit = (adminSplitFilter === "ALL") || (r.split === adminSplitFilter);
+        return matchesSearch && matchesStatus && matchesTrack && matchesCategory && matchesSplit;
+    });
 
-        if (matchesSearch && matchesStatus && matchesTrack && matchesCategory && matchesSplit) {
+    const filterSignature = JSON.stringify([searchQuery, filterStatus, filterTrack, filterCategory, adminSplitFilter, adminSortColumn, adminSortDir]);
+    if (adminLastFilterSignature !== filterSignature) { adminCurrentPage = 1; adminLastFilterSignature = filterSignature; }
+    const totalPages = Math.max(1, Math.ceil(filteredIncidents.length / adminPageSize));
+    if (adminCurrentPage > totalPages) adminCurrentPage = totalPages;
+    const pageStart = (adminCurrentPage - 1) * adminPageSize;
+    const pageItems = filteredIncidents.slice(pageStart, pageStart + adminPageSize);
+
+    pageItems.forEach(r => {
+        {
             const tr = document.createElement("tr");
             let badgeBg = "#fbbf24";
             if (r.status === "Przyjęte") badgeBg = "#10b981";
@@ -3921,6 +4301,8 @@ function renderAdmin() {
             tbody.appendChild(tr);
         }
     });
+
+    renderAdminPagination(filteredIncidents.length, totalPages);
 
     const appTbody = document.getElementById("adminAppealsTableBody");
     appTbody.innerHTML = "";
@@ -5090,6 +5472,9 @@ function adminLogout() {
         sessionStorage.removeItem("trashAuth");
         sessionStorage.removeItem("externalJudgeAuth");
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
+        if(document.getElementById("statsMenuBtn")) {
+            document.getElementById("statsMenuBtn").style.display = "none";
+        }
         if(document.getElementById("usersMenuBtn")) {
             document.getElementById("usersMenuBtn").style.display = "none";
         }
@@ -5275,6 +5660,349 @@ function exportDatabase() {
     const downloadAnchor = document.createElement('a'); downloadAnchor.setAttribute("href", dataStr);
     downloadAnchor.setAttribute("download", `FIA_SYSTEM_DB_EXPORT_${new Date().toISOString().slice(0,10)}.json`);
     document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+}
+
+/* === SEKCJA STATYSTYK === */
+function openStatsSection() {
+    showSection('statsSection');
+    renderStats();
+}
+
+function formatDuration(ms) {
+    if (!ms || ms < 0) return "—";
+    const hours = ms / 3600000;
+    if (hours < 24) return hours.toFixed(1) + " godz.";
+    return (hours / 24).toFixed(1) + " dni";
+}
+
+function renderBarChart(containerId, data) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!data.length || data.every(d => d.count === 0)) {
+        el.innerHTML = '<div class="stat-empty-msg">Brak danych do wyświetlenia w wybranym okresie.</div>';
+        return;
+    }
+    const max = Math.max(...data.map(d => d.count), 1);
+    el.innerHTML = data.map(d => `
+      <div class="stat-bar-col">
+        <div class="bar-count">${d.count}</div>
+        <div class="bar" data-val="${d.count}" style="height:${Math.max((d.count / max) * 100, 3)}%;"></div>
+        <div class="bar-label" title="${d.label}">${d.label}</div>
+      </div>
+    `).join("");
+}
+
+function renderRankList(containerId, entries) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!entries.length) {
+        el.innerHTML = '<div class="stat-empty-msg">Brak danych do wyświetlenia w wybranym okresie.</div>';
+        return;
+    }
+    el.innerHTML = entries.map(([name, count], i) => `
+      <div class="stat-rank-item">
+        <span class="rank-pos">#${i + 1}</span>
+        <span class="rank-name" title="${name}">${name}</span>
+        <span class="rank-count">${count}</span>
+      </div>
+    `).join("");
+}
+
+function renderStats() {
+    const rangeSelect = document.getElementById("statsRangeSelect");
+    const rangeDays = rangeSelect ? parseInt(rangeSelect.value, 10) : 14;
+    const now = Date.now();
+    const cutoff = rangeDays === 9999 ? 0 : now - rangeDays * 86400000;
+
+    const incidents = globalIncidents.filter(r => (r.timestamp || 0) >= cutoff);
+    const appeals = globalAppeals.filter(a => (a.timestamp || 0) >= cutoff);
+
+    const resolved = incidents.filter(r => r.decisionData && r.decisionData.issuedAt && r.timestamp);
+    const avgResMs = resolved.length
+        ? resolved.reduce((s, r) => s + (r.decisionData.issuedAt - r.timestamp), 0) / resolved.length
+        : 0;
+
+    const trackCounts = {};
+    incidents.forEach(r => { if (r.track) trackCounts[r.track] = (trackCounts[r.track] || 0) + 1; });
+    const topTrackEntry = Object.entries(trackCounts).sort((a, b) => b[1] - a[1])[0];
+
+    const summaryGrid = document.getElementById("statsSummaryGrid");
+    if (summaryGrid) {
+        summaryGrid.innerHTML = `
+          <div class="stats-group-box">
+            <div class="stats-group-title">📊 Podsumowanie okresu</div>
+            <div class="admin-stats">
+              <div class="stat-box"><span>Zgłoszenia</span><strong>${incidents.length}</strong></div>
+              <div class="stat-box"><span>Apelacje</span><strong>${appeals.length}</strong></div>
+              <div class="stat-box"><span>Śr. czas rozpatrzenia</span><strong style="font-size:15px;">${formatDuration(avgResMs)}</strong></div>
+              <div class="stat-box"><span>Najaktywniejszy tor</span><strong style="font-size:13px;">${topTrackEntry ? `${topTrackEntry[0]} (${topTrackEntry[1]})` : "—"}</strong></div>
+            </div>
+          </div>`;
+    }
+
+    let buckets = [];
+    if (rangeDays <= 30) {
+        for (let i = rangeDays - 1; i >= 0; i--) {
+            const d = new Date(now - i * 86400000);
+            const key = d.toISOString().slice(0, 10);
+            const label = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+            const count = incidents.filter(r => r.timestamp && new Date(r.timestamp).toISOString().slice(0, 10) === key).length;
+            buckets.push({ label, count });
+        }
+    } else if (rangeDays === 90) {
+        for (let i = 12; i >= 0; i--) {
+            const end = now - i * 7 * 86400000;
+            const start = end - 7 * 86400000;
+            const count = incidents.filter(r => r.timestamp >= start && r.timestamp < end).length;
+            const d = new Date(end);
+            buckets.push({ label: `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`, count });
+        }
+    } else {
+        const monthLabels = ["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"];
+        const minTs = incidents.length ? Math.min(...incidents.map(r => r.timestamp || now)) : now;
+        const cursor = new Date(minTs); cursor.setDate(1); cursor.setHours(0,0,0,0);
+        const nowD = new Date(now);
+        while (cursor <= nowD) {
+            const y = cursor.getFullYear(), m = cursor.getMonth();
+            const monthStart = new Date(y, m, 1).getTime();
+            const monthEnd = new Date(y, m + 1, 1).getTime();
+            const count = incidents.filter(r => r.timestamp >= monthStart && r.timestamp < monthEnd).length;
+            buckets.push({ label: `${monthLabels[m]} ${String(y).slice(2)}`, count });
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+        if (buckets.length > 24) buckets = buckets.slice(-24);
+    }
+    renderBarChart("statsTimeChart", buckets);
+    renderStatusPie(incidents);
+
+    const trackEntries = Object.entries(trackCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    renderBarChart("statsTrackChart", trackEntries.map(([label, count]) => ({ label, count })));
+
+    const catCounts = {};
+    incidents.forEach(r => { if (r.category) catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
+    const catEntries = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+    renderBarChart("statsCategoryChart", catEntries.map(([label, count]) => ({ label: label.length > 16 ? label.slice(0, 15) + "…" : label, count })));
+
+    const guiltyCounts = {};
+    incidents.forEach(r => {
+        if (r.decisionData && !r.decisionData.noOneGuilty && r.decisionData.guiltyNick && r.decisionData.decision !== "Brak naruszenia") {
+            guiltyCounts[r.decisionData.guiltyNick] = (guiltyCounts[r.decisionData.guiltyNick] || 0) + 1;
+        }
+    });
+    renderRankList("statsTopGuilty", Object.entries(guiltyCounts).sort((a, b) => b[1] - a[1]).slice(0, 10));
+
+    const judgeCounts = {};
+    incidents.forEach(r => {
+        if (r.decisionData && r.decisionData.judge) {
+            judgeCounts[r.decisionData.judge] = (judgeCounts[r.decisionData.judge] || 0) + 1;
+        }
+    });
+    renderRankList("statsTopJudges", Object.entries(judgeCounts).sort((a, b) => b[1] - a[1]).slice(0, 10));
+
+    const reporterCounts = {};
+    incidents.forEach(r => { if (r.nick) reporterCounts[r.nick] = (reporterCounts[r.nick] || 0) + 1; });
+    renderRankList("statsTopReporters", Object.entries(reporterCounts).sort((a, b) => b[1] - a[1]).slice(0, 10));
+}
+
+function parsePenaltyPoints(str) {
+    if (!str) return 0;
+    const match = String(str).match(/-?\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : 0;
+}
+
+function renderStatusPie(incidents) {
+    const pieEl = document.getElementById("statsStatusPie");
+    const legendEl = document.getElementById("statsStatusLegend");
+    if (!pieEl || !legendEl) return;
+    const statusColors = {
+        "Oczekuje": "#fbbf24",
+        "Przyjęte": "#10b981",
+        "Odrzucone": "#ef4444",
+        "W apelacji": "#ca8a04",
+        "Werdykt wydany": "#3b82f6"
+    };
+    const counts = {};
+    incidents.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+    const total = incidents.length;
+    if (!total) {
+        pieEl.style.background = "var(--bg-deep)";
+        legendEl.innerHTML = '<div class="stat-empty-msg">Brak danych.</div>';
+        return;
+    }
+    let acc = 0;
+    const segments = [];
+    Object.entries(counts).forEach(([status, count]) => {
+        const start = (acc / total) * 360;
+        acc += count;
+        const end = (acc / total) * 360;
+        const color = statusColors[status] || "#6b7280";
+        segments.push(`${color} ${start}deg ${end}deg`);
+    });
+    pieEl.style.background = `conic-gradient(${segments.join(", ")})`;
+    legendEl.innerHTML = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([status, count]) => {
+        const color = statusColors[status] || "#6b7280";
+        const pct = ((count / total) * 100).toFixed(1);
+        return `<div style="display:flex; align-items:center; gap:6px;">
+          <span style="width:10px; height:10px; border-radius:2px; background:${color}; flex-shrink:0;"></span>
+          <span style="color: var(--text);">${status}</span>
+          <span style="color: var(--text-dim);">${count} (${pct}%)</span>
+        </div>`;
+    }).join("");
+}
+
+/* === USTAWIENIA SEZONU I KARTA KIEROWCY === */
+let seasonSettings = { start: null, threshold: 12 };
+
+function loadSeasonSettings() {
+    database.ref("settings/season").on("value", snap => {
+        const data = snap.val();
+        if (data) {
+            seasonSettings = { start: data.start || null, threshold: data.threshold || 12 };
+        } else {
+            const jan1 = new Date(); jan1.setMonth(0, 1); jan1.setHours(0, 0, 0, 0);
+            seasonSettings = { start: jan1.getTime(), threshold: 12 };
+        }
+        const startInput = document.getElementById("seasonStartInput");
+        const thresholdInput = document.getElementById("seasonThresholdInput");
+        if (startInput && seasonSettings.start) startInput.value = new Date(seasonSettings.start).toISOString().slice(0, 10);
+        if (thresholdInput) thresholdInput.value = seasonSettings.threshold;
+        const resultBox = document.getElementById("driverCardResult");
+        if (resultBox && resultBox.dataset.lastQuery) searchDriverCard(resultBox.dataset.lastQuery);
+    });
+}
+
+function saveSeasonSettings() {
+    const canManage = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canManage) { alert("Brak uprawnień do zmiany ustawień sezonu!"); return; }
+    const startInput = document.getElementById("seasonStartInput");
+    const thresholdInput = document.getElementById("seasonThresholdInput");
+    const startTs = startInput && startInput.value ? new Date(startInput.value).getTime() : Date.now();
+    const threshold = thresholdInput ? (parseInt(thresholdInput.value, 10) || 12) : 12;
+    database.ref("settings/season").set({ start: startTs, threshold }).then(() => {
+        alert("Zapisano ustawienia sezonu.");
+    }).catch(err => alert("Błąd: " + err.message));
+}
+
+function computeDriverPenalties(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return null;
+    const isNumericId = /^\d+$/.test(query.trim());
+
+    const relatedIncidents = globalIncidents.filter(r => {
+        if (isNumericId) {
+            return r.discordId === query.trim() || r.accusedDiscordId === query.trim() ||
+                   (r.decisionData && r.decisionData.guiltyDiscordId === query.trim());
+        }
+        return (r.nick || "").toLowerCase() === q || (r.accusedNick || "").toLowerCase() === q ||
+               (r.decisionData && (r.decisionData.guiltyNick || "").toLowerCase() === q);
+    });
+
+    if (!relatedIncidents.length) return { found: false };
+
+    let displayName = null, displayId = null;
+    relatedIncidents.forEach(r => {
+        if (isNumericId && r.accusedDiscordId === query.trim()) { displayName = r.accusedNick; displayId = r.accusedDiscordId; }
+        else if (isNumericId && r.discordId === query.trim() && !displayName) { displayName = r.nick; displayId = r.discordId; }
+        else if (!isNumericId && (r.accusedNick || "").toLowerCase() === q) { displayName = r.accusedNick; displayId = r.accusedDiscordId; }
+        else if (!isNumericId && (r.nick || "").toLowerCase() === q && !displayName) { displayName = r.nick; displayId = r.discordId; }
+    });
+
+    const seasonStart = seasonSettings.start || 0;
+    const penaltyIncidents = relatedIncidents.filter(r => {
+        if (!r.decisionData || r.decisionData.noOneGuilty) return false;
+        if (r.decisionData.decision === "Brak naruszenia") return false;
+        const guiltyMatch = isNumericId ? r.decisionData.guiltyDiscordId === query.trim() : (r.decisionData.guiltyNick || "").toLowerCase() === q;
+        return guiltyMatch;
+    });
+
+    const seasonPenalties = penaltyIncidents.filter(r => (r.decisionData.issuedAt || 0) >= seasonStart);
+    const seasonPoints = seasonPenalties.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0);
+    const totalPoints = penaltyIncidents.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0);
+
+    return {
+        found: true,
+        displayName: displayName || query, displayId,
+        totalIncidents: relatedIncidents.length,
+        penaltyIncidents: penaltyIncidents.sort((a, b) => (b.decisionData.issuedAt || 0) - (a.decisionData.issuedAt || 0)),
+        seasonPoints, totalPoints
+    };
+}
+
+function searchDriverCard(forcedQuery) {
+    const input = document.getElementById("driverCardSearchInput");
+    const query = forcedQuery !== undefined ? forcedQuery : (input ? input.value : "");
+    const resultBox = document.getElementById("driverCardResult");
+    if (!resultBox) return;
+    resultBox.dataset.lastQuery = query;
+    if (input && forcedQuery === undefined) {} else if (input) { input.value = query; }
+
+    if (!query || !query.trim()) {
+        resultBox.innerHTML = '<div class="stat-empty-msg">Wpisz Discord ID lub nick, aby zobaczyć kartę kierowcy.</div>';
+        return;
+    }
+
+    const data = computeDriverPenalties(query);
+    if (!data || !data.found) {
+        resultBox.innerHTML = '<div class="stat-empty-msg">Nie znaleziono żadnych zgłoszeń dla podanego kierowcy.</div>';
+        return;
+    }
+
+    const threshold = seasonSettings.threshold || 12;
+    const ratio = threshold ? Math.min(data.seasonPoints / threshold, 1) : 0;
+    let statusColor = "#10b981", statusText = "W normie";
+    if (data.seasonPoints >= threshold) { statusColor = "#ef4444"; statusText = "⚠ PRZEKROCZONO PRÓG — sugerowana dyskwalifikacja z wyścigu"; }
+    else if (ratio >= 0.7) { statusColor = "#fbbf24"; statusText = "Zbliża się do progu"; }
+
+    const incidentRows = data.penaltyIncidents.slice(0, 15).map(r => `
+      <div style="display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:12px;">
+        <span style="color: var(--text-dim); white-space:nowrap;">${r.decisionData.issuedAt ? new Date(r.decisionData.issuedAt).toLocaleDateString() : "—"}</span>
+        <span style="flex:1; color: var(--text);">${escapeHtml(r.fiaId || r.id)} — ${escapeHtml(r.decisionData.decision || "")}</span>
+        <span style="color: var(--red-text); font-weight:600; white-space:nowrap;">${escapeHtml(r.decisionData.pointsPenalty || "0 pkt")}</span>
+      </div>
+    `).join("") || '<div class="stat-empty-msg">Brak kar w bazie.</div>';
+
+    resultBox.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+        <div>
+          <div style="font-size:16px; font-weight:700; color: var(--text);">${escapeHtml(data.displayName)}</div>
+          <div style="font-size:11px; color: var(--text-dim);">${data.displayId ? "Discord ID: " + escapeHtml(data.displayId) : ""} · ${data.totalIncidents} zgłoszeń łącznie</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px; font-weight:800; color:${statusColor};">${data.seasonPoints} / ${threshold} pkt</div>
+          <div style="font-size:11px; color:${statusColor};">${statusText}</div>
+        </div>
+      </div>
+      <div style="width:100%; height:10px; border-radius:5px; background: rgba(255,255,255,0.08); overflow:hidden; margin-bottom:14px;">
+        <div style="height:100%; width:${(ratio * 100).toFixed(0)}%; background:${statusColor}; transition: width 0.3s;"></div>
+      </div>
+      <div style="font-size:11px; color: var(--text-dim); margin-bottom:6px;">Historia kar (łącznie ${data.totalPoints} pkt od początku prowadzenia bazy):</div>
+      ${incidentRows}
+    `;
+}
+
+function exportStatsCsv() {
+    const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
+    if (!canExport) { alert("Brak uprawnień do eksportu danych!"); return; }
+    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia"]];
+    globalIncidents.forEach(r => {
+        rows.push([
+            r.fiaId || r.id || "",
+            r.timestamp ? new Date(r.timestamp).toLocaleString() : "",
+            r.nick || "", r.discordId || "", r.track || "", r.split || "", r.category || "", r.sessionType || "",
+            r.accusedNick || "", r.accusedDiscordId || "", r.status || "",
+            r.decisionData ? (r.decisionData.decision || "") : "",
+            r.decisionData ? (r.decisionData.timePenalty || "") : "",
+            r.decisionData ? (r.decisionData.pointsPenalty || "") : "",
+            r.decisionData ? (r.decisionData.judge || "") : ""
+        ]);
+    });
+    const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `FIA_SYSTEM_STATS_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
 }
 
 async function restoreTrashItem(trashId) {
@@ -6102,9 +6830,21 @@ window.addEventListener("DOMContentLoaded", () => {
 
     updateGuiltyPickerState();
 
+    let knownIncidentIds = null;
+    let knownAppealIds = null;
+
     database.ref("incidents").on("value", (snapshot) => {
         globalIncidents = [];
         snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
+        const currentIncidentIds = new Set(globalIncidents.map(r => r.id));
+        if (knownIncidentIds) {
+            globalIncidents.forEach(r => {
+                if (!knownIncidentIds.has(r.id) && r.status === "Oczekuje") {
+                    notifyAdmin("🆕 Nowe zgłoszenie", `${r.fiaId || r.id} — ${r.nick || "Kierowca"} zgłasza ${r.accusedNick || "nieznanego kierowcę"} (${r.track || ""}).`);
+                }
+            });
+        }
+        knownIncidentIds = currentIncidentIds;
         if (authorizedHistoryDiscordId) {
             fetchAndRenderHistory(authorizedHistoryDiscordId);
             updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
@@ -6113,12 +6853,23 @@ window.addEventListener("DOMContentLoaded", () => {
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
+            const statsSecEl = document.getElementById("statsSection");
+            if (statsSecEl && statsSecEl.classList.contains("active")) renderStats();
         }
     });
 
     database.ref("appeals").on("value", (snapshot) => {
         globalAppeals = [];
         snapshot.forEach(child => { globalAppeals.push({ id: child.key, ...child.val() }); });
+        const currentAppealIds = new Set(globalAppeals.map(a => a.id));
+        if (knownAppealIds) {
+            globalAppeals.forEach(a => {
+                if (!knownAppealIds.has(a.id) && a.status === "Nowa") {
+                    notifyAdmin("⚖️ Nowa apelacja", `${a.appealId || a.id} — ${a.nick || "Kierowca"} odwołuje się od sprawy ${a.caseId || "?"}.`);
+                }
+            });
+        }
+        knownAppealIds = currentAppealIds;
         if (authorizedHistoryDiscordId) {
             fetchAndRenderHistory(authorizedHistoryDiscordId);
             updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
@@ -6126,6 +6877,8 @@ window.addEventListener("DOMContentLoaded", () => {
         if (isAdminAuthenticated) {
             renderAdmin();
             updateChatCaseSelect();
+            const statsSecEl2 = document.getElementById("statsSection");
+            if (statsSecEl2 && statsSecEl2.classList.contains("active")) renderStats();
         }
     });
 
@@ -6136,6 +6889,8 @@ window.addEventListener("DOMContentLoaded", () => {
         if (countBtnEl) countBtnEl.textContent = globalTrash.length;
         if (isAdminAuthenticated && isTrashAuthenticated) renderTrash();
     });
+
+    loadSeasonSettings();
 
     database.ref("chat").on("value", (snapshot) => {
         const data = snapshot.val();
@@ -6162,6 +6917,22 @@ window.addEventListener("DOMContentLoaded", () => {
             progressBar.style.width = percentage + "%";
         }
         form.addEventListener('input', updateProgressBar);
+        form.addEventListener('input', saveReportDraft);
+        restoreReportDraft();
+    }
+
+    const detailsTextarea = document.getElementById('details');
+    if (detailsTextarea) {
+        updateDetailsCharCounter();
+        detailsTextarea.addEventListener('input', updateDetailsCharCounter);
+    }
+
+    const appealReasonTextarea = document.getElementById('appealReason');
+    const appealReasonCounter = document.getElementById('appealReasonCharCounter');
+    if (appealReasonTextarea && appealReasonCounter) {
+        const updateAppealCounter = () => { appealReasonCounter.textContent = `${appealReasonTextarea.value.length} / 2000`; };
+        updateAppealCounter();
+        appealReasonTextarea.addEventListener('input', updateAppealCounter);
     }
 
     function setupDiscordIdValidation(inputId, errorId) {
