@@ -2402,6 +2402,91 @@
       background: rgba(0,188,212,0.12);
       color: #fff;
     }
+
+    /* === STEROWANIE PRZEZROCZYSTOŚCIĄ ELEMENTÓW (globalne, dla wszystkich użytkowników) === */
+    :root {
+      --opacity-panels: 1;
+      --opacity-buttons: 1;
+      --opacity-tables: 1;
+      --opacity-inputs: 1;
+      --opacity-badges: 1;
+    }
+
+    .card, .verdict-panel, .player-chat-panel, .desc-box, .login-box,
+    .stats-group-box, .stat-box, .notif-dropdown, .toast-item,
+    .bulk-actions-bar, .discord-status-bar, .history-item, .msg,
+    .collapsible-list-wrap, .admin-controls, .leaderboard-row {
+      opacity: var(--opacity-panels);
+    }
+
+    button, .btn-secondary, .btn-danger, .btn-success, .btn-warning,
+    .btn-verdict-transfer, .theme-btn, .lang-btn, .split-tab-btn,
+    .btn-toggle-list, .btn-attach, .btn-view, .discord-login-btn,
+    .notif-bell-btn, .logout-x {
+      opacity: var(--opacity-buttons);
+    }
+
+    table, .table-wrapper {
+      opacity: var(--opacity-tables);
+    }
+
+    input, select, textarea, .search-input, .filter-select, .font-select {
+      opacity: var(--opacity-inputs);
+    }
+
+    .badge, .badge-pending, .badge-accepted, .badge-rejected, .badge-appeal, .notif-badge {
+      opacity: var(--opacity-badges);
+    }
+
+    /* Suwaki wewnątrz panelu przezroczystości muszą zawsze pozostać w pełni widoczne */
+    .opacity-panel input[type="range"] { opacity: 1 !important; }
+
+    /* === PANEL STEROWANIA PRZEZROCZYSTOŚCIĄ ELEMENTÓW === */
+    .opacity-panel-wrap { position: relative; display: inline-block; }
+    .opacity-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 16px;
+      min-width: 240px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+      z-index: 500;
+      display: none;
+    }
+    .opacity-panel.open { display: block; }
+    .opacity-panel-title {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .opacity-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .opacity-row label {
+      flex: 0 0 92px;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .opacity-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--red);
+      cursor: pointer;
+    }
+    .opacity-row .opacity-val {
+      flex: 0 0 32px;
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+    }
+    .opacity-reset-btn { width: 100%; margin-top: 4px; }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -2700,6 +2785,40 @@
               title="Przezroczystość tła"
               style="vertical-align:middle; accent-color: var(--red); cursor:pointer;">
           </div>
+
+          <div class="opacity-panel-wrap">
+            <button type="button" class="theme-btn" id="elementOpacityBtn" onclick="toggleElementOpacityPanel()" title="Przezroczystość elementów interfejsu">🎚 PRZEZROCZYSTOŚĆ</button>
+            <div class="opacity-panel" id="elementOpacityPanel">
+              <div class="opacity-panel-title">Przezroczystość elementów</div>
+              <div class="opacity-row">
+                <label for="opacityPanelsSlider">Panele</label>
+                <input type="range" id="opacityPanelsSlider" min="10" max="100" step="5" value="100" oninput="setElementOpacity('panels', this.value)">
+                <span class="opacity-val" id="opacityPanelsVal">100%</span>
+              </div>
+              <div class="opacity-row">
+                <label for="opacityButtonsSlider">Przyciski</label>
+                <input type="range" id="opacityButtonsSlider" min="10" max="100" step="5" value="100" oninput="setElementOpacity('buttons', this.value)">
+                <span class="opacity-val" id="opacityButtonsVal">100%</span>
+              </div>
+              <div class="opacity-row">
+                <label for="opacityTablesSlider">Tabele</label>
+                <input type="range" id="opacityTablesSlider" min="10" max="100" step="5" value="100" oninput="setElementOpacity('tables', this.value)">
+                <span class="opacity-val" id="opacityTablesVal">100%</span>
+              </div>
+              <div class="opacity-row">
+                <label for="opacityInputsSlider">Pola</label>
+                <input type="range" id="opacityInputsSlider" min="10" max="100" step="5" value="100" oninput="setElementOpacity('inputs', this.value)">
+                <span class="opacity-val" id="opacityInputsVal">100%</span>
+              </div>
+              <div class="opacity-row">
+                <label for="opacityBadgesSlider">Odznaki</label>
+                <input type="range" id="opacityBadgesSlider" min="10" max="100" step="5" value="100" oninput="setElementOpacity('badges', this.value)">
+                <span class="opacity-val" id="opacityBadgesVal">100%</span>
+              </div>
+              <button type="button" class="btn-secondary opacity-reset-btn" onclick="resetElementOpacity()">⟲ Resetuj wszystko</button>
+            </div>
+          </div>
+
           <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
         </div>
       </div>
@@ -4209,6 +4328,14 @@ function listenToAppearanceSettings() {
         } else {
             removeCustomBackground(false);
         }
+
+        const elementOpacity = data.elementOpacity || {};
+        ELEMENT_OPACITY_CATEGORIES.forEach(cat => {
+            const val = elementOpacity[cat] != null ? elementOpacity[cat] : 100;
+            applyElementOpacity(cat, val);
+            localStorage.setItem('siteOpacity_' + cat, val);
+        });
+
         appearanceSyncing = false;
     });
 }
@@ -4297,6 +4424,53 @@ function setBackgroundOpacity(value, sync = true) {
         database.ref("settings/appearance/backgroundOpacity").set(Number(value))
             .catch(err => console.error("Błąd zapisu przezroczystości tła:", err));
     }
+}
+
+/* === PRZEZROCZYSTOŚĆ ELEMENTÓW INTERFEJSU (Firebase — dotyczy WSZYSTKICH użytkowników) === */
+const ELEMENT_OPACITY_CATEGORIES = ['panels', 'buttons', 'tables', 'inputs', 'badges'];
+
+function toggleElementOpacityPanel() {
+    const panel = document.getElementById('elementOpacityPanel');
+    if (panel) panel.classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+    const panel = document.getElementById('elementOpacityPanel');
+    const btn = document.getElementById('elementOpacityBtn');
+    if (!panel || !panel.classList.contains('open')) return;
+    if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+    panel.classList.remove('open');
+});
+
+function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+
+function applyElementOpacity(category, value) {
+    if (!ELEMENT_OPACITY_CATEGORIES.includes(category)) return;
+    const ratio = (Number(value) / 100).toString();
+    document.documentElement.style.setProperty('--opacity-' + category, ratio);
+    const slider = document.getElementById('opacity' + capitalize(category) + 'Slider');
+    if (slider) slider.value = value;
+    const label = document.getElementById('opacity' + capitalize(category) + 'Val');
+    if (label) label.textContent = value + '%';
+}
+
+function setElementOpacity(category, value) {
+    applyElementOpacity(category, value);
+    localStorage.setItem('siteOpacity_' + category, value);
+    if (appearanceSyncing) return;
+    database.ref('settings/appearance/elementOpacity/' + category).set(Number(value))
+        .catch(err => console.error('Błąd zapisu przezroczystości (' + category + '):', err));
+}
+
+function resetElementOpacity() {
+    ELEMENT_OPACITY_CATEGORIES.forEach(cat => setElementOpacity(cat, 100));
+}
+
+function loadLocalElementOpacity() {
+    ELEMENT_OPACITY_CATEGORIES.forEach(cat => {
+        const saved = localStorage.getItem('siteOpacity_' + cat);
+        if (saved != null) applyElementOpacity(cat, saved);
+    });
 }
 
 function removeCustomBackground(sync = true) {
@@ -8712,6 +8886,7 @@ window.addEventListener("DOMContentLoaded", () => {
     applySize(savedSize || "medium");
 
     initPanelDrag();
+    loadLocalElementOpacity();
 
     const savedBg = localStorage.getItem("siteBackground");
     if (savedBg) {
