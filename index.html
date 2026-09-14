@@ -2523,6 +2523,16 @@
     }
     .element-picker-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .element-picker-row input[type="range"] { flex: 1; opacity: 1 !important; accent-color: var(--red); cursor: pointer; }
+    .element-picker-row label { font-size: 11px; color: var(--text-dim); width: 44px; flex-shrink: 0; }
+    .element-picker-row input[type="color"] {
+      flex: 1; height: 28px; padding: 0; border: 1px solid var(--border);
+      border-radius: 3px; background: var(--bg-input); cursor: pointer;
+    }
+    .element-picker-color-reset {
+      background: none; border: 1px solid var(--border); color: var(--text-dim);
+      cursor: pointer; font-size: 12px; line-height: 1; padding: 5px 7px; border-radius: 3px; flex-shrink: 0;
+    }
+    .element-picker-color-reset:hover { color: var(--red); border-color: var(--red); }
     .element-picker-val { font-size: 12px; color: var(--text-dim); min-width: 36px; text-align: right; }
     .element-picker-actions { display: flex; gap: 8px; }
     .element-picker-actions button { flex: 1; }
@@ -9259,11 +9269,21 @@ window.addEventListener("DOMContentLoaded", () => {
     <input type="range" id="elementPickerSlider" min="0" max="100" step="1" value="100" oninput="setPickerTargetOpacity(this.value)">
     <span class="element-picker-val" id="elementPickerVal">100%</span>
   </div>
+  <div class="element-picker-row">
+    <label for="elementPickerBgColor">Tło</label>
+    <input type="color" id="elementPickerBgColor" oninput="setPickerTargetColor('background', this.value)">
+    <button type="button" class="element-picker-color-reset" onclick="resetPickerTargetColor('background')" title="Resetuj kolor tła">⟲</button>
+  </div>
+  <div class="element-picker-row">
+    <label for="elementPickerTextColor">Tekst</label>
+    <input type="color" id="elementPickerTextColor" oninput="setPickerTargetColor('text', this.value)">
+    <button type="button" class="element-picker-color-reset" onclick="resetPickerTargetColor('text')" title="Resetuj kolor tekstu">⟲</button>
+  </div>
   <div class="element-picker-actions">
-    <button type="button" class="btn-secondary" onclick="resetPickerTargetOpacity()">⟲ Resetuj</button>
+    <button type="button" class="btn-secondary" onclick="resetPickerTargetAll()">⟲ Resetuj wszystko</button>
     <button type="button" class="btn-secondary" onclick="deselectPickerTarget()">Wybierz inny</button>
   </div>
-  <div class="element-picker-hint">Tryb aktywny — najedź, aby podświetlić element, kliknij, aby go wybrać. Zmiana jest tylko na tej stronie/w tej sesji (nie zapisuje się globalnie). Esc lub przycisk 🎯 wyłącza tryb.</div>
+  <div class="element-picker-hint">Tryb aktywny — najedź, aby podświetlić element, kliknij, aby go wybrać. Zmiany (przezroczystość, tło, tekst) obowiązują tylko na tej stronie/w tej sesji. Esc lub przycisk 🎯 wyłącza tryb.</div>
 </div>
 
 <script>
@@ -9278,6 +9298,18 @@ window.addEventListener("DOMContentLoaded", () => {
     const slider = () => document.getElementById('elementPickerSlider');
     const val = () => document.getElementById('elementPickerVal');
     const nameBox = () => document.getElementById('elementPickerTargetName');
+    const bgColorInput = () => document.getElementById('elementPickerBgColor');
+    const textColorInput = () => document.getElementById('elementPickerTextColor');
+
+    function rgbToHex(rgbStr) {
+        if (!rgbStr) return '#000000';
+        const m = rgbStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+        if (!m) return '#000000';
+        const alpha = m[4] !== undefined ? parseFloat(m[4]) : 1;
+        if (alpha === 0) return null; // przezroczyste - brak realnego koloru do pokazania
+        const toHex = n => Number(n).toString(16).padStart(2, '0');
+        return '#' + toHex(m[1]) + toHex(m[2]) + toHex(m[3]);
+    }
 
     function isExcluded(el) {
         return !el || el === document.documentElement || el === document.body ||
@@ -9325,6 +9357,17 @@ window.addEventListener("DOMContentLoaded", () => {
         slider().value = current;
         val().textContent = current + '%';
         nameBox().textContent = describeElement(selectedEl);
+
+        const computed = getComputedStyle(selectedEl);
+        const bgHex = selectedEl.style.backgroundColor
+            ? rgbToHex(selectedEl.style.backgroundColor)
+            : rgbToHex(computed.backgroundColor);
+        const textHex = selectedEl.style.color
+            ? rgbToHex(selectedEl.style.color)
+            : rgbToHex(computed.color);
+        bgColorInput().value = bgHex || '#000000';
+        textColorInput().value = textHex || '#000000';
+
         panel().classList.add('open');
     }
 
@@ -9334,11 +9377,34 @@ window.addEventListener("DOMContentLoaded", () => {
         val().textContent = value + '%';
     };
 
-    window.resetPickerTargetOpacity = function () {
+    window.setPickerTargetColor = function (type, hex) {
+        if (!selectedEl) return;
+        if (type === 'background') selectedEl.style.backgroundColor = hex;
+        else selectedEl.style.color = hex;
+    };
+
+    window.resetPickerTargetColor = function (type) {
+        if (!selectedEl) return;
+        if (type === 'background') {
+            selectedEl.style.backgroundColor = '';
+            const hex = rgbToHex(getComputedStyle(selectedEl).backgroundColor);
+            bgColorInput().value = hex || '#000000';
+        } else {
+            selectedEl.style.color = '';
+            const hex = rgbToHex(getComputedStyle(selectedEl).color);
+            textColorInput().value = hex || '#000000';
+        }
+    };
+
+    window.resetPickerTargetAll = function () {
         if (!selectedEl) return;
         selectedEl.style.opacity = '';
+        selectedEl.style.backgroundColor = '';
+        selectedEl.style.color = '';
         slider().value = 100;
         val().textContent = '100%';
+        bgColorInput().value = rgbToHex(getComputedStyle(selectedEl).backgroundColor) || '#000000';
+        textColorInput().value = rgbToHex(getComputedStyle(selectedEl).color) || '#000000';
     };
 
     window.deselectPickerTarget = function () {
