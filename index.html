@@ -2487,6 +2487,55 @@
       text-align: right;
     }
     .opacity-reset-btn { width: 100%; margin-top: 4px; }
+
+    /* === TRYB „KLIKNIJ ELEMENT” — indywidualna przezroczystość pojedynczych elementów === */
+    #elementPickerBtn.active-picker {
+      background: rgba(225,6,0,0.25);
+      border-color: var(--red);
+      color: #fff;
+    }
+    .opacity-picker-hover {
+      outline: 2px dashed var(--red) !important;
+      outline-offset: 2px !important;
+      cursor: pointer !important;
+    }
+    .custom-opacity-popup {
+      position: fixed;
+      z-index: 600;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--red);
+      border-radius: 4px;
+      padding: 12px 14px;
+      min-width: 230px;
+      max-width: 280px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    }
+    .custom-opacity-popup .cop-title {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .custom-opacity-popup .cop-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .custom-opacity-popup .cop-row input[type="range"] { flex: 1; accent-color: var(--red); cursor: pointer; opacity: 1 !important; }
+    .custom-opacity-popup .cop-val { font-size: 11px; color: var(--text-dim); width: 34px; text-align: right; }
+    .custom-opacity-popup .cop-btns { display: flex; gap: 6px; }
+    .custom-opacity-popup .cop-btns button { flex: 1; padding: 5px 6px; font-size: 10px; margin: 0; }
+    .custom-opacity-list-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      background: var(--bg-deep); border: 1px solid var(--border); border-radius: 3px;
+      padding: 4px 8px; font-size: 10px; color: var(--text-dim);
+    }
+    .custom-opacity-list-row span.col-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .custom-opacity-list-row button {
+      background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: 2px; padding: 1px 6px; font-size: 9px; cursor: pointer; margin: 0; flex-shrink: 0;
+    }
+    .custom-opacity-list-row button:hover { border-color: var(--red); color: #fff; }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -2816,8 +2865,15 @@
                 <span class="opacity-val" id="opacityBadgesVal">100%</span>
               </div>
               <button type="button" class="btn-secondary opacity-reset-btn" onclick="resetElementOpacity()">⟲ Resetuj wszystko</button>
+
+              <div id="customOpacityListWrap" style="margin-top:12px; border-top:1px dashed var(--border); padding-top:10px; display:none;">
+                <div class="opacity-panel-title" style="border-bottom:none; padding-bottom:0; margin-bottom:6px;">Ręcznie ustawione elementy</div>
+                <div id="customOpacityList" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;"></div>
+              </div>
             </div>
           </div>
+
+          <button type="button" class="theme-btn" id="elementPickerBtn" onclick="toggleElementPickerMode()" title="Kliknij dowolny element na stronie, aby ustawić jego przezroczystość">🖱 KLIKNIJ ELEMENT</button>
 
           <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
         </div>
@@ -4472,6 +4528,238 @@ function loadLocalElementOpacity() {
         if (saved != null) applyElementOpacity(cat, saved);
     });
 }
+
+/* === TRYB „KLIKNIJ ELEMENT” — przezroczystość pojedynczych, dowolnie wybranych elementów ===
+   Działanie: włączam tryb -> najeżdżam kursorem po stronie (elementy podświetlają się na czerwono
+   przerywaną obwódką) -> klikam wybrany element -> pojawia się mały panel z suwakiem -> ustawiam
+   przezroczystość -> "Zapisz" zapisuje wartość globalnie w Firebase (widoczne dla wszystkich
+   odwiedzających), "Reset" usuwa niestandardową wartość, "Anuluj" cofa podgląd na żywo. */
+let elementPickerActive = false;
+let elementPickerHoverEl = null;
+let customElementOpacity = {}; // { selectorKey: opacityPercent } — zsynchronizowane z Firebase
+
+function toggleElementPickerMode() {
+    if (elementPickerActive) { stopElementPickerMode(); return; }
+    closeCustomOpacityPopup(true);
+    elementPickerActive = true;
+    const btn = document.getElementById('elementPickerBtn');
+    if (btn) btn.classList.add('active-picker');
+    document.body.style.cursor = 'crosshair';
+    document.addEventListener('mouseover', handlePickerMouseOver, true);
+    document.addEventListener('mouseout', handlePickerMouseOut, true);
+    document.addEventListener('click', handlePickerClick, true);
+}
+
+function stopElementPickerMode() {
+    elementPickerActive = false;
+    const btn = document.getElementById('elementPickerBtn');
+    if (btn) btn.classList.remove('active-picker');
+    document.body.style.cursor = '';
+    document.removeEventListener('mouseover', handlePickerMouseOver, true);
+    document.removeEventListener('mouseout', handlePickerMouseOut, true);
+    document.removeEventListener('click', handlePickerClick, true);
+    if (elementPickerHoverEl) {
+        elementPickerHoverEl.classList.remove('opacity-picker-hover');
+        elementPickerHoverEl = null;
+    }
+}
+
+// Elementy samego panelu sterowania (przyciski, panel przezroczystości, wyskakujące okienko
+// suwaka) są wykluczone z wyboru, żeby tryb nie „gryzł się” sam ze sobą.
+function isPickerExcluded(el) {
+    return !!(el.closest && el.closest('#appearanceControls, .custom-opacity-popup, #toastContainer'));
+}
+
+function handlePickerMouseOver(e) {
+    const el = e.target;
+    if (!el || isPickerExcluded(el)) return;
+    if (elementPickerHoverEl && elementPickerHoverEl !== el) {
+        elementPickerHoverEl.classList.remove('opacity-picker-hover');
+    }
+    el.classList.add('opacity-picker-hover');
+    elementPickerHoverEl = el;
+}
+
+function handlePickerMouseOut(e) {
+    if (e.target === elementPickerHoverEl) {
+        e.target.classList.remove('opacity-picker-hover');
+    }
+}
+
+function handlePickerClick(e) {
+    const el = e.target;
+    if (!el || isPickerExcluded(el)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (elementPickerHoverEl) {
+        elementPickerHoverEl.classList.remove('opacity-picker-hover');
+        elementPickerHoverEl = null;
+    }
+    stopElementPickerMode();
+    openCustomOpacityPopup(el, e.clientX, e.clientY);
+}
+
+// Buduje w miarę stabilną ścieżkę CSS do klikniętego elementu (id > tag+klasy+pozycja wśród
+// rodzeństwa), żeby dało się go ponownie odnaleźć po odświeżeniu strony.
+function buildElementSelectorPath(el) {
+    if (el.id) return '#' + CSS.escape(el.id);
+    const parts = [];
+    let node = el;
+    let depth = 0;
+    while (node && node.nodeType === 1 && depth < 6) {
+        if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+        let part = node.tagName.toLowerCase();
+        if (node.classList.length) {
+            part += '.' + Array.from(node.classList).map(c => CSS.escape(c)).join('.');
+        }
+        const parent = node.parentElement;
+        if (parent) {
+            const siblings = Array.from(parent.children).filter(c => c.tagName === node.tagName);
+            if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+        }
+        parts.unshift(part);
+        node = node.parentElement;
+        depth++;
+    }
+    return parts.join(' > ');
+}
+
+function openCustomOpacityPopup(el, clientX, clientY) {
+    closeCustomOpacityPopup(true);
+
+    const key = buildElementSelectorPath(el);
+    const currentValue = customElementOpacity[key] != null
+        ? customElementOpacity[key]
+        : Math.round((parseFloat(getComputedStyle(el).opacity) || 1) * 100);
+
+    const popup = document.createElement('div');
+    popup.className = 'custom-opacity-popup';
+    popup.id = 'customOpacityPopup';
+    const labelText = el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+    popup.innerHTML = `
+        <div class="cop-title">${escapeHtml(labelText)}</div>
+        <div class="cop-row">
+            <input type="range" id="copSlider" min="10" max="100" step="5" value="${currentValue}">
+            <span class="cop-val" id="copVal">${currentValue}%</span>
+        </div>
+        <div class="cop-btns">
+            <button type="button" class="btn-success" onclick="saveCustomOpacityPopup()">💾 Zapisz</button>
+            <button type="button" class="btn-secondary" onclick="resetCustomOpacityPopup()">⟲ Reset</button>
+            <button type="button" class="btn-secondary" onclick="closeCustomOpacityPopup(true)">✕ Anuluj</button>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    const rect = popup.getBoundingClientRect();
+    let left = clientX + 12;
+    let top = clientY + 12;
+    if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width - 12;
+    if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 12;
+    popup.style.left = Math.max(8, left) + 'px';
+    popup.style.top = Math.max(8, top) + 'px';
+
+    popup._targetEl = el;
+    popup._targetKey = key;
+    popup._originalOpacity = el.style.opacity;
+
+    const slider = document.getElementById('copSlider');
+    const val = document.getElementById('copVal');
+    slider.addEventListener('input', () => {
+        val.textContent = slider.value + '%';
+        el.style.opacity = (Number(slider.value) / 100).toString();
+    });
+}
+
+function closeCustomOpacityPopup(revert) {
+    const popup = document.getElementById('customOpacityPopup');
+    if (!popup) return;
+    if (revert && popup._targetEl) {
+        popup._targetEl.style.opacity = popup._originalOpacity || '';
+    }
+    popup.remove();
+}
+
+function saveCustomOpacityPopup() {
+    const popup = document.getElementById('customOpacityPopup');
+    const slider = document.getElementById('copSlider');
+    if (!popup || !slider) return;
+    const value = Number(slider.value);
+    const key = popup._targetKey;
+    customElementOpacity[key] = value;
+    if (popup._targetEl) popup._targetEl.style.opacity = (value / 100).toString();
+    database.ref('settings/appearance/customElementOpacity/' + firebaseSafeOpacityKey(key)).set({ selector: key, value })
+        .catch(err => console.error('Błąd zapisu przezroczystości elementu:', err));
+    popup.remove();
+    renderCustomOpacityList();
+}
+
+function resetCustomOpacityPopup() {
+    const popup = document.getElementById('customOpacityPopup');
+    if (!popup) return;
+    const key = popup._targetKey;
+    removeCustomElementOpacity(key);
+    if (popup._targetEl) popup._targetEl.style.opacity = '';
+    popup.remove();
+}
+
+function removeCustomElementOpacity(key) {
+    delete customElementOpacity[key];
+    database.ref('settings/appearance/customElementOpacity/' + firebaseSafeOpacityKey(key)).remove()
+        .catch(err => console.error('Błąd usuwania przezroczystości elementu:', err));
+    try {
+        const el = document.querySelector(key);
+        if (el) el.style.opacity = '';
+    } catch (e) { /* nieprawidłowy selektor — pomiń */ }
+    renderCustomOpacityList();
+}
+
+// Firebase nie pozwala na klucze zawierające . # $ [ ] /, więc kodujemy ścieżkę CSS do bezpiecznej postaci.
+function firebaseSafeOpacityKey(str) {
+    return btoa(unescape(encodeURIComponent(str))).replace(/[.#$\/\[\]]/g, '_');
+}
+
+function applyAllCustomElementOpacities() {
+    Object.entries(customElementOpacity).forEach(([key, value]) => {
+        try {
+            const el = document.querySelector(key);
+            if (el) el.style.opacity = (Number(value) / 100).toString();
+        } catch (e) { /* selektor nieaktualny (np. usunięty element) — pomiń */ }
+    });
+}
+
+function renderCustomOpacityList() {
+    const wrap = document.getElementById('customOpacityListWrap');
+    const list = document.getElementById('customOpacityList');
+    if (!wrap || !list) return;
+    const entries = Object.entries(customElementOpacity);
+    wrap.style.display = entries.length ? 'block' : 'none';
+    if (!entries.length) { list.innerHTML = ''; return; }
+    list.innerHTML = entries.map(([key, value]) => `
+        <div class="custom-opacity-list-row">
+            <span class="col-label" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
+            <span>${value}%</span>
+            <button type="button" onclick="removeCustomElementOpacity('${key.replace(/'/g, "\\'")}')">✕</button>
+        </div>
+    `).join('');
+}
+
+function listenToCustomElementOpacity() {
+    database.ref('settings/appearance/customElementOpacity').on('value', snap => {
+        const data = snap.val() || {};
+        customElementOpacity = {};
+        Object.values(data).forEach(entry => {
+            if (entry && entry.selector) customElementOpacity[entry.selector] = entry.value;
+        });
+        applyAllCustomElementOpacities();
+        renderCustomOpacityList();
+    });
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (elementPickerActive) stopElementPickerMode();
+    closeCustomOpacityPopup(true);
+});
 
 function removeCustomBackground(sync = true) {
     localStorage.removeItem('siteBackground');
