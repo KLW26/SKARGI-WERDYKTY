@@ -529,7 +529,70 @@
       max-width: 97vw;
       margin: 0 auto;
       padding: 0 0 40px;
+      transition: width 0.2s;
     }
+
+    /* === SZEROKOŚĆ / UKŁAD STRONY === */
+    html[data-layout="narrow"] .card   { width: 1100px; max-width: 95vw; }
+    html[data-layout="standard"] .card { width: 1460px; max-width: 97vw; }
+    html[data-layout="wide"] .card     { width: 1800px; max-width: 98vw; }
+    html[data-layout="full"] .card     { width: 100%; max-width: 100vw; }
+
+    /* === KSZTAŁT RAMEK (ZAOKRĄGLENIE ROGÓW) === */
+    /* Lista elementów objętych zmianą kształtu: główne panele, przyciski, pola formularzy, odznaki. */
+    html[data-shape="sharp"] .card, html[data-shape="sharp"] .top-bar, html[data-shape="sharp"] .login-box,
+    html[data-shape="sharp"] .desc-box, html[data-shape="sharp"] .verdict-panel, html[data-shape="sharp"] .table-wrapper,
+    html[data-shape="sharp"] .stats-group-box, html[data-shape="sharp"] .stat-box, html[data-shape="sharp"] .notif-dropdown,
+    html[data-shape="sharp"] .notif-bell-btn, html[data-shape="sharp"] .badge, html[data-shape="sharp"] .badge-pending,
+    html[data-shape="sharp"] .badge-accepted, html[data-shape="sharp"] .badge-rejected, html[data-shape="sharp"] .badge-appeal,
+    html[data-shape="sharp"] button, html[data-shape="sharp"] select, html[data-shape="sharp"] input,
+    html[data-shape="sharp"] textarea, html[data-shape="sharp"] .theme-btn, html[data-shape="sharp"] .font-select,
+    html[data-shape="sharp"] .lang-btn, html[data-shape="sharp"] .split-tab-btn, html[data-shape="sharp"] .btn-attach,
+    html[data-shape="sharp"] .discord-login-btn, html[data-shape="sharp"] .file-preview-row, html[data-shape="sharp"] .lock-overlay,
+    html[data-shape="sharp"] .discord-required-box, html[data-shape="sharp"] .chat-thumb, html[data-shape="sharp"] img {
+      border-radius: 0 !important;
+    }
+
+    html[data-shape="round"] .card, html[data-shape="round"] .top-bar, html[data-shape="round"] .login-box,
+    html[data-shape="round"] .desc-box, html[data-shape="round"] .verdict-panel, html[data-shape="round"] .table-wrapper,
+    html[data-shape="round"] .stats-group-box, html[data-shape="round"] .stat-box, html[data-shape="round"] .notif-dropdown {
+      border-radius: 18px !important;
+    }
+    html[data-shape="round"] button, html[data-shape="round"] select, html[data-shape="round"] input,
+    html[data-shape="round"] textarea, html[data-shape="round"] .theme-btn, html[data-shape="round"] .font-select,
+    html[data-shape="round"] .lang-btn, html[data-shape="round"] .split-tab-btn, html[data-shape="round"] .btn-attach,
+    html[data-shape="round"] .discord-login-btn, html[data-shape="round"] .badge, html[data-shape="round"] .badge-pending,
+    html[data-shape="round"] .badge-accepted, html[data-shape="round"] .badge-rejected, html[data-shape="round"] .badge-appeal,
+    html[data-shape="round"] .notif-bell-btn {
+      border-radius: 999px !important;
+    }
+
+    html[data-shape="soft"] .card, html[data-shape="soft"] .top-bar, html[data-shape="soft"] .login-box,
+    html[data-shape="soft"] .desc-box, html[data-shape="soft"] .verdict-panel, html[data-shape="soft"] .table-wrapper,
+    html[data-shape="soft"] .stats-group-box, html[data-shape="soft"] .stat-box, html[data-shape="soft"] .notif-dropdown {
+      border-radius: 8px !important;
+    }
+    html[data-shape="soft"] button, html[data-shape="soft"] select, html[data-shape="soft"] input,
+    html[data-shape="soft"] textarea, html[data-shape="soft"] .theme-btn, html[data-shape="soft"] .font-select,
+    html[data-shape="soft"] .lang-btn, html[data-shape="soft"] .split-tab-btn, html[data-shape="soft"] .btn-attach,
+    html[data-shape="soft"] .discord-login-btn, html[data-shape="soft"] .badge, html[data-shape="soft"] .badge-pending,
+    html[data-shape="soft"] .badge-accepted, html[data-shape="soft"] .badge-rejected, html[data-shape="soft"] .badge-appeal,
+    html[data-shape="soft"] .notif-bell-btn {
+      border-radius: 5px !important;
+    }
+
+    /* === ROZMIAR STRONY (SKALA) === */
+    html[data-size="small"] .card  { zoom: 0.85; }
+    html[data-size="medium"] .card { zoom: 1; }
+    html[data-size="large"] .card  { zoom: 1.2; }
+
+    /* === PRZECIĄGANIE PANELU (PRZEMIESZCZANIE) === */
+    .card.draggable-active { transition: none; }
+    #dragHandleBtn {
+      cursor: grab;
+    }
+    #dragHandleBtn:active { cursor: grabbing; }
+    #dragResetBtn { display: none; }
 
     /* === TOP HEADER BAR === */
     .top-bar {
@@ -2587,6 +2650,30 @@
             </select>
           </div>
           <div class="font-select-wrap">
+            <select class="font-select" id="layoutSelect" onchange="setPageLayout(this.value);" title="Szerokość / kształt strony">
+              <option value="narrow">UKŁAD: WĄSKI</option>
+              <option value="standard">UKŁAD: STANDARD</option>
+              <option value="wide">UKŁAD: SZEROKI</option>
+              <option value="full">UKŁAD: PEŁNA SZEROKOŚĆ</option>
+            </select>
+          </div>
+          <div class="font-select-wrap">
+            <select class="font-select" id="shapeSelect" onchange="setPageShape(this.value);" title="Kształt ramek i przycisków">
+              <option value="sharp">RAMKI: OSTRE</option>
+              <option value="soft">RAMKI: LEKKO ZAOKRĄGLONE</option>
+              <option value="round">RAMKI: ZAOKRĄGLONE</option>
+            </select>
+          </div>
+          <div class="font-select-wrap">
+            <select class="font-select" id="sizeSelect" onchange="setPageSize(this.value);" title="Rozmiar strony">
+              <option value="small">ROZMIAR: MAŁY</option>
+              <option value="medium">ROZMIAR: ŚREDNI</option>
+              <option value="large">ROZMIAR: DUŻY</option>
+            </select>
+          </div>
+          <button class="theme-btn" id="dragHandleBtn" title="Przytrzymaj i przeciągnij, aby przesunąć panel">✥ PRZESUŃ</button>
+          <button class="theme-btn" id="dragResetBtn" onclick="resetPanelPosition()" title="Przywróć panel na środek">⟲ RESET POZYCJI</button>
+          <div class="font-select-wrap">
             <select class="font-select" id="themeSelect" onchange="setGlobalTheme(this.value);" title="Wybór wyglądu strony">
               <option value="dark">WYGLĄD: CIEMNY</option>
               <option value="light">WYGLĄD: JASNY</option>
@@ -3997,6 +4084,94 @@ function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", valid);
     const select = document.getElementById("themeSelect");
     if (select) select.value = valid;
+}
+
+/* === SZEROKOŚĆ / KSZTAŁT STRONY (ustawienie lokalne, tylko dla tej przeglądarki) === */
+function applyLayout(layout) {
+    const valid = ["narrow", "standard", "wide", "full"].includes(layout) ? layout : "standard";
+    document.documentElement.setAttribute("data-layout", valid);
+    const select = document.getElementById("layoutSelect");
+    if (select) select.value = valid;
+}
+
+function setPageLayout(layout) {
+    localStorage.setItem('siteLayout', layout);
+    applyLayout(layout);
+}
+
+/* === KSZTAŁT RAMEK (lokalne, tylko dla tej przeglądarki) === */
+function applyShape(shape) {
+    const valid = ["sharp", "soft", "round"].includes(shape) ? shape : "soft";
+    document.documentElement.setAttribute("data-shape", valid);
+    const select = document.getElementById("shapeSelect");
+    if (select) select.value = valid;
+}
+function setPageShape(shape) {
+    localStorage.setItem('siteShape', shape);
+    applyShape(shape);
+}
+
+/* === ROZMIAR STRONY (lokalne, tylko dla tej przeglądarki) === */
+function applySize(size) {
+    const valid = ["small", "medium", "large"].includes(size) ? size : "medium";
+    document.documentElement.setAttribute("data-size", valid);
+    const select = document.getElementById("sizeSelect");
+    if (select) select.value = valid;
+}
+function setPageSize(size) {
+    localStorage.setItem('siteSize', size);
+    applySize(size);
+}
+
+/* === PRZECIĄGANIE PANELU MYSZKĄ (lokalne, tylko dla tej przeglądarki) === */
+function initPanelDrag() {
+    const handle = document.getElementById('dragHandleBtn');
+    const resetBtn = document.getElementById('dragResetBtn');
+    const card = document.querySelector('.card');
+    if (!handle || !card) return;
+
+    let dragging = false;
+    let startX = 0, startY = 0;
+    let offsetX = 0, offsetY = 0;
+
+    function applyOffset(x, y) {
+        offsetX = x; offsetY = y;
+        card.style.transform = (x || y) ? `translate(${x}px, ${y}px)` : "";
+        if (resetBtn) resetBtn.style.display = (x || y) ? "inline-block" : "none";
+    }
+
+    const saved = localStorage.getItem('sitePanelOffset');
+    if (saved) {
+        try {
+            const { x, y } = JSON.parse(saved);
+            applyOffset(x || 0, y || 0);
+        } catch (e) { /* ignoruj błędne dane */ }
+    }
+
+    handle.addEventListener('mousedown', (e) => {
+        dragging = true;
+        startX = e.clientX - offsetX;
+        startY = e.clientY - offsetY;
+        card.classList.add('draggable-active');
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        applyOffset(e.clientX - startX, e.clientY - startY);
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        card.classList.remove('draggable-active');
+        localStorage.setItem('sitePanelOffset', JSON.stringify({ x: offsetX, y: offsetY }));
+    });
+
+    window.resetPanelPosition = function() {
+        applyOffset(0, 0);
+        localStorage.removeItem('sitePanelOffset');
+    };
 }
 
 /* === GLOBALNY WYGLĄD STRONY (Firebase — dotyczy WSZYSTKICH użytkowników na każdym urządzeniu) === */
@@ -8526,6 +8701,17 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const savedFont = localStorage.getItem("siteFont");
     applyFont(savedFont || "default");
+
+    const savedLayout = localStorage.getItem("siteLayout");
+    applyLayout(savedLayout || "standard");
+
+    const savedShape = localStorage.getItem("siteShape");
+    applyShape(savedShape || "soft");
+
+    const savedSize = localStorage.getItem("siteSize");
+    applySize(savedSize || "medium");
+
+    initPanelDrag();
 
     const savedBg = localStorage.getItem("siteBackground");
     if (savedBg) {
