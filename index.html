@@ -9283,7 +9283,7 @@ window.addEventListener("DOMContentLoaded", () => {
     <button type="button" class="btn-secondary" onclick="resetPickerTargetAll()">⟲ Resetuj wszystko</button>
     <button type="button" class="btn-secondary" onclick="deselectPickerTarget()">Wybierz inny</button>
   </div>
-  <div class="element-picker-hint">Tryb aktywny — najedź, aby podświetlić element, kliknij, aby go wybrać. Zmiany (przezroczystość, tło, tekst) obowiązują tylko na tej stronie/w tej sesji. Esc lub przycisk 🎯 wyłącza tryb.</div>
+  <div class="element-picker-hint">Tryb aktywny — najedź, aby podświetlić element, kliknij, aby go wybrać. Zmiany (przezroczystość, tło, tekst) są zapisywane w tej przeglądarce i zostaną po odświeżeniu strony. Esc lub przycisk 🎯 wyłącza tryb.</div>
 </div>
 
 <script>
@@ -9292,6 +9292,78 @@ window.addEventListener("DOMContentLoaded", () => {
     let pickerModeActive = false;
     let hoveredEl = null;
     let selectedEl = null;
+
+    const PICKER_STORAGE_KEY = 'elementPickerStyles';
+
+    function loadPickerStyles() {
+        try { return JSON.parse(localStorage.getItem(PICKER_STORAGE_KEY) || '{}'); }
+        catch (e) { return {}; }
+    }
+
+    function savePickerStylesMap(styles) {
+        try { localStorage.setItem(PICKER_STORAGE_KEY, JSON.stringify(styles)); }
+        catch (e) {}
+    }
+
+    function getElementSelectorPath(el) {
+        if (!el || !el.parentElement) return null;
+        if (el.id) return '#' + CSS.escape(el.id);
+        const parts = [];
+        let node = el;
+        while (node && node.nodeType === 1 && node !== document.body && node !== document.documentElement) {
+            if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+            let selector = node.tagName.toLowerCase();
+            const parent = node.parentElement;
+            if (parent) {
+                const siblings = Array.from(parent.children).filter(c => c.tagName === node.tagName);
+                if (siblings.length > 1) {
+                    selector += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+                }
+            }
+            parts.unshift(selector);
+            node = parent;
+        }
+        return parts.length ? parts.join(' > ') : null;
+    }
+
+    function applyPickerStyleToElement(el, style) {
+        if (!el || !style) return;
+        if (style.opacity !== undefined) el.style.opacity = style.opacity;
+        if (style.background !== undefined) el.style.backgroundColor = style.background;
+        if (style.text !== undefined) el.style.color = style.text;
+    }
+
+    function savePickerStyleForElement(el, patch) {
+        const path = getElementSelectorPath(el);
+        if (!path) return;
+        const styles = loadPickerStyles();
+        styles[path] = Object.assign({}, styles[path], patch);
+        savePickerStylesMap(styles);
+    }
+
+    function removePickerStyleForElement(el, keys) {
+        const path = getElementSelectorPath(el);
+        if (!path) return;
+        const styles = loadPickerStyles();
+        if (!styles[path]) return;
+        if (keys) {
+            keys.forEach(k => delete styles[path][k]);
+            if (Object.keys(styles[path]).length === 0) delete styles[path];
+        } else {
+            delete styles[path];
+        }
+        savePickerStylesMap(styles);
+    }
+
+    function applyAllSavedPickerStyles() {
+        const styles = loadPickerStyles();
+        Object.keys(styles).forEach(path => {
+            try {
+                const el = document.querySelector(path);
+                if (el && !isExcluded(el)) applyPickerStyleToElement(el, styles[path]);
+            } catch (e) {}
+        });
+    }
 
     const panel = () => document.getElementById('elementPickerPanel');
     const btn = () => document.getElementById('elementPickerBtn');
@@ -9373,14 +9445,17 @@ window.addEventListener("DOMContentLoaded", () => {
 
     window.setPickerTargetOpacity = function (value) {
         if (!selectedEl) return;
-        selectedEl.style.opacity = (Number(value) / 100).toString();
+        const opacity = (Number(value) / 100).toString();
+        selectedEl.style.opacity = opacity;
         val().textContent = value + '%';
+        savePickerStyleForElement(selectedEl, { opacity });
     };
 
     window.setPickerTargetColor = function (type, hex) {
         if (!selectedEl) return;
         if (type === 'background') selectedEl.style.backgroundColor = hex;
         else selectedEl.style.color = hex;
+        savePickerStyleForElement(selectedEl, type === 'background' ? { background: hex } : { text: hex });
     };
 
     window.resetPickerTargetColor = function (type) {
@@ -9394,6 +9469,7 @@ window.addEventListener("DOMContentLoaded", () => {
             const hex = rgbToHex(getComputedStyle(selectedEl).color);
             textColorInput().value = hex || '#000000';
         }
+        removePickerStyleForElement(selectedEl, [type === 'background' ? 'background' : 'text']);
     };
 
     window.resetPickerTargetAll = function () {
@@ -9405,6 +9481,7 @@ window.addEventListener("DOMContentLoaded", () => {
         val().textContent = '100%';
         bgColorInput().value = rgbToHex(getComputedStyle(selectedEl).backgroundColor) || '#000000';
         textColorInput().value = rgbToHex(getComputedStyle(selectedEl).color) || '#000000';
+        removePickerStyleForElement(selectedEl);
     };
 
     window.deselectPickerTarget = function () {
@@ -9435,6 +9512,11 @@ window.addEventListener("DOMContentLoaded", () => {
             if (hoveredEl) { hoveredEl.classList.remove('picker-hover-target'); hoveredEl = null; }
         }
     };
+
+    // Przywróć zapisane style od razu (elementy statyczne już są w DOM)
+    applyAllSavedPickerStyles();
+    // ...i ponownie po pełnym załadowaniu strony (na wypadek treści dociąganych asynchronicznie)
+    window.addEventListener('load', applyAllSavedPickerStyles);
 })();
 </script>
 </body>
