@@ -3611,11 +3611,13 @@
                 <input type="text" id="logSearch" class="search-input" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." oninput="renderLogsTable()">
                 <select id="logFilterAction" class="filter-select" onchange="renderLogsTable()">
                     <option value="ALL">Wszystkie kategorie</option>
+                    <option value="REPORT">Nowe zgłoszenia</option>
                     <option value="VERDICT">Werdykty i kary</option>
                     <option value="APPEAL">Apelacje kierowców</option>
                     <option value="USER_MGMT">Zarządzanie sędziami</option>
                     <option value="TRASH">Operacje na Koszu</option>
                     <option value="RESTORE">Przywracanie danych</option>
+                    <option value="AUTH">Logowania (AUTH)</option>
                 </select>
             </div>
             <div class="table-wrapper">
@@ -5334,7 +5336,9 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     }
 
     await database.ref("incidents/" + fiaId).set(newReport);
-    await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${split} - ${sessionType}).`);
+    await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${split} - ${sessionType}).`, {
+        items: [{ path: `incidents/${fiaId}`, data: cloneForRestore(newReport) }]
+    });
     alert(langData[currentLang].alertSent + " ID: " + fiaId);
     e.target.reset();
     clearReportDraft();
@@ -8777,6 +8781,13 @@ function canRestoreLogs() {
     return isRoot || !!perms.manage_settings;
 }
 
+// Logowanie "jako ktoś" na podstawie wpisu logu AUTH jest operacją wrażliwą (przejęcie
+// tożsamości innego stewarda), więc — inaczej niż zwykłe przywracanie danych — jest
+// zarezerwowane wyłącznie dla Głównego Stewarda / ROOT, niezależnie od uprawnienia manage_settings.
+function isHeadSteward() {
+    return loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+}
+
 // Zwraca tylko te wpisy logu, które mają zapisane dane umożliwiające przywrócenie.
 function getRestorableLogs() {
     return globalLogs.filter(log => log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0);
@@ -8840,6 +8851,72 @@ async function restoreFromDeletedLog(logId) {
         try { await database.ref("deleted_action_logs/" + logId).remove(); } catch (e) { /* nieistotne dla samego przywrócenia */ }
         alert(currentLang === 'pl' ? "Dane zostały przywrócone, a wpis usunięty z archiwum skasowanych logów." : "Data has been restored and the entry removed from the deleted-logs archive.");
     }
+}
+
+// Na podstawie wpisu logu kategorii AUTH (czyli historycznego logowania jakiegoś stewarda)
+// pozwala Głównemu Stewardowi przełączyć bieżącą sesję administracyjną na tego stewarda
+// (targetId z logu = jego Discord ID). Dostęp mają tylko konta z rolą "Główny Steward"/"ROOT" —
+// to świadomie węższy krąg niż przy zwykłym przywracaniu danych (canRestoreLogs), bo to operacja
+// przejęcia cudzej tożsamości w panelu, a nie tylko cofnięcie zmiany danych.
+async function loginAsFromAuthLog(logId, fromDeletedArchive = false) {
+    if (!isHeadSteward()) {
+        alert(currentLang === 'pl'
+            ? "Tylko Główny Steward może zalogować się jako inny steward na podstawie logu AUTH."
+            : "Only the Head Steward can log in as another steward from an AUTH log entry.");
+        return;
+    }
+
+    const source = fromDeletedArchive ? globalDeletedLogs : globalLogs;
+    const log = source.find(l => l.id === logId);
+    if (!log || log.category !== "AUTH") return;
+
+    const targetId = log.targetId;
+    if (!targetId || targetId === "N/A") {
+        alert(currentLang === 'pl' ? "Ten wpis logu nie ma powiązanego identyfikatora stewarda." : "This log entry has no associated steward ID.");
+        return;
+    }
+
+    const steward = globalStewards.find(s => s.id === targetId);
+    if (!steward) {
+        alert(currentLang === 'pl'
+            ? "Steward powiązany z tym wpisem logu AUTH już nie istnieje w systemie (mógł zostać usunięty)."
+            : "The steward linked to this AUTH log entry no longer exists in the system (may have been deleted).");
+        return;
+    }
+
+    if (loggedInSteward && steward.id === loggedInSteward.id) {
+        alert(currentLang === 'pl' ? "Już jesteś zalogowany jako ten steward." : "You are already logged in as this steward.");
+        return;
+    }
+
+    const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
+    const confirmMsg = currentLang === 'pl'
+        ? `Czy na pewno chcesz zalogować się jako "${steward.nick}" (${steward.role})?\n\nPodstawa: wpis logu AUTH z dnia ${dateStr}.\nTwoja obecna sesja administracyjna zostanie zastąpiona sesją tego stewarda, a operacja zostanie zapisana w logu akcji.`
+        : `Are you sure you want to log in as "${steward.nick}" (${steward.role})?\n\nBasis: AUTH log entry from ${dateStr}.\nYour current admin session will be replaced by this steward's session, and the operation will be recorded in the action log.`;
+    if (!confirm(confirmMsg)) return;
+
+    const actingStewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+    const actingStewardId = loggedInSteward ? loggedInSteward.id : "N/A";
+
+    loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
+    isAdminAuthenticated = true;
+    localStorage.setItem("adminAuthId", steward.id);
+
+    const menuBtn = document.getElementById("adminMenuBtn");
+    if (menuBtn) menuBtn.style.borderColor = "#10b981";
+    applyStewardPermissions();
+    updateLoggedInAsLabel();
+    listenToUsersAndLogs();
+    renderNotifBell();
+
+    const sourceInfo = await getLoginSourceInfo();
+    await logAction(actingStewardName, "AUTH", steward.id, currentLang === 'pl'
+        ? `Główny Steward "${actingStewardName}" (${actingStewardId}) zalogował się jako "${steward.nick}" na podstawie wpisu logu AUTH z dnia ${dateStr} [${sourceInfo}].`
+        : `Head Steward "${actingStewardName}" (${actingStewardId}) logged in as "${steward.nick}" based on the AUTH log entry from ${dateStr} [${sourceInfo}].`);
+
+    showSection("adminSection");
+    renderAdmin();
+    alert(currentLang === 'pl' ? `Zalogowano jako ${steward.nick}.` : `Logged in as ${steward.nick}.`);
 }
 
 function renderStewardsTable() {
@@ -8922,16 +8999,21 @@ function renderLogsTable() {
         const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
         
         let catBadge = "";
-        if (log.category === "VERDICT") catBadge = `<span class="badge badge-accepted">WERDYKT</span>`;
+        if (log.category === "REPORT") catBadge = `<span class="badge" style="background:#1565c0; color:#fff; border-color:#0d47a1;">ZGŁOSZENIE</span>`;
+        else if (log.category === "VERDICT") catBadge = `<span class="badge badge-accepted">WERDYKT</span>`;
         else if (log.category === "APPEAL") catBadge = `<span class="badge badge-appeal">APELACJA</span>`;
         else if (log.category === "USER_MGMT") catBadge = `<span class="badge badge-pending">ROLE</span>`;
         else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
         else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
+        else if (log.category === "AUTH") catBadge = `<span class="badge" style="background:#a855f7; color:#fff; border-color:#7e22ce;">AUTH</span>`;
         else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
 
         const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
         const restoreBtn = (hasRestore && canManageLogs)
             ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
+            : '';
+        const loginAsBtn = (log.category === "AUTH" && isHeadSteward() && log.targetId && log.targetId !== "N/A")
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#a855f7; border-color:rgba(168,85,247,0.4);" title="${currentLang === 'pl' ? 'Zaloguj się jako steward z tego wpisu logu' : 'Log in as the steward from this log entry'}" onclick="loginAsFromAuthLog('${log.id}')">👤 ${currentLang === 'pl' ? 'Zaloguj jako' : 'Log in as'}</button>`
             : '';
 
         tr.innerHTML = `
@@ -8940,7 +9022,7 @@ function renderLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
+            <td style="white-space:nowrap;">${restoreBtn}${loginAsBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -9036,16 +9118,21 @@ function renderDeletedLogsTable() {
         const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
 
         let catBadge = "";
-        if (log.category === "VERDICT") catBadge = `<span class="badge badge-accepted">WERDYKT</span>`;
+        if (log.category === "REPORT") catBadge = `<span class="badge" style="background:#1565c0; color:#fff; border-color:#0d47a1;">ZGŁOSZENIE</span>`;
+        else if (log.category === "VERDICT") catBadge = `<span class="badge badge-accepted">WERDYKT</span>`;
         else if (log.category === "APPEAL") catBadge = `<span class="badge badge-appeal">APELACJA</span>`;
         else if (log.category === "USER_MGMT") catBadge = `<span class="badge badge-pending">ROLE</span>`;
         else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
         else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
+        else if (log.category === "AUTH") catBadge = `<span class="badge" style="background:#a855f7; color:#fff; border-color:#7e22ce;">AUTH</span>`;
         else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
 
         const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
         const restoreBtn = (hasRestore && canManageLogs)
             ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromDeletedLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
+            : '';
+        const loginAsBtn = (log.category === "AUTH" && isHeadSteward() && log.targetId && log.targetId !== "N/A")
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#a855f7; border-color:rgba(168,85,247,0.4);" title="${currentLang === 'pl' ? 'Zaloguj się jako steward z tego wpisu logu' : 'Log in as the steward from this log entry'}" onclick="loginAsFromAuthLog('${log.id}', true)">👤 ${currentLang === 'pl' ? 'Zaloguj jako' : 'Log in as'}</button>`
             : '';
 
         tr.innerHTML = `
@@ -9054,7 +9141,7 @@ function renderDeletedLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${log.id}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
+            <td style="white-space:nowrap;">${restoreBtn}${loginAsBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${log.id}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
