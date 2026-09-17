@@ -2914,6 +2914,7 @@
       <span id="loggedInAsLabel" style="display:none; align-items:center; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
         <span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
         <span id="loggedInAsText">Zalogowano jako: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
+        <button type="button" id="returnToOriginalBtn" onclick="returnToOriginalAccount()" title="Wróć do swojego konta (zakończ &quot;Zaloguj jako&quot; bez wylogowania)" style="display:none; margin-left:8px; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.5); color:#a855f7; border-radius:3px; padding:2px 8px; font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:pointer;">↩ Powrót</button>
       </span>
 
       <div id="notifBellWrap" class="notif-bell-wrap" style="display:none;">
@@ -4653,13 +4654,20 @@ async function openUsersSection() {
 function updateLoggedInAsLabel() {
     const label = document.getElementById("loggedInAsLabel");
     const nickEl = document.getElementById("loggedInAsNick");
+    const returnBtn = document.getElementById("returnToOriginalBtn");
     if (!label || !nickEl) return;
     if (isAdminAuthenticated && loggedInSteward) {
         nickEl.textContent = loggedInSteward.nick;
         label.style.display = "flex";
+        if (returnBtn) {
+            // Przycisk powrotu widoczny tylko, gdy trwa sesja "Zaloguj jako" (impersonacja),
+            // czyli jest zapamiętane oryginalne konto Głównego Stewarda.
+            returnBtn.style.display = impersonationOriginal ? "inline-block" : "none";
+        }
     } else {
         label.style.display = "none";
         nickEl.textContent = "";
+        if (returnBtn) returnBtn.style.display = "none";
     }
     updateJudgeFieldFromSession();
 }
@@ -7257,10 +7265,12 @@ function adminLogout() {
         isTrashAuthenticated = false;
         isUsersAuth = false;
         pendingAutoLoginId = null;
+        impersonationOriginal = null;
         localStorage.removeItem("adminAuthId");
         sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
         sessionStorage.removeItem("externalJudgeAuth");
+        sessionStorage.removeItem("impersonationOriginal");
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
         if(document.getElementById("statsMenuBtn")) {
             document.getElementById("statsMenuBtn").style.display = "none";
@@ -9258,6 +9268,17 @@ window.addEventListener("DOMContentLoaded", () => {
     pendingAutoLoginId = localStorage.getItem("adminAuthId");
     // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
     // gdy tylko nadejdzie pierwszy snapshot z "stewards" (patrz listenToStewards).
+
+    // Jeśli strona została odświeżona w trakcie sesji "Zaloguj jako" (impersonacja),
+    // odtwórz zapamiętane oryginalne konto Głównego Stewarda, żeby przycisk "Powrót"
+    // nadal działał i tożsamość do powrotu nie została utracona.
+    try {
+        const savedImpersonation = sessionStorage.getItem("impersonationOriginal");
+        if (savedImpersonation) impersonationOriginal = JSON.parse(savedImpersonation);
+    } catch (e) {
+        impersonationOriginal = null;
+        sessionStorage.removeItem("impersonationOriginal");
+    }
 
     // Sesja gościnna sędziego spoza ligi (logowanie hasłem, bez Discorda/konta stewarda).
     restoreExternalJudgeSession();
