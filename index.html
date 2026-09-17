@@ -3602,7 +3602,10 @@
         <div style="margin-top: 40px;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                 <div class="section-title appeal-title" style="margin-bottom:0;">Logi Akcji Sędziowskich (Audit Trail)</div>
-                <button id="clearAllLogsBtn" type="button" class="btn-danger" style="padding:6px 14px; font-size:11px; display:none;" onclick="clearAllLogs()">🗑 WYCZYŚĆ WSZYSTKIE LOGI</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="restoreAllLogsBtn" type="button" class="btn-view" style="padding:6px 14px; font-size:11px; display:none; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" onclick="restoreAllFromLogs()">↺ PRZYWRÓĆ WSZYSTKO</button>
+                    <button id="clearAllLogsBtn" type="button" class="btn-danger" style="padding:6px 14px; font-size:11px; display:none;" onclick="clearAllLogs()">🗑 WYCZYŚĆ WSZYSTKIE LOGI</button>
+                </div>
             </div>
             <div class="admin-controls">
                 <input type="text" id="logSearch" class="search-input" placeholder="Filtruj logi po stewardzie, opisie lub ID zgłoszenia..." oninput="renderLogsTable()">
@@ -8774,22 +8777,29 @@ function canRestoreLogs() {
     return isRoot || !!perms.manage_settings;
 }
 
-async function restoreFromLog(logId) {
-    const log = globalLogs.find(l => l.id === logId);
+// Zwraca tylko te wpisy logu, które mają zapisane dane umożliwiające przywrócenie.
+function getRestorableLogs() {
+    return globalLogs.filter(log => log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0);
+}
+
+// Rdzeń przywracania - działa na pojedynczym wpisie logu, niezależnie od tego, czy
+// pochodzi z aktywnej listy logów, czy z archiwum usuniętych logów. Nadpisuje dane
+// pod zapisanymi ścieżkami stanem sprzed danej akcji i tworzy nowy wpis RESTORE.
+async function performLogRestore(log) {
     if (!log || !log.restore || !Array.isArray(log.restore.items) || log.restore.items.length === 0) {
         alert(currentLang === 'pl' ? "Ten wpis logu nie zawiera danych umożliwiających przywrócenie." : "This log entry has no restorable data.");
-        return;
+        return false;
     }
     if (!canRestoreLogs()) {
         alert(currentLang === 'pl' ? "Brak uprawnień do przywracania danych z logów." : "Not authorized to restore data from logs.");
-        return;
+        return false;
     }
 
     const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
     const confirmMsg = currentLang === 'pl'
         ? `Czy na pewno chcesz przywrócić stan sprzed tej akcji (${dateStr})?\n\n"${log.details}"\n\nSpowoduje to nadpisanie aktualnych danych stanem zapisanym w logu.`
         : `Are you sure you want to restore the state from before this action (${dateStr})?\n\n"${log.details}"\n\nThis will overwrite the current data with the state saved in the log.`;
-    if (!confirm(confirmMsg)) return;
+    if (!confirm(confirmMsg)) return false;
 
     try {
         const updates = {};
@@ -8803,9 +8813,32 @@ async function restoreFromLog(logId) {
             ? `Przywrócono stan sprzed akcji z dnia ${dateStr} (log: "${log.details}").`
             : `Restored state from before the action on ${dateStr} (log: "${log.details}").`);
 
-        alert(currentLang === 'pl' ? "Dane zostały przywrócone." : "Data has been restored.");
+        return true;
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas przywracania danych: " : "Error restoring data: ") + err.message);
+        return false;
+    }
+}
+
+// Przywracanie z listy aktywnych (nieusuniętych) logów.
+async function restoreFromLog(logId) {
+    const log = globalLogs.find(l => l.id === logId);
+    if (!log) return;
+    const ok = await performLogRestore(log);
+    if (ok) alert(currentLang === 'pl' ? "Dane zostały przywrócone." : "Data has been restored.");
+}
+
+// Przywracanie z ARCHIWUM USUNIĘTYCH LOGÓW - działa dokładnie tak samo jak przywracanie
+// z aktywnego logu, mimo że sam wpis logu został wcześniej usunięty (pojedynczo lub przez
+// "Wyczyść wszystkie logi"). Po udanym przywróceniu wpis znika z archiwum, bo dane, które
+// opisywał, zostały już odzyskane.
+async function restoreFromDeletedLog(logId) {
+    const log = globalDeletedLogs.find(l => l.id === logId);
+    if (!log) return;
+    const ok = await performLogRestore(log);
+    if (ok) {
+        try { await database.ref("deleted_action_logs/" + logId).remove(); } catch (e) { /* nieistotne dla samego przywrócenia */ }
+        alert(currentLang === 'pl' ? "Dane zostały przywrócone, a wpis usunięty z archiwum skasowanych logów." : "Data has been restored and the entry removed from the deleted-logs archive.");
     }
 }
 
@@ -8863,6 +8896,9 @@ function renderLogsTable() {
     const clearAllBtn = document.getElementById("clearAllLogsBtn");
     if (clearAllBtn) clearAllBtn.style.display = (canManageLogs && globalLogs.length > 0) ? "inline-flex" : "none";
 
+    const restoreAllBtn = document.getElementById("restoreAllLogsBtn");
+    if (restoreAllBtn) restoreAllBtn.style.display = (canManageLogs && getRestorableLogs().length > 0) ? "inline-flex" : "none";
+
     const searchVal = document.getElementById("logSearch").value.toLowerCase();
     const filterAction = document.getElementById("logFilterAction").value;
 
@@ -8911,8 +8947,15 @@ function renderLogsTable() {
 }
 
 async function deleteLogEntry(logId) {
-    if (!confirm(currentLang === 'pl' ? "Usunąć ten wpis z logu akcji? Tej operacji nie można cofnąć." : "Delete this log entry? This cannot be undone.")) return;
+    if (!confirm(currentLang === 'pl'
+        ? "Usunąć ten wpis z logu akcji? Zostanie przeniesiony do archiwum usuniętych logów, skąd nadal będzie można pojedynczo przywrócić z niego dane."
+        : "Delete this log entry? It will be moved to the deleted-logs archive, from where its data can still be individually restored.")) return;
     try {
+        const log = globalLogs.find(l => l.id === logId);
+        if (log) {
+            const { id: _dropId, ...rest } = log;
+            await database.ref("deleted_action_logs/" + logId).set(cloneForRestore(rest));
+        }
         await database.ref("action_logs/" + logId).remove();
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas usuwania wpisu: " : "Error deleting entry: ") + err.message);
@@ -8922,13 +8965,99 @@ async function deleteLogEntry(logId) {
 async function clearAllLogs() {
     if (globalLogs.length === 0) return;
     if (!confirm(currentLang === 'pl'
-        ? `Czy na pewno chcesz TRWALE usunąć wszystkie (${globalLogs.length}) wpisy z logu akcji? Tej operacji NIE MOŻNA cofnąć.`
-        : `Are you sure you want to PERMANENTLY delete all (${globalLogs.length}) action log entries? This CANNOT be undone.`)) return;
+        ? `Czy na pewno chcesz wyczyścić wszystkie (${globalLogs.length}) wpisy z logu akcji? Zostaną przeniesione do archiwum usuniętych logów, skąd nadal będzie można pojedynczo przywrócić z nich dane.`
+        : `Are you sure you want to clear all (${globalLogs.length}) action log entries? They will be moved to the deleted-logs archive, from where their data can still be individually restored.`)) return;
     try {
+        const archiveUpdates = {};
+        globalLogs.forEach(log => {
+            const { id: _dropId, ...rest } = log;
+            archiveUpdates[log.id] = cloneForRestore(rest);
+        });
+        await database.ref("deleted_action_logs").update(archiveUpdates);
         await database.ref("action_logs").remove();
     } catch (err) {
         alert((currentLang === 'pl' ? "Błąd podczas czyszczenia logów: " : "Error clearing logs: ") + err.message);
     }
+}
+
+// Trwałe (nieodwracalne) usunięcie pojedynczego wpisu z archiwum skasowanych logów -
+// dopiero to naprawdę kasuje możliwość przywrócenia danych z tego wpisu.
+async function permanentlyDeleteDeletedLog(logId) {
+    if (!confirm(currentLang === 'pl'
+        ? "Usunąć ten wpis TRWALE z archiwum skasowanych logów? Po tej operacji NIE będzie już można przywrócić z niego danych."
+        : "Permanently delete this entry from the deleted-logs archive? After this, its data can NO LONGER be restored.")) return;
+    try {
+        await database.ref("deleted_action_logs/" + logId).remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas trwałego usuwania wpisu: " : "Error permanently deleting entry: ") + err.message);
+    }
+}
+
+// Trwałe opróżnienie całego archiwum skasowanych logów.
+async function permanentlyClearDeletedLogs() {
+    if (globalDeletedLogs.length === 0) return;
+    if (!confirm(currentLang === 'pl'
+        ? `Czy na pewno chcesz TRWALE opróżnić archiwum skasowanych logów (${globalDeletedLogs.length} wpisów)? Tej operacji NIE MOŻNA cofnąć.`
+        : `Are you sure you want to PERMANENTLY empty the deleted-logs archive (${globalDeletedLogs.length} entries)? This CANNOT be undone.`)) return;
+    try {
+        await database.ref("deleted_action_logs").remove();
+    } catch (err) {
+        alert((currentLang === 'pl' ? "Błąd podczas opróżniania archiwum: " : "Error emptying archive: ") + err.message);
+    }
+}
+
+function toggleDeletedLogsPanel() {
+    showDeletedLogsPanel = !showDeletedLogsPanel;
+    const section = document.getElementById("deletedLogsSection");
+    if (section) section.style.display = showDeletedLogsPanel ? "block" : "none";
+    const btn = document.getElementById("toggleDeletedLogsBtn");
+    if (btn) btn.textContent = (showDeletedLogsPanel
+        ? (currentLang === 'pl' ? "▲ Ukryj usunięte logi" : "▲ Hide deleted logs")
+        : `🗄 ${currentLang === 'pl' ? 'Usunięte logi' : 'Deleted logs'} (${globalDeletedLogs.length})`);
+    if (showDeletedLogsPanel) renderDeletedLogsTable();
+}
+
+function renderDeletedLogsTable() {
+    const tbody = document.getElementById("deletedLogsTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const perms = loggedInSteward?.permissions || {};
+    const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+    const canManageLogs = isRoot || !!perms.manage_settings;
+
+    if (globalDeletedLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim);">${currentLang === 'pl' ? 'Archiwum skasowanych logów jest puste.' : 'The deleted-logs archive is empty.'}</td></tr>`;
+        return;
+    }
+
+    globalDeletedLogs.forEach(log => {
+        const tr = document.createElement("tr");
+        const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
+
+        let catBadge = "";
+        if (log.category === "VERDICT") catBadge = `<span class="badge badge-accepted">WERDYKT</span>`;
+        else if (log.category === "APPEAL") catBadge = `<span class="badge badge-appeal">APELACJA</span>`;
+        else if (log.category === "USER_MGMT") catBadge = `<span class="badge badge-pending">ROLE</span>`;
+        else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
+        else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
+        else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
+
+        const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
+        const restoreBtn = (hasRestore && canManageLogs)
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromDeletedLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
+            : '';
+
+        tr.innerHTML = `
+            <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
+            <td><strong>${log.steward}</strong></td>
+            <td>${catBadge}</td>
+            <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
+            <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
+            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${log.id}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }
 
 function updateUsersStats() {
