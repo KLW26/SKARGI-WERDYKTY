@@ -3982,6 +3982,12 @@ let currentLang = 'pl';
 let currentlyEditedReportId = null;
 let isUsersAuth = false;
 
+// Gdy Główny Steward zaloguje się "jako" inny steward (patrz loginAsFromAuthLog), tutaj
+// zapamiętujemy jego PRAWDZIWE konto, żeby móc do niego wrócić jednym kliknięciem, bez
+// przechodzenia przez pełne wylogowanie i ponowne logowanie. Trzymane też w sessionStorage,
+// żeby przeżyło odświeżenie strony w trakcie "podszywania się".
+let impersonationOriginal = null; // { nick, id, role, permissions }
+
 let authorizedHistoryDiscordId = null;
 let adminSplitFilter = "ALL";
 let historySplitFilter = "ALL";
@@ -8898,6 +8904,13 @@ async function loginAsFromAuthLog(logId, fromDeletedArchive = false) {
     const actingStewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
     const actingStewardId = loggedInSteward ? loggedInSteward.id : "N/A";
 
+    // Zapamiętaj prawdziwe konto do powrotu — tylko jeśli jeszcze nie podszywamy się pod
+    // nikogo (żeby przy kolejnych przełączeniach "Zaloguj jako" nie zgubić oryginalnego konta).
+    if (!impersonationOriginal && loggedInSteward) {
+        impersonationOriginal = { nick: loggedInSteward.nick, id: loggedInSteward.id, role: loggedInSteward.role, permissions: loggedInSteward.permissions || {} };
+        sessionStorage.setItem("impersonationOriginal", JSON.stringify(impersonationOriginal));
+    }
+
     loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
     isAdminAuthenticated = true;
     localStorage.setItem("adminAuthId", steward.id);
@@ -8917,6 +8930,45 @@ async function loginAsFromAuthLog(logId, fromDeletedArchive = false) {
     showSection("adminSection");
     renderAdmin();
     alert(currentLang === 'pl' ? `Zalogowano jako ${steward.nick}.` : `Logged in as ${steward.nick}.`);
+}
+
+// Powrót do prawdziwego konta po "Zaloguj jako" — bez pełnego wylogowania. Odświeża dane
+// oryginalnego stewarda z bazy (na wypadek gdyby jego uprawnienia zmieniły się w międzyczasie),
+// a jeśli konto oryginalne zniknęło z bazy, awaryjnie wraca do zapamiętanej migawki.
+async function returnToOriginalAccount() {
+    if (!impersonationOriginal) return;
+
+    const impersonatedNick = loggedInSteward ? loggedInSteward.nick : "?";
+    const fresh = globalStewards.find(s => s.id === impersonationOriginal.id);
+    const original = fresh
+        ? { nick: fresh.nick, id: fresh.id, role: fresh.role, permissions: fresh.permissions || {} }
+        : impersonationOriginal;
+
+    if (!fresh) {
+        alert(currentLang === 'pl'
+            ? "Uwaga: Twoje oryginalne konto nie zostało znalezione w bazie (mogło zostać usunięte) — przywracam ostatnio znane dane sesji."
+            : "Warning: your original account was not found in the database (it may have been deleted) — restoring the last known session data.");
+    }
+
+    loggedInSteward = original;
+    isAdminAuthenticated = true;
+    localStorage.setItem("adminAuthId", original.id);
+    impersonationOriginal = null;
+    sessionStorage.removeItem("impersonationOriginal");
+
+    const menuBtn = document.getElementById("adminMenuBtn");
+    if (menuBtn) menuBtn.style.borderColor = "#10b981";
+    applyStewardPermissions();
+    updateLoggedInAsLabel();
+    listenToUsersAndLogs();
+    renderNotifBell();
+
+    await logAction(original.nick, "AUTH", original.id, currentLang === 'pl'
+        ? `Zakończono logowanie "jako ${impersonatedNick}" — powrót do konta własnego (bez wylogowania).`
+        : `Ended "logged in as ${impersonatedNick}" session — returned to own account (without logging out).`);
+
+    showSection("adminSection");
+    renderAdmin();
 }
 
 function renderStewardsTable() {
