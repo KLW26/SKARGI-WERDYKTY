@@ -1134,7 +1134,7 @@
     }
     /* Modale logowania stewarda muszą być dostępne ponad nakładką blokady strony
        (z-index 999999), żeby Główny Steward / ROOT mógł się zalogować nawet, gdy
-       strona jest zablokowana, i skorzystać z ominięcia blokady. */
+       strona jest zablokowana dla kierowców/zwykłych stewardów, i uzyskać dostęp. */
     #adminLoginModal, #externalJudgeModal {
       z-index: 1000000;
     }
@@ -3916,9 +3916,10 @@ function isManualLockActive() {
     return manualUnlockSettings.enabled && !!manualUnlockSettings.unlockAt && Date.now() < manualUnlockSettings.unlockAt;
 }
 
-// Główny Steward / ROOT mają zawsze dostęp do panelu, niezależnie od jakiejkolwiek blokady
-// (ręcznej lub harmonogramu splitów). Ustawiane w applyStewardPermissions() przy logowaniu/
-// wylogowaniu/przełączaniu tożsamości — tam właśnie decyduje się, co dany steward może robić.
+// Blokada (ręczna z panelu ORAZ nakładka na całą stronę) dotyczy tylko kierowców i zwykłych
+// stewardów. Główny Steward / ROOT zawsze mają dostęp — ustawiane w applyStewardPermissions(),
+// tam gdzie decyduje się, co dany steward może robić. Harmonogram okna zgłoszeniowego per split
+// (REPORT_WINDOWS / isReportWindowOpenForSplit) NIE jest tym dotknięty i działa jak dotychczas.
 let stewardLockBypass = false;
 
 // Tekst najbliższego/wymaganego momentu otwarcia, z uwzględnieniem ręcznej blokady.
@@ -3986,7 +3987,8 @@ function updateSiteReportWindowLock() {
     const textEl = document.getElementById("siteReportWindowLockText");
     if (!overlay) return;
 
-    // Główny Steward / ROOT ominąć mają każdą blokadę — patrz applyStewardPermissions().
+    // Główny Steward / ROOT omijają nakładkę blokady — dotyczy ona tylko kierowców
+    // i zwykłych stewardów. Patrz applyStewardPermissions().
     if (stewardLockBypass) {
         overlay.style.display = "none";
         return;
@@ -5531,8 +5533,9 @@ function applyStewardPermissions() {
     // uprawnień w bazie — tak samo jak przy przyciskach usuwania w tabeli zgłoszeń.
     const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
 
-    // Główny Steward / ROOT mają zawsze dostęp do panelu — również wtedy, gdy strona jest
-    // zablokowana (ręczną blokadą admina lub harmonogramem okna zgłoszeń dla splitu).
+    // Blokada strony (ręczna z panelu / nakładka) obowiązuje tylko kierowców i zwykłych
+    // stewardów — Główny Steward / ROOT ma zawsze dostęp. Harmonogram okna zgłoszeniowego
+    // per split (dla formularza kierowcy) pozostaje aktywny i niezmieniony.
     stewardLockBypass = isRoot;
     updateSiteReportWindowLock();
 
