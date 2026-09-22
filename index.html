@@ -2569,6 +2569,13 @@
 </head>
 
 <body>
+<div id="siteReportWindowLock" style="display:none; position:fixed; inset:0; z-index:999999; background:var(--bg-void); color:var(--text); align-items:center; justify-content:center; text-align:center; padding:24px; font-family:var(--font-body);">
+  <div style="max-width:480px;">
+    <div style="font-size:40px; margin-bottom:16px;">🔒</div>
+    <h1 style="font-family:var(--font-heading); font-size:28px; margin:0 0 12px; color:var(--text);" data-key="siteLockTitle">Zgłoszenia są obecnie zamknięte</h1>
+    <p style="color:var(--text-dim); font-size:14px; line-height:1.6; margin:0;" id="siteReportWindowLockText"></p>
+  </div>
+</div>
 <div id="customBgLayer" aria-hidden="true"></div>
 <div id="toastContainer"></div>
 <div id="verdictPngTemplate" style="position:fixed; top:0; left:-99999px; z-index:-1;"></div>
@@ -2976,7 +2983,7 @@
           </div>
           <div class="field">
               <label data-key="labelSplit">Split</label>
-              <select id="split" required onchange="updateReportWindowUI()">
+              <select id="split" required onchange="updateReportWindowUI(); updateSiteReportWindowLock();">
                 <option value="Split 1" data-key="optSplit1">Split 1</option>
                 <option value="Split 2" data-key="optSplit2">Split 2</option>
               </select>
@@ -3915,6 +3922,35 @@ function isReportWindowOpenForSplit(split) {
     return Date.now() < (lastStart.getTime() + REPORT_WINDOW_MS);
 }
 
+// Blokuje całą stronę (formularz zgłoszeń, apelacje, historię, czat, logowanie stewardów —
+// wszystko), gdy okno zgłoszeniowe DLA AKTUALNIE WYBRANEGO SPLITU w formularzu (pole #split)
+// jest zamknięte. Nakładka zajmuje cały ekran z najwyższym z-index w pliku, więc przykrywa
+// dosłownie wszystko poniżej. Domyślny split (zanim ktokolwiek go zmieni) to "Split 1",
+// bo to pierwsza opcja w <select id="split">.
+function updateSiteReportWindowLock() {
+    const overlay = document.getElementById("siteReportWindowLock");
+    const textEl = document.getElementById("siteReportWindowLockText");
+    if (!overlay) return;
+
+    const splitEl = document.getElementById("split");
+    const split = (splitEl && splitEl.value) || "Split 1";
+
+    if (isReportWindowOpenForSplit(split)) {
+        overlay.style.display = "none";
+        return;
+    }
+
+    const nextOpen = findNextReportWindowStart(split);
+    const nextOpenText = nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
+    if (textEl) {
+        textEl.textContent = currentLang === 'pl'
+            ? `Cały panel jest dostępny wyłącznie w oknie przyjmowania zgłoszeń dla ${split}. Najbliższe otwarcie: ${nextOpenText}.`
+            : `The whole panel is only available during the report submission window for ${split}. Next opening: ${nextOpenText}.`;
+    }
+    overlay.style.display = "flex";
+}
+setInterval(updateSiteReportWindowLock, 60000);
+
 function hasEvidence(record) {
     return !!(record && (record.evidence || record.evidenceFileData || (Array.isArray(record.evidenceFiles) && record.evidenceFiles.length)));
 }
@@ -4117,7 +4153,8 @@ const langData = {
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
         lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
         alertCaseNotFound: "Nie znaleziono zgłoszenia.", dcAppealTitle: "⚖️ NOWA APELACJA",
-        btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie..."
+        btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie...",
+        siteLockTitle: "Zgłoszenia są obecnie zamknięte"
     },
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
@@ -4164,7 +4201,8 @@ const langData = {
         fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
         lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
         alertCaseNotFound: "Report not found.", dcAppealTitle: "⚖️ NEW APPEAL",
-        btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type chat message..."
+        btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type chat message...",
+        siteLockTitle: "Reports are currently closed"
     }
 };
 
@@ -4650,6 +4688,8 @@ function toggleLang() {
         const key = el.getAttribute("data-key");
         if (langData[currentLang][key]) { el.textContent = langData[currentLang][key]; }
     });
+    updateSiteReportWindowLock();
+    updateReportWindowUI();
 
     const adminPassInput = document.getElementById("adminPass");
     if (adminPassInput) adminPassInput.placeholder = currentLang === 'pl' ? "Hasło..." : "Password...";
@@ -4986,6 +5026,7 @@ function applyComplaintFormLock() {
         });
     }
     updateReportWindowUI();
+    updateSiteReportWindowLock();
 }
 
 // Pokazuje/ukrywa komunikat o zamkniętym oknie zgłoszeń dla aktualnie wybranego splitu
@@ -9334,6 +9375,10 @@ function renderUsersAndLogs() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    // Blokada całej strony poza oknem zgłoszeniowym — sprawdzana jako pierwsza,
+    // zanim jakiekolwiek inne dane/logowania się załadują.
+    updateSiteReportWindowLock();
+
     // Podgląd natychmiastowy z lokalnej pamięci (bez migotania), zanim Firebase odpowie.
     const savedTheme = localStorage.getItem("siteTheme");
     applyTheme(savedTheme || "dark");
