@@ -203,6 +203,17 @@
     html[data-theme="light"] .split-tab-btn , html[data-theme="graphite"] .split-tab-btn {
       background: rgba(15,23,42,0.05);
     }
+    .split-tab-btn.locked,
+    .split-tab-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .split-tab-btn.locked:hover,
+    .split-tab-btn:disabled:hover {
+      border-color: var(--border);
+      color: var(--text-dim);
+    }
 
     .input-locked {
       background: rgba(16,185,129,0.08) !important;
@@ -3605,6 +3616,15 @@
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
                                 <input type="checkbox" id="perm_settings" style="width: auto; margin: 0; cursor: pointer;"> Zarządzanie systemem (Reset ID, Eksport) (SYS)
                             </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
+                                <input type="checkbox" id="perm_delete_verdicts" style="width: auto; margin: 0; cursor: pointer;"> Usuwanie wydanych werdyktów (DELV)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_edit_appeal_verdicts" style="width: auto; margin: 0; cursor: pointer;"> Edycja werdyktów wydanych w apelacji (APPVERDICT)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_bypass_lock" style="width: auto; margin: 0; cursor: pointer;"> Pomijanie blokady okna zgłoszeniowego / harmonogramu splitów (BYPASS)
+                            </label>
                         </div>
                     </div>
                     <button type="submit" class="btn-success" style="width: 100%; margin-top: 10px;">Zapisz i Autoryzuj</button>
@@ -3964,6 +3984,34 @@ function findNextReportWindowStart(split) {
     return null;
 }
 
+// Blokuje (wyszarza i wyłącza) zakładki "Split 1" / "Split 2" w panelu Zarządzanie Zgłoszeniami
+// (#adminSplitTabs), gdy okno zgłoszeniowe dla danego splitu jest właśnie zamknięte. Zakładka
+// "Wszystkie" nigdy nie jest blokowana. Wywoływane razem z updateSiteReportWindowLock (patrz niżej),
+// więc odświeża się co minutę oraz przy każdej zmianie ustawień blokady/harmonogramu.
+function updateAdminSplitTabsLock() {
+    const container = document.getElementById("adminSplitTabs");
+    if (!container) return;
+    ["Split 1", "Split 2"].forEach(split => {
+        const open = isReportWindowOpenForSplit(split);
+        const btn = container.querySelector(`.split-tab-btn[data-split="${split}"]`);
+        if (!btn) return;
+        btn.classList.toggle("locked", !open);
+        btn.disabled = !open;
+        if (!open) {
+            const nextOpenText = getNextOpenText(split);
+            btn.title = currentLang === 'pl'
+                ? `Okno zgłoszeniowe dla ${split} jest teraz zamknięte. Najbliższe otwarcie: ${nextOpenText}.`
+                : `The report window for ${split} is currently closed. Next opening: ${nextOpenText}.`;
+        } else {
+            btn.title = "";
+        }
+        // Jeśli aktualnie wybrana zakładka właśnie się zablokowała, przełącz z powrotem na "Wszystkie".
+        if (!open && adminSplitFilter === split) {
+            setAdminSplitTab("ALL");
+        }
+    });
+}
+
 // Nieznany/pusty split nie jest blokowany (żeby nie zepsuć np. starych zgłoszeń bez tego pola).
 function isReportWindowOpenForSplit(split) {
     // Ręczna blokada ustawiona w panelu admina ma pierwszeństwo nad harmonogramem splitów.
@@ -3997,6 +4045,8 @@ function setDefaultActiveSplit() {
 // otwartego okna. Nakładka zajmuje cały ekran z najwyższym z-index w pliku, więc gdy się
 // pokazuje, przykrywa dosłownie wszystko poniżej.
 function updateSiteReportWindowLock() {
+    updateAdminSplitTabsLock();
+
     const overlay = document.getElementById("siteReportWindowLock");
     const textEl = document.getElementById("siteReportWindowLockText");
     if (!overlay) return;
@@ -5551,9 +5601,10 @@ function applyStewardPermissions() {
     const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
 
     // Blokada strony (ręczna z panelu / nakładka) obowiązuje tylko kierowców i zwykłych
-    // stewardów — Główny Steward / ROOT ma zawsze dostęp. Harmonogram okna zgłoszeniowego
-    // per split (dla formularza kierowcy) pozostaje aktywny i niezmieniony.
-    stewardLockBypass = isRoot;
+    // stewardów — Główny Steward / ROOT ma zawsze dostęp, podobnie jak steward z dedykowanym
+    // uprawnieniem bypass_report_window (BYPASS). Harmonogram okna zgłoszeniowego per split
+    // (dla formularza kierowcy) pozostaje aktywny i niezmieniony.
+    stewardLockBypass = isRoot || !!perms.bypass_report_window;
     updateSiteReportWindowLock();
 
     const usersBtn = document.getElementById("usersMenuBtn");
@@ -6367,7 +6418,7 @@ function renderAdmin() {
                                 <div style="display:flex; gap:4px;">
                                     <button style="background:#1565c0; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="resendVerdict('${r.id}')">🔁 Wyślij ponownie</button>
                                     <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${r.id}', this)">🖼 PNG</button>
-                                    ${ (isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward")) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
+                                    ${ (isRoot || perms.delete_verdicts) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
                                 </div>
                             </div>
                             ${r.decisionData.decision}<br>
@@ -6418,7 +6469,7 @@ function renderAdmin() {
             // Jeśli apelacja została rozpatrzona przez pełny panel werdyktu, dane finalnej
             // decyzji siedzą w decisionData powiązanej sprawy — pokaż je też tutaj, w wierszu apelacji.
             const relatedCaseForAppeal = globalIncidents.find(r => r.id === a.caseId);
-            const isHeadStewardOrRoot = isRoot || (loggedInSteward && loggedInSteward.role === "Główny Steward");
+            const isHeadStewardOrRoot = isRoot || perms.edit_appeal_verdicts;
             let appVerdictHtml = "";
             if (a.status === "Zakończona" && relatedCaseForAppeal && relatedCaseForAppeal.decisionData) {
                 const dv = relatedCaseForAppeal.decisionData;
@@ -6871,8 +6922,10 @@ async function resendVerdict(id) {
 }
 
 async function deleteVerdict(id) {
-    if (loggedInSteward && loggedInSteward.role !== "ROOT" && loggedInSteward.role !== "Główny Steward") {
-        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania werdyktów. Tylko Główny Steward może to zrobić." : "Not authorized to delete verdicts.");
+    const isRootDV = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward");
+    const canDeleteVerdict = isRootDV || !!(loggedInSteward?.permissions && loggedInSteward.permissions.delete_verdicts);
+    if (!canDeleteVerdict) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania werdyktów." : "Not authorized to delete verdicts.");
         return;
     }
     if (!confirm(currentLang === 'pl' ? "Czy na pewno chcesz usunąć werdykt z tego zgłoszenia? Status wróci do \"Przyjęte\". Werdykt trafi do Kosza." : "Are you sure you want to delete the verdict from this report? Status will revert to \"Accepted\". The verdict will be moved to Trash.")) return;
@@ -7204,11 +7257,12 @@ function closeAppealEditModal() {
 let currentlyEditedAppealVerdictCaseId = null;
 
 function openAppealVerdictEditModal(caseId, appealId) {
-    // Edycja werdyktu wydanego w wyniku rozpatrzenia apelacji — tylko Główny Steward / ROOT.
-    const isRootV = loggedInSteward && loggedInSteward.role === "ROOT";
-    const isHeadStewardV = loggedInSteward && loggedInSteward.role === "Główny Steward";
-    if (!isRootV && !isHeadStewardV) {
-        alert(currentLang === 'pl' ? "Edycja werdyktu apelacji dostępna jest wyłącznie dla Głównego Stewarda." : "Editing an appeal verdict is only available to the Head Steward.");
+    // Edycja werdyktu wydanego w wyniku rozpatrzenia apelacji — Główny Steward / ROOT lub
+    // steward z dedykowanym uprawnieniem edit_appeal_verdicts (APPVERDICT).
+    const isRootV = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward");
+    const canEditAppealVerdict = isRootV || !!(loggedInSteward?.permissions && loggedInSteward.permissions.edit_appeal_verdicts);
+    if (!canEditAppealVerdict) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do edycji werdyktu apelacji." : "Not authorized to edit an appeal verdict.");
         return;
     }
     const relatedCase = globalIncidents.find(r => r.id === caseId);
@@ -7235,10 +7289,10 @@ function closeAppealVerdictEditModal() {
 async function saveEditedAppealVerdict() {
     if (!currentlyEditedAppealVerdictCaseId) return;
 
-    const isRootV = loggedInSteward && loggedInSteward.role === "ROOT";
-    const isHeadStewardV = loggedInSteward && loggedInSteward.role === "Główny Steward";
-    if (!isRootV && !isHeadStewardV) {
-        alert(currentLang === 'pl' ? "Edycja werdyktu apelacji dostępna jest wyłącznie dla Głównego Stewarda." : "Editing an appeal verdict is only available to the Head Steward.");
+    const isRootV = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward");
+    const canEditAppealVerdict = isRootV || !!(loggedInSteward?.permissions && loggedInSteward.permissions.edit_appeal_verdicts);
+    if (!canEditAppealVerdict) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do edycji werdyktu apelacji." : "Not authorized to edit an appeal verdict.");
         return;
     }
 
@@ -8928,15 +8982,22 @@ function autoAssignPermissions() {
     const pEditAppeals = document.getElementById("perm_edit_appeals");
     const pChat = document.getElementById("perm_chat");
     const pSettings = document.getElementById("perm_settings");
+    const pDeleteVerdicts = document.getElementById("perm_delete_verdicts");
+    const pEditAppealVerdicts = document.getElementById("perm_edit_appeal_verdicts");
+    const pBypassLock = document.getElementById("perm_bypass_lock");
 
     if (role === "Główny Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pEditAppeals.checked = true; pChat.checked = true; pSettings.checked = true;
+        pDeleteVerdicts.checked = true; pEditAppealVerdicts.checked = true; pBypassLock.checked = true;
     } else if (role === "Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false;
     } else if (role === "Junior Steward") {
         pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false;
     } else {
         pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false;
     }
 }
 
@@ -8977,7 +9038,10 @@ async function saveSteward(event) {
         edit_notes: document.getElementById("perm_notes").checked,
         edit_appeals: document.getElementById("perm_edit_appeals").checked,
         clear_chat: document.getElementById("perm_chat").checked,
-        manage_settings: document.getElementById("perm_settings").checked
+        manage_settings: document.getElementById("perm_settings").checked,
+        delete_verdicts: document.getElementById("perm_delete_verdicts").checked,
+        edit_appeal_verdicts: document.getElementById("perm_edit_appeal_verdicts").checked,
+        bypass_report_window: document.getElementById("perm_bypass_lock").checked
     };
 
     const oldStewardSnapshot = existing ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(existing) : null;
@@ -9017,6 +9081,9 @@ function editSteward(discordId) {
     document.getElementById("perm_edit_appeals").checked = !!st.permissions?.edit_appeals;
     document.getElementById("perm_chat").checked = !!st.permissions?.clear_chat;
     document.getElementById("perm_settings").checked = !!st.permissions?.manage_settings;
+    document.getElementById("perm_delete_verdicts").checked = !!st.permissions?.delete_verdicts;
+    document.getElementById("perm_edit_appeal_verdicts").checked = !!st.permissions?.edit_appeal_verdicts;
+    document.getElementById("perm_bypass_lock").checked = !!st.permissions?.bypass_report_window;
 }
 
 async function deleteSteward(discordId, nick) {
@@ -9328,7 +9395,10 @@ function renderStewardsTable() {
         if (st.permissions?.edit_appeals) permsHtml += `<span class="badge" style="background:#8b5cf6; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #6d28d9;" title="Edycja Apelacji">APPEDIT</span>`;
         if (st.permissions?.clear_chat) permsHtml += `<span class="badge" style="background:#ef4444; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #b91c1c;" title="Czyszczenie Czatu">CHAT</span>`;
         if (st.permissions?.manage_settings) permsHtml += `<span class="badge" style="background:#6366f1; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #4338ca;" title="Ustawienia i System">SYS</span>`;
-        
+        if (st.permissions?.delete_verdicts) permsHtml += `<span class="badge" style="background:#dc2626; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #991b1b;" title="Usuwanie Werdyktów">DELV</span>`;
+        if (st.permissions?.edit_appeal_verdicts) permsHtml += `<span class="badge" style="background:#9333ea; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #6b21a8;" title="Edycja Werdyktów Apelacji">APPVERDICT</span>`;
+        if (st.permissions?.bypass_report_window) permsHtml += `<span class="badge" style="background:#059669; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #047857;" title="Pomijanie Blokady Okna Zgłoszeniowego">BYPASS</span>`;
+
         if (!permsHtml) permsHtml = `<span style="color:var(--text-muted); font-size:11px;">Brak</span>`;
 
         tr.innerHTML = `
