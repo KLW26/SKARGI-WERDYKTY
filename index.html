@@ -3990,29 +3990,12 @@ function setDefaultActiveSplit() {
 }
 
 // Blokuje całą stronę (formularz zgłoszeń, apelacje, historię, czat, logowanie stewardów —
-// wszystko), gdy ŻADEN split nie ma teraz otwartego okna zgłoszeniowego. Jeśli choćby jeden
-// split jest aktywny, strona pozostaje odblokowana — użytkownik po prostu wybiera w
-// formularzu odpowiedni split (osobny komunikat przy polu #split informuje, gdy wybrany
-// akurat split jest zamknięty). Nakładka zajmuje cały ekran z najwyższym z-index w pliku,
-// więc gdy się pokazuje, przykrywa dosłownie wszystko poniżej.
-function isAnySplitReportWindowOpen() {
-    return Object.keys(REPORT_WINDOWS).some(s => isReportWindowOpenForSplit(s));
-}
-
-// Najbliższy moment otwarcia liczony po WSZYSTKICH splitach (do komunikatu na nakładce
-// blokady, gdy są zamknięte jednocześnie), albo data ręcznego odblokowania z panelu admina.
-function getEarliestNextOpenText() {
-    if (manualUnlockSettings.enabled) {
-        return manualUnlockSettings.unlockAt ? formatTimestamp(manualUnlockSettings.unlockAt) : "-";
-    }
-    const times = Object.keys(REPORT_WINDOWS)
-        .map(s => findNextReportWindowStart(s))
-        .filter(Boolean)
-        .map(d => d.getTime());
-    if (!times.length) return "-";
-    return formatTimestamp(Math.min(...times));
-}
-
+// wszystko), gdy okno zgłoszeniowe DLA AKTUALNIE WYBRANEGO SPLITU w formularzu (pole #split)
+// jest zamknięte. Pole #split domyślnie ustawia się na split, który akurat jest aktywny
+// (patrz setDefaultActiveSplit) — dzięki temu przy wejściu na stronę zwykle nic nie blokuje,
+// a blokada pojawia się dopiero, gdy ktoś ręcznie przełączy na split, który nie ma teraz
+// otwartego okna. Nakładka zajmuje cały ekran z najwyższym z-index w pliku, więc gdy się
+// pokazuje, przykrywa dosłownie wszystko poniżej.
 function updateSiteReportWindowLock() {
     const overlay = document.getElementById("siteReportWindowLock");
     const textEl = document.getElementById("siteReportWindowLockText");
@@ -4025,21 +4008,23 @@ function updateSiteReportWindowLock() {
         return;
     }
 
-    // Nie blokuj całej strony, jeśli którykolwiek split ma teraz otwarte okno zgłoszeniowe.
-    if (isAnySplitReportWindowOpen()) {
+    const splitEl = document.getElementById("split");
+    const split = (splitEl && splitEl.value) || "Split 1";
+
+    if (isReportWindowOpenForSplit(split)) {
         overlay.style.display = "none";
         return;
     }
 
-    const nextOpenText = getEarliestNextOpenText();
+    const nextOpenText = getNextOpenText(split);
     if (textEl) {
         textEl.textContent = manualUnlockSettings.enabled
             ? (currentLang === 'pl'
                 ? `Cały panel jest zablokowany do czasu ustalonego przez administrację. Odblokowanie: ${nextOpenText}.`
                 : `The whole panel is locked until the time set by the administration. Unlocks: ${nextOpenText}.`)
             : (currentLang === 'pl'
-                ? `Cały panel jest obecnie niedostępny — żaden split nie ma teraz otwartego okna zgłoszeniowego. Najbliższe otwarcie: ${nextOpenText}.`
-                : `The whole panel is currently unavailable — no split has an open report window right now. Next opening: ${nextOpenText}.`);
+                ? `Cały panel jest dostępny wyłącznie w oknie przyjmowania zgłoszeń dla ${split}. Najbliższe otwarcie: ${nextOpenText}.`
+                : `The whole panel is only available during the report submission window for ${split}. Next opening: ${nextOpenText}.`);
     }
     overlay.style.display = "flex";
 }
