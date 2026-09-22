@@ -3919,8 +3919,8 @@ function formatTimestamp(ts) {
 // w konkretnym dniu tygodnia i trwa 24h, zamykając formularz przez resztę tygodnia.
 // getDay(): 0=niedziela, 1=poniedziałek, 2=wtorek, 3=środa, 4=czwartek.
 const REPORT_WINDOWS = {
-    "Split 1": { day: 1, hour: 21, minute: 15 }, // poniedziałek 21:15
-    "Split 2": { day: 3, hour: 21, minute: 15 }  // środa 21:15
+    "Split 1": { day: 2, hour: 8, minute: 0 }, // wtorek 08:00 (dzień po wyścigu w poniedziałek)
+    "Split 2": { day: 4, hour: 8, minute: 0 }  // czwartek 08:00 (dzień po wyścigu w środę)
 };
 const REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
