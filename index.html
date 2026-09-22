@@ -3228,6 +3228,23 @@
         </div>
       </div>
 
+      <div id="manualUnlockBox" class="stats-group-box" style="display:none; border-color: var(--blue); margin-bottom: 14px;">
+        <div class="stats-group-title" style="color:#60a5fa;">🔓 Ręczna blokada zgłoszeń (data/godzina)</div>
+        <p style="font-size:11px; color:var(--text-dim); margin:0 0 10px; line-height:1.5;">Gdy włączona, nadpisuje automatyczny harmonogram splitów: cała strona pozostaje zablokowana aż do podanej daty i godziny, po czym odblokowuje się automatycznie.</p>
+        <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); cursor:pointer;">
+            <input type="checkbox" id="manualUnlockEnabled" onchange="toggleManualUnlockInput()" style="width:16px; height:16px; cursor:pointer;">
+            Włącz ręczną blokadę
+          </label>
+          <div>
+            <label style="display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px;">Odblokuj od:</label>
+            <input type="datetime-local" id="manualUnlockAt" disabled style="background:var(--bg-input); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:2px; font-size:12px;">
+          </div>
+          <button type="button" class="btn-secondary" style="padding:7px 16px; font-size:11px;" onclick="saveManualUnlockSettings()">💾 ZAPISZ BLOKADĘ</button>
+        </div>
+        <div id="manualUnlockStatus" style="margin-top:10px; font-size:11px; color:var(--text-dim);"></div>
+      </div>
+
       <div id="adminSplitTabs" class="split-tabs">
         <button type="button" class="split-tab-btn active" data-split="ALL" onclick="setAdminSplitTab('ALL')" data-key="splitTabAll">Wszystkie</button>
         <button type="button" class="split-tab-btn" data-split="Split 1" onclick="setAdminSplitTab('Split 1')">Split 1</button>
@@ -3881,6 +3898,26 @@ const REPORT_WINDOWS = {
 };
 const REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+// === RĘCZNA BLOKADA CAŁEJ STRONY USTAWIANA W PANELU ADMINA (Firebase — dotyczy
+// WSZYSTKICH użytkowników na każdym urządzeniu). Gdy enabled === true, NADPISUJE
+// automatyczny harmonogram REPORT_WINDOWS: strona jest zablokowana aż do chwili
+// unlockAt, a po jej upłynięciu zostaje odblokowana (aż admin zmieni/wyłączy blokadę).
+let manualUnlockSettings = { enabled: false, unlockAt: null };
+
+// true = ręczna blokada jest włączona i data odblokowania jeszcze nie nadeszła
+function isManualLockActive() {
+    return manualUnlockSettings.enabled && !!manualUnlockSettings.unlockAt && Date.now() < manualUnlockSettings.unlockAt;
+}
+
+// Tekst najbliższego/wymaganego momentu otwarcia, z uwzględnieniem ręcznej blokady.
+function getNextOpenText(split) {
+    if (manualUnlockSettings.enabled) {
+        return manualUnlockSettings.unlockAt ? formatTimestamp(manualUnlockSettings.unlockAt) : "-";
+    }
+    const nextOpen = findNextReportWindowStart(split);
+    return nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
+}
+
 // Zwraca Date najbliższego otwarcia okna dla danego splitu, które zaczyna się w przeszłości
 // lub teraz (przeszukuje ostatnie 7 dni wstecz, licząc od dziś).
 function findLastReportWindowStart(split) {
@@ -3916,6 +3953,11 @@ function findNextReportWindowStart(split) {
 
 // Nieznany/pusty split nie jest blokowany (żeby nie zepsuć np. starych zgłoszeń bez tego pola).
 function isReportWindowOpenForSplit(split) {
+    // Ręczna blokada ustawiona w panelu admina ma pierwszeństwo nad harmonogramem splitów.
+    if (manualUnlockSettings.enabled) {
+        if (!manualUnlockSettings.unlockAt) return false; // włączona, ale bez ustawionej daty = zablokowane
+        return Date.now() >= manualUnlockSettings.unlockAt;
+    }
     if (!REPORT_WINDOWS[split]) return true;
     const lastStart = findLastReportWindowStart(split);
     if (!lastStart) return false;
@@ -3940,12 +3982,15 @@ function updateSiteReportWindowLock() {
         return;
     }
 
-    const nextOpen = findNextReportWindowStart(split);
-    const nextOpenText = nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
+    const nextOpenText = getNextOpenText(split);
     if (textEl) {
-        textEl.textContent = currentLang === 'pl'
-            ? `Cały panel jest dostępny wyłącznie w oknie przyjmowania zgłoszeń dla ${split}. Najbliższe otwarcie: ${nextOpenText}.`
-            : `The whole panel is only available during the report submission window for ${split}. Next opening: ${nextOpenText}.`;
+        textEl.textContent = manualUnlockSettings.enabled
+            ? (currentLang === 'pl'
+                ? `Cały panel jest zablokowany do czasu ustalonego przez administrację. Odblokowanie: ${nextOpenText}.`
+                : `The whole panel is locked until the time set by the administration. Unlocks: ${nextOpenText}.`)
+            : (currentLang === 'pl'
+                ? `Cały panel jest dostępny wyłącznie w oknie przyjmowania zgłoszeń dla ${split}. Najbliższe otwarcie: ${nextOpenText}.`
+                : `The whole panel is only available during the report submission window for ${split}. Next opening: ${nextOpenText}.`);
     }
     overlay.style.display = "flex";
 }
@@ -4526,6 +4571,77 @@ function listenToAppearanceSettings() {
     });
 }
 
+/* === RĘCZNA BLOKADA STRONY (data/godzina) — synchronizacja z Firebase, dotyczy WSZYSTKICH === */
+function listenToManualUnlockSettings() {
+    database.ref("settings/reportWindow").on("value", snap => {
+        const data = snap.val() || {};
+        manualUnlockSettings.enabled = !!data.enabled;
+        manualUnlockSettings.unlockAt = data.unlockAt || null;
+        renderManualUnlockAdminBox();
+        updateSiteReportWindowLock();
+        updateReportWindowUI();
+    });
+}
+
+function renderManualUnlockAdminBox() {
+    const cb = document.getElementById("manualUnlockEnabled");
+    const dt = document.getElementById("manualUnlockAt");
+    const status = document.getElementById("manualUnlockStatus");
+    if (!cb || !dt || !status) return;
+
+    cb.checked = manualUnlockSettings.enabled;
+    dt.disabled = !manualUnlockSettings.enabled;
+
+    // Nie nadpisuj pola, jeśli admin właśnie w nim edytuje wartość.
+    if (manualUnlockSettings.unlockAt && document.activeElement !== dt) {
+        const d = new Date(manualUnlockSettings.unlockAt);
+        const pad = n => String(n).padStart(2, "0");
+        dt.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } else if (!manualUnlockSettings.unlockAt) {
+        dt.value = "";
+    }
+
+    if (!manualUnlockSettings.enabled) {
+        status.textContent = "Wyłączona — obowiązuje automatyczny harmonogram splitów.";
+    } else if (!manualUnlockSettings.unlockAt) {
+        status.textContent = "🔒 Aktywna — brak ustawionej daty odblokowania, strona jest zablokowana.";
+    } else if (isManualLockActive()) {
+        status.textContent = "🔒 Aktywna — strona zablokowana do " + formatTimestamp(manualUnlockSettings.unlockAt) + ".";
+    } else {
+        status.textContent = "🟢 Aktywna — strona odblokowana od " + formatTimestamp(manualUnlockSettings.unlockAt) + ".";
+    }
+}
+
+function toggleManualUnlockInput() {
+    const cb = document.getElementById("manualUnlockEnabled");
+    const dt = document.getElementById("manualUnlockAt");
+    if (cb && dt) dt.disabled = !cb.checked;
+}
+
+function saveManualUnlockSettings() {
+    const cb = document.getElementById("manualUnlockEnabled");
+    const dt = document.getElementById("manualUnlockAt");
+    if (!cb || !dt) return;
+
+    const enabled = cb.checked;
+    let unlockAt = null;
+    if (enabled) {
+        if (!dt.value) {
+            showToast("Błąd", "Ustaw datę i godzinę odblokowania.");
+            return;
+        }
+        unlockAt = new Date(dt.value).getTime();
+        if (isNaN(unlockAt)) {
+            showToast("Błąd", "Nieprawidłowa data lub godzina.");
+            return;
+        }
+    }
+
+    database.ref("settings/reportWindow").set({ enabled, unlockAt })
+        .then(() => showToast("Zapisano", "Ustawienia ręcznej blokady zostały zaktualizowane."))
+        .catch(err => showToast("Błąd zapisu", err.message));
+}
+
 /* === WYBÓR CZCIONKI STRONY === */
 const FONT_PRESETS = {
     default: { heading: "'Barlow Condensed', sans-serif", body: "'Barlow', sans-serif" },
@@ -5044,11 +5160,14 @@ function updateReportWindowUI() {
         notice.style.display = "none";
         notice.textContent = "";
     } else {
-        const nextOpen = findNextReportWindowStart(split);
-        const nextOpenText = nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
-        notice.textContent = currentLang === 'pl'
-            ? `Zgłoszenia dla ${split} są teraz zamknięte. Otwarcie: ${nextOpenText}.`
-            : `Reports for ${split} are currently closed. Opens: ${nextOpenText}.`;
+        const nextOpenText = getNextOpenText(split);
+        notice.textContent = manualUnlockSettings.enabled
+            ? (currentLang === 'pl'
+                ? `Zgłoszenia są teraz zamknięte (blokada ustawiona przez administrację). Otwarcie: ${nextOpenText}.`
+                : `Reports are currently closed (locked by the administration). Opens: ${nextOpenText}.`)
+            : (currentLang === 'pl'
+                ? `Zgłoszenia dla ${split} są teraz zamknięte. Otwarcie: ${nextOpenText}.`
+                : `Reports for ${split} are currently closed. Opens: ${nextOpenText}.`);
         notice.style.display = "block";
     }
     if (submitBtn && !open) submitBtn.disabled = true;
@@ -5412,6 +5531,14 @@ function applyStewardPermissions() {
     // Personalizacja strony (czcionka, wygląd, tło, język) — tylko Główny Steward / ROOT.
     const appearanceControls = document.getElementById("appearanceControls");
     if (appearanceControls) appearanceControls.style.display = isRoot ? "flex" : "none";
+
+    // Ręczna blokada strony (data/godzina) — dostępna dla Głównego Stewarda / ROOT oraz
+    // stewardów z uprawnieniem manage_settings (tak samo jak inne ustawienia systemowe).
+    const manualUnlockBox = document.getElementById("manualUnlockBox");
+    if (manualUnlockBox) {
+        manualUnlockBox.style.display = (isRoot || perms.manage_settings) ? "block" : "none";
+        if (manualUnlockBox.style.display === "block") renderManualUnlockAdminBox();
+    }
 }
 
 document.getElementById("complaintForm").addEventListener("submit", async e => {
@@ -9412,6 +9539,10 @@ window.addEventListener("DOMContentLoaded", () => {
     // Globalne ustawienia wyglądu (motyw/czcionka/tło) z Firebase — obowiązują
     // dla WSZYSTKICH odwiedzających, na każdym urządzeniu, i nadpisują wersję lokalną.
     listenToAppearanceSettings();
+
+    // Ręczna blokada strony (data/godzina), ustawiana w panelu admina — dotyczy WSZYSTKICH
+    // odwiedzających i nadpisuje automatyczny harmonogram splitów, gdy jest włączona.
+    listenToManualUnlockSettings();
 
     // Lista stewardów musi być dostępna od startu strony, żeby logowanie mogło
     // zidentyfikować, KTO się loguje (po Discord ID) i wczytać jego uprawnienia.
