@@ -1132,6 +1132,12 @@
       align-items: center;
       justify-content: center;
     }
+    /* Modale logowania stewarda muszą być dostępne ponad nakładką blokady strony
+       (z-index 999999), żeby Główny Steward / ROOT mógł się zalogować nawet, gdy
+       strona jest zablokowana, i skorzystać z ominięcia blokady. */
+    #adminLoginModal, #externalJudgeModal {
+      z-index: 1000000;
+    }
     .login-box {
       background: var(--bg-panel);
       border: 1px solid var(--border);
@@ -2574,6 +2580,7 @@
     <div style="font-size:40px; margin-bottom:16px;">🔒</div>
     <h1 style="font-family:var(--font-heading); font-size:28px; margin:0 0 12px; color:var(--text);" data-key="siteLockTitle">Zgłoszenia są obecnie zamknięte</h1>
     <p style="color:var(--text-dim); font-size:14px; line-height:1.6; margin:0;" id="siteReportWindowLockText"></p>
+    <button type="button" class="btn-secondary" style="margin-top:22px; padding:9px 20px; font-size:11px;" onclick="openAdminLogin()">Zaloguj się jako steward</button>
   </div>
 </div>
 <div id="customBgLayer" aria-hidden="true"></div>
@@ -3909,6 +3916,11 @@ function isManualLockActive() {
     return manualUnlockSettings.enabled && !!manualUnlockSettings.unlockAt && Date.now() < manualUnlockSettings.unlockAt;
 }
 
+// Główny Steward / ROOT mają zawsze dostęp do panelu, niezależnie od jakiejkolwiek blokady
+// (ręcznej lub harmonogramu splitów). Ustawiane w applyStewardPermissions() przy logowaniu/
+// wylogowaniu/przełączaniu tożsamości — tam właśnie decyduje się, co dany steward może robić.
+let stewardLockBypass = false;
+
 // Tekst najbliższego/wymaganego momentu otwarcia, z uwzględnieniem ręcznej blokady.
 function getNextOpenText(split) {
     if (manualUnlockSettings.enabled) {
@@ -3973,6 +3985,12 @@ function updateSiteReportWindowLock() {
     const overlay = document.getElementById("siteReportWindowLock");
     const textEl = document.getElementById("siteReportWindowLockText");
     if (!overlay) return;
+
+    // Główny Steward / ROOT ominąć mają każdą blokadę — patrz applyStewardPermissions().
+    if (stewardLockBypass) {
+        overlay.style.display = "none";
+        return;
+    }
 
     const splitEl = document.getElementById("split");
     const split = (splitEl && splitEl.value) || "Split 1";
@@ -5512,6 +5530,11 @@ function applyStewardPermissions() {
     // Główny Steward (i ROOT) mają pełny dostęp niezależnie od pojedynczych checkboxów
     // uprawnień w bazie — tak samo jak przy przyciskach usuwania w tabeli zgłoszeń.
     const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
+
+    // Główny Steward / ROOT mają zawsze dostęp do panelu — również wtedy, gdy strona jest
+    // zablokowana (ręczną blokadą admina lub harmonogramem okna zgłoszeń dla splitu).
+    stewardLockBypass = isRoot;
+    updateSiteReportWindowLock();
 
     const usersBtn = document.getElementById("usersMenuBtn");
     if (usersBtn) usersBtn.style.display = (isRoot || perms.manage_users) ? "block" : "none";
@@ -7541,6 +7564,8 @@ function adminLogout() {
         logAction(stewardNameOut, "AUTH", stewardIdOut, `Wylogowano z panelu administracyjnego.`);
         isAdminAuthenticated = false;
         loggedInSteward = null;
+        stewardLockBypass = false;
+        updateSiteReportWindowLock();
         isTrashAuthenticated = false;
         isUsersAuth = false;
         pendingAutoLoginId = null;
