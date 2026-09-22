@@ -3919,8 +3919,8 @@ function formatTimestamp(ts) {
 // w konkretnym dniu tygodnia i trwa 24h, zamykając formularz przez resztę tygodnia.
 // getDay(): 0=niedziela, 1=poniedziałek, 2=wtorek, 3=środa, 4=czwartek.
 const REPORT_WINDOWS = {
-    "Split 1": { day: 2, hour: 8, minute: 0 }, // wtorek 08:00 (dzień po wyścigu w poniedziałek)
-    "Split 2": { day: 4, hour: 8, minute: 0 }  // czwartek 08:00 (dzień po wyścigu w środę)
+    "Split 1": { day: 1, hour: 21, minute: 15 }, // poniedziałek 21:15
+    "Split 2": { day: 3, hour: 21, minute: 15 }  // środa 21:15
 };
 const REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -3981,6 +3981,26 @@ function findNextReportWindowStart(split) {
         return candidate;
     }
     return null;
+}
+
+// Zwraca znacznik czasu (ms) zamknięcia okna zgłoszeniowego dla danego splitu — czyli moment,
+// w którym wydawanie werdyktów dla spraw z tego splitu się odblokowuje (21:15 dnia następnego
+// po wyścigu, tj. dokładnie moment zamknięcia 24h okna na składanie zgłoszeń).
+function getVerdictUnlockTime(split) {
+    if (!REPORT_WINDOWS[split]) return null;
+    const lastStart = findLastReportWindowStart(split);
+    if (!lastStart) return null;
+    return lastStart.getTime() + REPORT_WINDOW_MS;
+}
+
+// Blokada wydawania werdyktów: stewardowie mogą wydać werdykt dla sprawy z danego splitu
+// dopiero PO zamknięciu okna zgłoszeniowego dla tego splitu (żeby nie orzekać, zanim wszystkie
+// zgłoszenia z danej rundy zdążą wpłynąć). Nieznany/pusty split nie jest blokowany.
+function isVerdictWindowOpen(split) {
+    if (!REPORT_WINDOWS[split]) return true;
+    const unlockAt = getVerdictUnlockTime(split);
+    if (!unlockAt) return true;
+    return Date.now() >= unlockAt;
 }
 
 // Blokuje (wyszarza i wyłącza) zakładki "Split 1" / "Split 2" w panelu Zarządzanie Zgłoszeniami
@@ -7696,6 +7716,36 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     if (!verdictNoOneGuilty && !accusedId) {
         statusEl.textContent = "";
         alert(currentLang === 'pl' ? "Podaj Discord ID winnego lub wybierz opcję \"Nikt nie winny\"." : "Enter the guilty party's Discord ID, or choose \"Nobody guilty\".");
+        return;
+    }
+
+    // Blokada wydawania werdyktu do czasu zamknięcia okna zgłoszeniowego (21:15 dnia następnego
+    // po wyścigu) dla splitu, do którego należy sprawa — stewardowie muszą poczekać, aż wszystkie
+    // zgłoszenia z danej rundy zdążą wpłynąć. Wykrywamy split, odnajdując sprawę po ID (obsługując
+    // też format "FIA-xxx (APP-xxx)" oraz samo "APP-xxx" dla apelacji), analogicznie jak niżej przy
+    // właściwym zapisie werdyktu — ale zanim wykonamy jakikolwiek zapis do bazy. Główny Steward /
+    // ROOT oraz stewardowie z uprawnieniem "Nie blokuj niczego" (no_lock_restrictions) omijają tę
+    // blokadę, tak samo jak pozostałe blokady strony (patrz stewardLockBypass).
+    let baseCaseIdForLock = caseIdInput;
+    const appealMatchForLock = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
+    if (appealMatchForLock) {
+        baseCaseIdForLock = appealMatchForLock[1];
+    } else {
+        const singleAppealMatchForLock = caseIdInput.match(/APP-\d+/i);
+        if (singleAppealMatchForLock) {
+            const linkedAppealForLock = globalAppeals.find(a => a.appealId === singleAppealMatchForLock[0]);
+            if (linkedAppealForLock) baseCaseIdForLock = linkedAppealForLock.caseId;
+        }
+    }
+    const caseForLock = globalIncidents.find(r => r.id === baseCaseIdForLock);
+    const splitForLock = caseForLock ? caseForLock.split : null;
+    if (!stewardLockBypass && splitForLock && !isVerdictWindowOpen(splitForLock)) {
+        statusEl.textContent = "";
+        const unlockAt = getVerdictUnlockTime(splitForLock);
+        const unlockText = unlockAt ? formatTimestamp(unlockAt) : "-";
+        alert(currentLang === 'pl'
+            ? `Werdyktów dla spraw z ${splitForLock} nie można jeszcze wydawać. Okno zgłoszeniowe zamyka się dopiero o ${unlockText} — do tego czasu wydawanie werdyktów jest zablokowane.`
+            : `Verdicts for ${splitForLock} cases cannot be issued yet. The report window doesn't close until ${unlockText} — verdicts are locked until then.`);
         return;
     }
 
