@@ -7726,6 +7726,11 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     // właściwym zapisie werdyktu — ale zanim wykonamy jakikolwiek zapis do bazy. Główny Steward /
     // ROOT oraz stewardowie z uprawnieniem "Nie blokuj niczego" (no_lock_restrictions) omijają tę
     // blokadę, tak samo jak pozostałe blokady strony (patrz stewardLockBypass).
+    // Normalizacja wpisanego ID sprawy (obcięcie spacji, wielkość liter, ew. wiodący "#") —
+    // bez tego literówka/inny zapis ID powodował, że sprawa "nie była znajdowana", przez co
+    // blokada niżej była CICHO pomijana i werdykt dało się wydać mimo zamkniętego okna.
+    const normalizeCaseId = (raw) => (raw || "").trim().replace(/^#/, "").toUpperCase();
+
     let baseCaseIdForLock = caseIdInput;
     const appealMatchForLock = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
     if (appealMatchForLock) {
@@ -7733,12 +7738,23 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     } else {
         const singleAppealMatchForLock = caseIdInput.match(/APP-\d+/i);
         if (singleAppealMatchForLock) {
-            const linkedAppealForLock = globalAppeals.find(a => a.appealId === singleAppealMatchForLock[0]);
+            const linkedAppealForLock = globalAppeals.find(a => normalizeCaseId(a.appealId) === normalizeCaseId(singleAppealMatchForLock[0]));
             if (linkedAppealForLock) baseCaseIdForLock = linkedAppealForLock.caseId;
         }
     }
-    const caseForLock = globalIncidents.find(r => r.id === baseCaseIdForLock);
+    const caseForLock = globalIncidents.find(r => normalizeCaseId(r.id) === normalizeCaseId(baseCaseIdForLock));
     const splitForLock = caseForLock ? caseForLock.split : null;
+
+    // Sprawa o podanym ID w ogóle nie została znaleziona — nie da się ustalić splitu, więc
+    // zamiast po cichu przepuścić werdykt (jak było dotychczas), blokujemy z jawnym komunikatem.
+    if (!stewardLockBypass && !caseForLock) {
+        statusEl.textContent = "";
+        alert(currentLang === 'pl'
+            ? `Nie znaleziono sprawy o ID "${caseIdInput}" — sprawdź poprawność ID. Werdykt nie został wydany.`
+            : `No case found with ID "${caseIdInput}" — check the ID. Verdict was not issued.`);
+        return;
+    }
+
     if (!stewardLockBypass && splitForLock && !isVerdictWindowOpen(splitForLock)) {
         statusEl.textContent = "";
         const unlockAt = getVerdictUnlockTime(splitForLock);
