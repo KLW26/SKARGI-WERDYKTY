@@ -3625,6 +3625,9 @@
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
                                 <input type="checkbox" id="perm_bypass_lock" style="width: auto; margin: 0; cursor: pointer;"> Pomijanie blokady okna zgłoszeniowego / harmonogramu splitów (BYPASS)
                             </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
+                                <input type="checkbox" id="perm_no_block" style="width: auto; margin: 0; cursor: pointer;"> Nie blokuj niczego — pełne pominięcie wszystkich blokad strony (NOBLOCK)
+                            </label>
                         </div>
                     </div>
                     <button type="submit" class="btn-success" style="width: 100%; margin-top: 10px;">Zapisz i Autoryzuj</button>
@@ -3991,8 +3994,11 @@ function findNextReportWindowStart(split) {
 function updateAdminSplitTabsLock() {
     const container = document.getElementById("adminSplitTabs");
     if (!container) return;
+    // Główny Steward / ROOT (oraz steward z uprawnieniem bypass_report_window) omijają blokadę
+    // zakładek Split 1 / Split 2 — dla nich zakładki są zawsze odblokowane, niezależnie od
+    // harmonogramu/ręcznej blokady okna zgłoszeniowego. Patrz applyStewardPermissions().
     ["Split 1", "Split 2"].forEach(split => {
-        const open = isReportWindowOpenForSplit(split);
+        const open = stewardLockBypass || isReportWindowOpenForSplit(split);
         const btn = container.querySelector(`.split-tab-btn[data-split="${split}"]`);
         if (!btn) return;
         btn.classList.toggle("locked", !open);
@@ -5602,9 +5608,12 @@ function applyStewardPermissions() {
 
     // Blokada strony (ręczna z panelu / nakładka) obowiązuje tylko kierowców i zwykłych
     // stewardów — Główny Steward / ROOT ma zawsze dostęp, podobnie jak steward z dedykowanym
-    // uprawnieniem bypass_report_window (BYPASS). Harmonogram okna zgłoszeniowego per split
-    // (dla formularza kierowcy) pozostaje aktywny i niezmieniony.
-    stewardLockBypass = isRoot || !!perms.bypass_report_window;
+    // uprawnieniem bypass_report_window (BYPASS) lub z dedykowanym uprawnieniem "Nie blokuj
+    // niczego" (no_lock_restrictions / NOBLOCK), które w pełni pomija wszystkie blokady strony
+    // (nakładkę blokady oraz zakładki Split 1 / Split 2 w panelu zarządzania zgłoszeniami —
+    // patrz updateAdminSplitTabsLock). Harmonogram okna zgłoszeniowego per split (dla formularza
+    // kierowcy) pozostaje aktywny i niezmieniony.
+    stewardLockBypass = isRoot || !!perms.bypass_report_window || !!perms.no_lock_restrictions;
     updateSiteReportWindowLock();
 
     const usersBtn = document.getElementById("usersMenuBtn");
@@ -8985,19 +8994,20 @@ function autoAssignPermissions() {
     const pDeleteVerdicts = document.getElementById("perm_delete_verdicts");
     const pEditAppealVerdicts = document.getElementById("perm_edit_appeal_verdicts");
     const pBypassLock = document.getElementById("perm_bypass_lock");
+    const pNoBlock = document.getElementById("perm_no_block");
 
     if (role === "Główny Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pEditAppeals.checked = true; pChat.checked = true; pSettings.checked = true;
-        pDeleteVerdicts.checked = true; pEditAppealVerdicts.checked = true; pBypassLock.checked = true;
+        pDeleteVerdicts.checked = true; pEditAppealVerdicts.checked = true; pBypassLock.checked = true; pNoBlock.checked = true;
     } else if (role === "Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false; pNoBlock.checked = false;
     } else if (role === "Junior Steward") {
         pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false; pNoBlock.checked = false;
     } else {
         pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false; pNoBlock.checked = false;
     }
 }
 
@@ -9041,7 +9051,8 @@ async function saveSteward(event) {
         manage_settings: document.getElementById("perm_settings").checked,
         delete_verdicts: document.getElementById("perm_delete_verdicts").checked,
         edit_appeal_verdicts: document.getElementById("perm_edit_appeal_verdicts").checked,
-        bypass_report_window: document.getElementById("perm_bypass_lock").checked
+        bypass_report_window: document.getElementById("perm_bypass_lock").checked,
+        no_lock_restrictions: document.getElementById("perm_no_block").checked
     };
 
     const oldStewardSnapshot = existing ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(existing) : null;
@@ -9084,6 +9095,7 @@ function editSteward(discordId) {
     document.getElementById("perm_delete_verdicts").checked = !!st.permissions?.delete_verdicts;
     document.getElementById("perm_edit_appeal_verdicts").checked = !!st.permissions?.edit_appeal_verdicts;
     document.getElementById("perm_bypass_lock").checked = !!st.permissions?.bypass_report_window;
+    document.getElementById("perm_no_block").checked = !!st.permissions?.no_lock_restrictions;
 }
 
 async function deleteSteward(discordId, nick) {
@@ -9398,6 +9410,7 @@ function renderStewardsTable() {
         if (st.permissions?.delete_verdicts) permsHtml += `<span class="badge" style="background:#dc2626; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #991b1b;" title="Usuwanie Werdyktów">DELV</span>`;
         if (st.permissions?.edit_appeal_verdicts) permsHtml += `<span class="badge" style="background:#9333ea; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #6b21a8;" title="Edycja Werdyktów Apelacji">APPVERDICT</span>`;
         if (st.permissions?.bypass_report_window) permsHtml += `<span class="badge" style="background:#059669; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #047857;" title="Pomijanie Blokady Okna Zgłoszeniowego">BYPASS</span>`;
+        if (st.permissions?.no_lock_restrictions) permsHtml += `<span class="badge" style="background:#0891b2; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #0e7490;" title="Nie Blokuj Niczego — Pełne Pominięcie Wszystkich Blokad">NOBLOCK</span>`;
 
         if (!permsHtml) permsHtml = `<span style="color:var(--text-muted); font-size:11px;">Brak</span>`;
 
