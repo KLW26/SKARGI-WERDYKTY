@@ -5500,7 +5500,10 @@ function confirmSendFromPreview() {
 
 /* === AUTOZAPIS SZKICU ZGŁOSZENIA I LICZNIK ZNAKÓW === */
 const REPORT_DRAFT_KEY = "fiaReportDraft";
-const REPORT_DRAFT_FIELDS = ["nick", "discordId", "category", "track", "split", "sessionType", "accusedNick", "accusedDiscordId", "details", "evidence"];
+// Uwaga: "split" CELOWO nie jest tu zapisywany/przywracany — przy każdym wejściu/odświeżeniu
+// strony pole Split ma wracać do aktualnie aktywnego splitu (patrz setDefaultActiveSplit()),
+// a nie do tego, który użytkownik wybrał (i który mógł wywołać blokadę) w poprzedniej wizycie.
+const REPORT_DRAFT_FIELDS = ["nick", "discordId", "category", "track", "sessionType", "accusedNick", "accusedDiscordId", "details", "evidence"];
 
 function saveReportDraft() {
     const draft = {};
