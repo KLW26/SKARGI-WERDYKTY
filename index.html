@@ -3977,6 +3977,18 @@ function isReportWindowOpenForSplit(split) {
     return Date.now() < (lastStart.getTime() + REPORT_WINDOW_MS);
 }
 
+// Ustawia w formularzu domyślnie wybrany split na ten, który jest AKTUALNIE otwarty na
+// zgłoszenia — żeby kierowca po wejściu na stronę nie widział od razu komunikatu "zamknięte"
+// dla splitu, który akurat nie ma okna zgłoszeniowego. Jeśli oba splity są zamknięte (albo
+// żaden nie jest wykrywalny), zostaje domyślny wybór (pierwsza opcja select-a). Wywoływane
+// tylko raz, przy starcie strony — dalsze zmiany splitu należą już do użytkownika.
+function setDefaultActiveSplit() {
+    const splitEl = document.getElementById("split");
+    if (!splitEl) return;
+    const openSplit = Object.keys(REPORT_WINDOWS).find(s => isReportWindowOpenForSplit(s));
+    if (openSplit) splitEl.value = openSplit;
+}
+
 // Blokuje całą stronę (formularz zgłoszeń, apelacje, historię, czat, logowanie stewardów —
 // wszystko), gdy okno zgłoszeniowe DLA AKTUALNIE WYBRANEGO SPLITU w formularzu (pole #split)
 // jest zamknięte. Nakładka zajmuje cały ekran z najwyższym z-index w pliku, więc przykrywa
@@ -9530,6 +9542,10 @@ function renderUsersAndLogs() {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+    // Domyślnie zaznacz split, który jest aktualnie otwarty na zgłoszenia (zanim
+    // sprawdzimy blokadę), żeby użytkownik nie widział od razu zamkniętego okna.
+    setDefaultActiveSplit();
+
     // Blokada całej strony poza oknem zgłoszeniowym — sprawdzana jako pierwsza,
     // zanim jakiekolwiek inne dane/logowania się załadują.
     updateSiteReportWindowLock();
