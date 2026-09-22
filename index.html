@@ -2939,7 +2939,6 @@
       <span id="loggedInAsLabel" style="display:none; align-items:center; margin-right:14px; font-size:12px; letter-spacing:1px; color: var(--text-dim); white-space:nowrap;">
         <span style="width:7px; height:7px; border-radius:50%; background:#10b981; display:inline-block; margin-right:7px; box-shadow:0 0 6px rgba(16,185,129,0.7);"></span>
         <span id="loggedInAsText">Zalogowano jako: <strong id="loggedInAsNick" style="color: var(--text);"></strong></span>
-        <button type="button" id="returnToOriginalBtn" onclick="returnToOriginalAccount()" title="Wróć do swojego konta (zakończ &quot;Zaloguj jako&quot; bez wylogowania)" style="display:none; margin-left:8px; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.5); color:#a855f7; border-radius:3px; padding:2px 8px; font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; cursor:pointer;">↩ Powrót</button>
       </span>
 
       <div id="notifBellWrap" class="notif-bell-wrap" style="display:none;">
@@ -3622,9 +3621,6 @@
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
                                 <input type="checkbox" id="perm_edit_appeal_verdicts" style="width: auto; margin: 0; cursor: pointer;"> Edycja werdyktów wydanych w apelacji (APPVERDICT)
                             </label>
-                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
-                                <input type="checkbox" id="perm_bypass_lock" style="width: auto; margin: 0; cursor: pointer;"> Pomijanie blokady okna zgłoszeniowego / harmonogramu splitów (BYPASS)
-                            </label>
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
                                 <input type="checkbox" id="perm_no_block" style="width: auto; margin: 0; cursor: pointer;"> Nie blokuj niczego — pełne pominięcie wszystkich blokad strony (NOBLOCK)
                             </label>
@@ -3994,7 +3990,7 @@ function findNextReportWindowStart(split) {
 function updateAdminSplitTabsLock() {
     const container = document.getElementById("adminSplitTabs");
     if (!container) return;
-    // Główny Steward / ROOT (oraz steward z uprawnieniem bypass_report_window) omijają blokadę
+    // Główny Steward / ROOT (oraz steward z uprawnieniem no_lock_restrictions) omijają blokadę
     // zakładek Split 1 / Split 2 — dla nich zakładki są zawsze odblokowane, niezależnie od
     // harmonogramu/ręcznej blokady okna zgłoszeniowego. Patrz applyStewardPermissions().
     ["Split 1", "Split 2"].forEach(split => {
@@ -4213,12 +4209,6 @@ let discordDriverAuth = null; // { id, username, globalName, avatarUrl } — kie
 let currentLang = 'pl';
 let currentlyEditedReportId = null;
 let isUsersAuth = false;
-
-// Gdy Główny Steward zaloguje się "jako" inny steward (patrz loginAsFromAuthLog), tutaj
-// zapamiętujemy jego PRAWDZIWE konto, żeby móc do niego wrócić jednym kliknięciem, bez
-// przechodzenia przez pełne wylogowanie i ponowne logowanie. Trzymane też w sessionStorage,
-// żeby przeżyło odświeżenie strony w trakcie "podszywania się".
-let impersonationOriginal = null; // { nick, id, role, permissions }
 
 let authorizedHistoryDiscordId = null;
 let adminSplitFilter = "ALL";
@@ -4960,20 +4950,13 @@ async function openUsersSection() {
 function updateLoggedInAsLabel() {
     const label = document.getElementById("loggedInAsLabel");
     const nickEl = document.getElementById("loggedInAsNick");
-    const returnBtn = document.getElementById("returnToOriginalBtn");
     if (!label || !nickEl) return;
     if (isAdminAuthenticated && loggedInSteward) {
         nickEl.textContent = loggedInSteward.nick;
         label.style.display = "flex";
-        if (returnBtn) {
-            // Przycisk powrotu widoczny tylko, gdy trwa sesja "Zaloguj jako" (impersonacja),
-            // czyli jest zapamiętane oryginalne konto Głównego Stewarda.
-            returnBtn.style.display = impersonationOriginal ? "inline-block" : "none";
-        }
     } else {
         label.style.display = "none";
         nickEl.textContent = "";
-        if (returnBtn) returnBtn.style.display = "none";
     }
     updateJudgeFieldFromSession();
 }
@@ -5608,12 +5591,11 @@ function applyStewardPermissions() {
 
     // Blokada strony (ręczna z panelu / nakładka) obowiązuje tylko kierowców i zwykłych
     // stewardów — Główny Steward / ROOT ma zawsze dostęp, podobnie jak steward z dedykowanym
-    // uprawnieniem bypass_report_window (BYPASS) lub z dedykowanym uprawnieniem "Nie blokuj
-    // niczego" (no_lock_restrictions / NOBLOCK), które w pełni pomija wszystkie blokady strony
-    // (nakładkę blokady oraz zakładki Split 1 / Split 2 w panelu zarządzania zgłoszeniami —
-    // patrz updateAdminSplitTabsLock). Harmonogram okna zgłoszeniowego per split (dla formularza
-    // kierowcy) pozostaje aktywny i niezmieniony.
-    stewardLockBypass = isRoot || !!perms.bypass_report_window || !!perms.no_lock_restrictions;
+    // uprawnieniem "Nie blokuj niczego" (no_lock_restrictions / NOBLOCK), które w pełni pomija
+    // wszystkie blokady strony (nakładkę blokady oraz zakładki Split 1 / Split 2 w panelu
+    // zarządzania zgłoszeniami — patrz updateAdminSplitTabsLock). Harmonogram okna zgłoszeniowego
+    // per split (dla formularza kierowcy) pozostaje aktywny i niezmieniony.
+    stewardLockBypass = isRoot || !!perms.no_lock_restrictions;
     updateSiteReportWindowLock();
 
     const usersBtn = document.getElementById("usersMenuBtn");
@@ -7652,12 +7634,10 @@ function adminLogout() {
         isTrashAuthenticated = false;
         isUsersAuth = false;
         pendingAutoLoginId = null;
-        impersonationOriginal = null;
         localStorage.removeItem("adminAuthId");
         sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
         sessionStorage.removeItem("externalJudgeAuth");
-        sessionStorage.removeItem("impersonationOriginal");
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
         if(document.getElementById("statsMenuBtn")) {
             document.getElementById("statsMenuBtn").style.display = "none";
@@ -8993,21 +8973,20 @@ function autoAssignPermissions() {
     const pSettings = document.getElementById("perm_settings");
     const pDeleteVerdicts = document.getElementById("perm_delete_verdicts");
     const pEditAppealVerdicts = document.getElementById("perm_edit_appeal_verdicts");
-    const pBypassLock = document.getElementById("perm_bypass_lock");
     const pNoBlock = document.getElementById("perm_no_block");
 
     if (role === "Główny Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pEditAppeals.checked = true; pChat.checked = true; pSettings.checked = true;
-        pDeleteVerdicts.checked = true; pEditAppealVerdicts.checked = true; pBypassLock.checked = true; pNoBlock.checked = true;
+        pDeleteVerdicts.checked = true; pEditAppealVerdicts.checked = true; pNoBlock.checked = true;
     } else if (role === "Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false; pNoBlock.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
     } else if (role === "Junior Steward") {
         pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false; pNoBlock.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
     } else {
         pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pBypassLock.checked = false; pNoBlock.checked = false;
+        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
     }
 }
 
@@ -9051,7 +9030,6 @@ async function saveSteward(event) {
         manage_settings: document.getElementById("perm_settings").checked,
         delete_verdicts: document.getElementById("perm_delete_verdicts").checked,
         edit_appeal_verdicts: document.getElementById("perm_edit_appeal_verdicts").checked,
-        bypass_report_window: document.getElementById("perm_bypass_lock").checked,
         no_lock_restrictions: document.getElementById("perm_no_block").checked
     };
 
@@ -9094,7 +9072,6 @@ function editSteward(discordId) {
     document.getElementById("perm_settings").checked = !!st.permissions?.manage_settings;
     document.getElementById("perm_delete_verdicts").checked = !!st.permissions?.delete_verdicts;
     document.getElementById("perm_edit_appeal_verdicts").checked = !!st.permissions?.edit_appeal_verdicts;
-    document.getElementById("perm_bypass_lock").checked = !!st.permissions?.bypass_report_window;
     document.getElementById("perm_no_block").checked = !!st.permissions?.no_lock_restrictions;
 }
 
@@ -9200,13 +9177,6 @@ function canRestoreLogs() {
     return isRoot || !!perms.manage_settings;
 }
 
-// Logowanie "jako ktoś" na podstawie wpisu logu AUTH jest operacją wrażliwą (przejęcie
-// tożsamości innego stewarda), więc — inaczej niż zwykłe przywracanie danych — jest
-// zarezerwowane wyłącznie dla Głównego Stewarda / ROOT, niezależnie od uprawnienia manage_settings.
-function isHeadSteward() {
-    return loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
-}
-
 // Zwraca tylko te wpisy logu, które mają zapisane dane umożliwiające przywrócenie.
 function getRestorableLogs() {
     return globalLogs.filter(log => log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0);
@@ -9272,118 +9242,6 @@ async function restoreFromDeletedLog(logId) {
     }
 }
 
-// Na podstawie wpisu logu kategorii AUTH (czyli historycznego logowania jakiegoś stewarda)
-// pozwala Głównemu Stewardowi przełączyć bieżącą sesję administracyjną na tego stewarda
-// (targetId z logu = jego Discord ID). Dostęp mają tylko konta z rolą "Główny Steward"/"ROOT" —
-// to świadomie węższy krąg niż przy zwykłym przywracaniu danych (canRestoreLogs), bo to operacja
-// przejęcia cudzej tożsamości w panelu, a nie tylko cofnięcie zmiany danych.
-async function loginAsFromAuthLog(logId, fromDeletedArchive = false) {
-    if (!isHeadSteward()) {
-        alert(currentLang === 'pl'
-            ? "Tylko Główny Steward może zalogować się jako inny steward na podstawie logu AUTH."
-            : "Only the Head Steward can log in as another steward from an AUTH log entry.");
-        return;
-    }
-
-    const source = fromDeletedArchive ? globalDeletedLogs : globalLogs;
-    const log = source.find(l => l.id === logId);
-    if (!log || log.category !== "AUTH") return;
-
-    const targetId = log.targetId;
-    if (!targetId || targetId === "N/A") {
-        alert(currentLang === 'pl' ? "Ten wpis logu nie ma powiązanego identyfikatora stewarda." : "This log entry has no associated steward ID.");
-        return;
-    }
-
-    const steward = globalStewards.find(s => s.id === targetId);
-    if (!steward) {
-        alert(currentLang === 'pl'
-            ? "Steward powiązany z tym wpisem logu AUTH już nie istnieje w systemie (mógł zostać usunięty)."
-            : "The steward linked to this AUTH log entry no longer exists in the system (may have been deleted).");
-        return;
-    }
-
-    if (loggedInSteward && steward.id === loggedInSteward.id) {
-        alert(currentLang === 'pl' ? "Już jesteś zalogowany jako ten steward." : "You are already logged in as this steward.");
-        return;
-    }
-
-    const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
-    const confirmMsg = currentLang === 'pl'
-        ? `Czy na pewno chcesz zalogować się jako "${steward.nick}" (${steward.role})?\n\nPodstawa: wpis logu AUTH z dnia ${dateStr}.\nTwoja obecna sesja administracyjna zostanie zastąpiona sesją tego stewarda, a operacja zostanie zapisana w logu akcji.`
-        : `Are you sure you want to log in as "${steward.nick}" (${steward.role})?\n\nBasis: AUTH log entry from ${dateStr}.\nYour current admin session will be replaced by this steward's session, and the operation will be recorded in the action log.`;
-    if (!confirm(confirmMsg)) return;
-
-    const actingStewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
-    const actingStewardId = loggedInSteward ? loggedInSteward.id : "N/A";
-
-    // Zapamiętaj prawdziwe konto do powrotu — tylko jeśli jeszcze nie podszywamy się pod
-    // nikogo (żeby przy kolejnych przełączeniach "Zaloguj jako" nie zgubić oryginalnego konta).
-    if (!impersonationOriginal && loggedInSteward) {
-        impersonationOriginal = { nick: loggedInSteward.nick, id: loggedInSteward.id, role: loggedInSteward.role, permissions: loggedInSteward.permissions || {} };
-        sessionStorage.setItem("impersonationOriginal", JSON.stringify(impersonationOriginal));
-    }
-
-    loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
-    isAdminAuthenticated = true;
-    localStorage.setItem("adminAuthId", steward.id);
-
-    const menuBtn = document.getElementById("adminMenuBtn");
-    if (menuBtn) menuBtn.style.borderColor = "#10b981";
-    applyStewardPermissions();
-    updateLoggedInAsLabel();
-    listenToUsersAndLogs();
-    renderNotifBell();
-
-    const sourceInfo = await getLoginSourceInfo();
-    await logAction(actingStewardName, "AUTH", steward.id, currentLang === 'pl'
-        ? `Główny Steward "${actingStewardName}" (${actingStewardId}) zalogował się jako "${steward.nick}" na podstawie wpisu logu AUTH z dnia ${dateStr} [${sourceInfo}].`
-        : `Head Steward "${actingStewardName}" (${actingStewardId}) logged in as "${steward.nick}" based on the AUTH log entry from ${dateStr} [${sourceInfo}].`);
-
-    showSection("adminSection");
-    renderAdmin();
-    alert(currentLang === 'pl' ? `Zalogowano jako ${steward.nick}.` : `Logged in as ${steward.nick}.`);
-}
-
-// Powrót do prawdziwego konta po "Zaloguj jako" — bez pełnego wylogowania. Odświeża dane
-// oryginalnego stewarda z bazy (na wypadek gdyby jego uprawnienia zmieniły się w międzyczasie),
-// a jeśli konto oryginalne zniknęło z bazy, awaryjnie wraca do zapamiętanej migawki.
-async function returnToOriginalAccount() {
-    if (!impersonationOriginal) return;
-
-    const impersonatedNick = loggedInSteward ? loggedInSteward.nick : "?";
-    const fresh = globalStewards.find(s => s.id === impersonationOriginal.id);
-    const original = fresh
-        ? { nick: fresh.nick, id: fresh.id, role: fresh.role, permissions: fresh.permissions || {} }
-        : impersonationOriginal;
-
-    if (!fresh) {
-        alert(currentLang === 'pl'
-            ? "Uwaga: Twoje oryginalne konto nie zostało znalezione w bazie (mogło zostać usunięte) — przywracam ostatnio znane dane sesji."
-            : "Warning: your original account was not found in the database (it may have been deleted) — restoring the last known session data.");
-    }
-
-    loggedInSteward = original;
-    isAdminAuthenticated = true;
-    localStorage.setItem("adminAuthId", original.id);
-    impersonationOriginal = null;
-    sessionStorage.removeItem("impersonationOriginal");
-
-    const menuBtn = document.getElementById("adminMenuBtn");
-    if (menuBtn) menuBtn.style.borderColor = "#10b981";
-    applyStewardPermissions();
-    updateLoggedInAsLabel();
-    listenToUsersAndLogs();
-    renderNotifBell();
-
-    await logAction(original.nick, "AUTH", original.id, currentLang === 'pl'
-        ? `Zakończono logowanie "jako ${impersonatedNick}" — powrót do konta własnego (bez wylogowania).`
-        : `Ended "logged in as ${impersonatedNick}" session — returned to own account (without logging out).`);
-
-    showSection("adminSection");
-    renderAdmin();
-}
-
 function renderStewardsTable() {
     const tbody = document.getElementById("stewardsTableBody");
     if (!tbody) return;
@@ -9409,7 +9267,6 @@ function renderStewardsTable() {
         if (st.permissions?.manage_settings) permsHtml += `<span class="badge" style="background:#6366f1; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #4338ca;" title="Ustawienia i System">SYS</span>`;
         if (st.permissions?.delete_verdicts) permsHtml += `<span class="badge" style="background:#dc2626; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #991b1b;" title="Usuwanie Werdyktów">DELV</span>`;
         if (st.permissions?.edit_appeal_verdicts) permsHtml += `<span class="badge" style="background:#9333ea; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #6b21a8;" title="Edycja Werdyktów Apelacji">APPVERDICT</span>`;
-        if (st.permissions?.bypass_report_window) permsHtml += `<span class="badge" style="background:#059669; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #047857;" title="Pomijanie Blokady Okna Zgłoszeniowego">BYPASS</span>`;
         if (st.permissions?.no_lock_restrictions) permsHtml += `<span class="badge" style="background:#0891b2; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #0e7490;" title="Nie Blokuj Niczego — Pełne Pominięcie Wszystkich Blokad">NOBLOCK</span>`;
 
         if (!permsHtml) permsHtml = `<span style="color:var(--text-muted); font-size:11px;">Brak</span>`;
@@ -9481,9 +9338,6 @@ function renderLogsTable() {
         const restoreBtn = (hasRestore && canManageLogs)
             ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
             : '';
-        const loginAsBtn = (log.category === "AUTH" && isHeadSteward() && log.targetId && log.targetId !== "N/A")
-            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#a855f7; border-color:rgba(168,85,247,0.4);" title="${currentLang === 'pl' ? 'Zaloguj się jako steward z tego wpisu logu' : 'Log in as the steward from this log entry'}" onclick="loginAsFromAuthLog('${log.id}')">👤 ${currentLang === 'pl' ? 'Zaloguj jako' : 'Log in as'}</button>`
-            : '';
 
         tr.innerHTML = `
             <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
@@ -9491,7 +9345,7 @@ function renderLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td style="white-space:nowrap;">${restoreBtn}${loginAsBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
+            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -9600,9 +9454,6 @@ function renderDeletedLogsTable() {
         const restoreBtn = (hasRestore && canManageLogs)
             ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromDeletedLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
             : '';
-        const loginAsBtn = (log.category === "AUTH" && isHeadSteward() && log.targetId && log.targetId !== "N/A")
-            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#a855f7; border-color:rgba(168,85,247,0.4);" title="${currentLang === 'pl' ? 'Zaloguj się jako steward z tego wpisu logu' : 'Log in as the steward from this log entry'}" onclick="loginAsFromAuthLog('${log.id}', true)">👤 ${currentLang === 'pl' ? 'Zaloguj jako' : 'Log in as'}</button>`
-            : '';
 
         tr.innerHTML = `
             <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
@@ -9610,7 +9461,7 @@ function renderDeletedLogsTable() {
             <td>${catBadge}</td>
             <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
             <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td style="white-space:nowrap;">${restoreBtn}${loginAsBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${log.id}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
+            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${log.id}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -9687,17 +9538,6 @@ window.addEventListener("DOMContentLoaded", () => {
     pendingAutoLoginId = localStorage.getItem("adminAuthId");
     // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
     // gdy tylko nadejdzie pierwszy snapshot z "stewards" (patrz listenToStewards).
-
-    // Jeśli strona została odświeżona w trakcie sesji "Zaloguj jako" (impersonacja),
-    // odtwórz zapamiętane oryginalne konto Głównego Stewarda, żeby przycisk "Powrót"
-    // nadal działał i tożsamość do powrotu nie została utracona.
-    try {
-        const savedImpersonation = sessionStorage.getItem("impersonationOriginal");
-        if (savedImpersonation) impersonationOriginal = JSON.parse(savedImpersonation);
-    } catch (e) {
-        impersonationOriginal = null;
-        sessionStorage.removeItem("impersonationOriginal");
-    }
 
     // Sesja gościnna sędziego spoza ligi (logowanie hasłem, bez Discorda/konta stewarda).
     restoreExternalJudgeSession();
