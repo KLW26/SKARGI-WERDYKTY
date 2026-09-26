@@ -3275,6 +3275,16 @@
         </div>
       </div>
 
+      <!-- Blokada apelacji, gdy zalogowany kierowca nie ma na koncie żadnego zgłoszenia
+           z wydanym werdyktem w oknie apelacyjnym — bez klucza logowania Discord (ten stan
+           dotyczy kierowców JUŻ zalogowanych), więc osobna nakładka niż appealLockOverlay. -->
+      <div id="appealNoCasesOverlay" class="lock-overlay">
+        <div class="discord-required-box">
+          <svg class="lock-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 15a3.5 3.5 0 0 1 6 0"/></svg>
+          <p data-key="appealNoCasesMsg">Nie znaleziono żadnych Twoich zgłoszeń z wydanym werdyktem, od którego można się odwołać. Apelacja jest niedostępna, dopóki nie pojawi się taka sprawa na Twoim koncie.</p>
+        </div>
+      </div>
+
       <form id="appealForm">
         <div class="row">
           <div class="field">
@@ -3963,6 +3973,19 @@ function isWithinAppealWindow(decisionData) {
     return (Date.now() - decisionData.issuedAt) <= APPEAL_WINDOW_MS;
 }
 
+// Zwraca sprawy danego kierowcy (po Discord ID), kwalifikujące się do apelacji: werdykt
+// wydany oraz wciąż w oknie APPEAL_WINDOW_HOURS. Współdzielone przez populateAppealCaseOptions
+// (lista w select) i applyAppealFormLock (blokada formularza gdy brak takich spraw).
+function getEligibleAppealCases(discordId) {
+    const cleanDiscordId = String(discordId || "").trim();
+    if (!cleanDiscordId) return [];
+    return (globalIncidents || []).filter(r => {
+        const isAccused = String(r.accusedDiscordId || "").trim() === cleanDiscordId;
+        const isReporter = String(r.discordId || "").trim() === cleanDiscordId;
+        return (isAccused || isReporter) && r.status === "Werdykt wydany" && isWithinAppealWindow(r.decisionData);
+    });
+}
+
 // Wizualny, animowany licznik czasu pozostałego na apelację dla aktualnie wybranej
 // w formularzu sprawy: pasek + kropka zmieniają kolor (zielony → żółty → czerwony,
 // z pulsowaniem i lekkim "shake" gdy zostało mało czasu) w miarę zbliżania się do
@@ -4559,6 +4582,7 @@ const langData = {
         optChooseTrack: "Wybierz tor...", optChooseCat: "Wybierz przewinienie...",
         optChooseAppealCase: "Wybierz sprawę...", optNoAppealCases: "Brak spraw dostępnych do apelacji",
         appealCaseHint: "Nie masz obecnie żadnych spraw z wydanym werdyktem, od którego możesz się odwołać.",
+        appealNoCasesMsg: "Nie znaleziono żadnych Twoich zgłoszeń z wydanym werdyktem, od którego można się odwołać. Apelacja jest niedostępna, dopóki nie pojawi się taka sprawa na Twoim koncie.",
         sessions: ["Wyścig Główny", "Sprint", "Kwalifikacje", "Trening"],
         dcReportTitle: "🚩 NOWE ZGŁOSZENIE", dcDecisionTitle: "📢 STATUS ZGŁOSZENIA",
         dcLabelReporter: "👤 Zgłaszający", dcLabelAgainst: "🏎️ Przeciwko",
@@ -4607,6 +4631,7 @@ const langData = {
         optChooseTrack: "Choose track...", optChooseCat: "Choose violation...",
         optChooseAppealCase: "Choose case...", optNoAppealCases: "No cases available for appeal",
         appealCaseHint: "You don't currently have any cases with an issued verdict that you can appeal.",
+        appealNoCasesMsg: "No reports with an issued verdict were found on your account. Appeals are unavailable until such a case exists on your account.",
         sessions: ["Main Race", "Sprint", "Qualifying", "Practice"],
         dcReportTitle: "🚩 NEW REPORT", dcDecisionTitle: "📢 REPORT STATUS",
         dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
@@ -5544,12 +5569,17 @@ function updateReportWindowUI() {
 setInterval(updateReportWindowUI, 60000);
 
 function applyAppealFormLock() {
-    const overlay = document.getElementById("appealLockOverlay");
+    const authOverlay = document.getElementById("appealLockOverlay");
+    const noCasesOverlay = document.getElementById("appealNoCasesOverlay");
     const form = document.getElementById("appealForm");
     const submitBtn = document.getElementById("appealSubmitBtn");
-    const locked = !discordDriverAuth;
 
-    if (overlay) overlay.classList.toggle("active", locked);
+    const notLoggedIn = !discordDriverAuth;
+    const noCases = !notLoggedIn && getEligibleAppealCases(discordDriverAuth.id).length === 0;
+    const locked = notLoggedIn || noCases;
+
+    if (authOverlay) authOverlay.classList.toggle("active", notLoggedIn);
+    if (noCasesOverlay) noCasesOverlay.classList.toggle("active", noCases);
     if (form) form.classList.toggle("form-locked", locked);
     if (submitBtn) submitBtn.disabled = locked;
 
@@ -5560,6 +5590,7 @@ function applyAppealFormLock() {
         });
     }
 }
+setInterval(applyAppealFormLock, 60000);
 
 function applyDriverAuthUI() {
     const loginBtn = document.getElementById("driverDiscordLoginBtn");
@@ -6352,16 +6383,11 @@ function populateAppealCaseOptions(discordId) {
     if (!select) return;
 
     const previousValue = select.value;
-    const cleanDiscordId = String(discordId || "").trim();
     // Apelację może dziś złożyć zarówno oskarżony, jak i zgłaszający w danej sprawie —
     // np. zgłaszający może nie zgadzać się z werdyktem "Brak naruszenia" tak samo,
-    // jak oskarżony może nie zgadzać się z nałożoną karą. Dopasowujemy więc obie role,
-    // ale tylko gdy mamy realne (niepuste) ID zalogowanego kierowcy.
-    const eligibleCases = cleanDiscordId ? globalIncidents.filter(r => {
-        const isAccused = String(r.accusedDiscordId || "").trim() === cleanDiscordId;
-        const isReporter = String(r.discordId || "").trim() === cleanDiscordId;
-        return (isAccused || isReporter) && r.status === "Werdykt wydany" && isWithinAppealWindow(r.decisionData);
-    }) : [];
+    // jak oskarżony może nie zgadzać się z nałożoną karą. getEligibleAppealCases dopasowuje
+    // obie role, ale tylko gdy mamy realne (niepuste) ID zalogowanego kierowcy.
+    const eligibleCases = getEligibleAppealCases(discordId);
 
     select.innerHTML = "";
 
@@ -6372,6 +6398,8 @@ function populateAppealCaseOptions(discordId) {
         opt.textContent = langData[currentLang].optNoAppealCases;
         select.appendChild(opt);
         select.disabled = true;
+        updateAppealDeadlineBadge();
+        applyAppealFormLock();
         return;
     }
 
@@ -6398,6 +6426,7 @@ function populateAppealCaseOptions(discordId) {
 
     if (eligibleCases.some(r => r.id === previousValue)) select.value = previousValue;
     updateAppealDeadlineBadge();
+    applyAppealFormLock();
 }
 
 function selectPlayerChatCase(caseId) {
