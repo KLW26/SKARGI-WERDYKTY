@@ -2699,6 +2699,74 @@
       text-align: right;
     }
     .opacity-reset-btn { width: 100%; margin-top: 4px; }
+    /* === WIZUALNY LICZNIK TERMINU APELACJI (24h od werdyktu) === */
+    .appeal-deadline-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      padding: 6px 10px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      letter-spacing: 0.3px;
+      color: var(--text-dim);
+      animation: appealBadgeIn 0.25s ease;
+    }
+    @keyframes appealBadgeIn {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .appeal-deadline-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: var(--green-text);
+      box-shadow: 0 0 6px currentColor;
+      transition: background 0.3s ease;
+    }
+    .appeal-deadline-track {
+      position: relative;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      min-width: 60px;
+    }
+    html[data-theme="light"] .appeal-deadline-track, html[data-theme="graphite"] .appeal-deadline-track {
+      background: rgba(15,23,42,0.1);
+    }
+    .appeal-deadline-fill {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      border-radius: 2px;
+      background: var(--green-text);
+      transform-origin: left;
+      transition: width 1s linear, background 0.3s ease;
+    }
+    .appeal-deadline-text { white-space: nowrap; color: var(--text); font-weight: 600; }
+    .appeal-deadline-badge.state-ok .appeal-deadline-dot,
+    .appeal-deadline-badge.state-ok .appeal-deadline-fill { background: var(--green-text); color: var(--green-text); }
+    .appeal-deadline-badge.state-warn .appeal-deadline-dot,
+    .appeal-deadline-badge.state-warn .appeal-deadline-fill { background: var(--amber-text); color: var(--amber-text); }
+    .appeal-deadline-badge.state-warn .appeal-deadline-dot { animation: appealPulse 1.4s ease-in-out infinite; }
+    .appeal-deadline-badge.state-urgent .appeal-deadline-dot,
+    .appeal-deadline-badge.state-urgent .appeal-deadline-fill { background: var(--red-text); color: var(--red-text); }
+    .appeal-deadline-badge.state-urgent .appeal-deadline-dot { animation: appealPulse 0.8s ease-in-out infinite; }
+    .appeal-deadline-badge.state-urgent { border-color: rgba(225,6,0,0.35); animation: appealBadgeIn 0.25s ease, appealShake 2.5s ease-in-out infinite; }
+    .appeal-deadline-badge.state-expired .appeal-deadline-dot,
+    .appeal-deadline-badge.state-expired .appeal-deadline-fill { background: var(--text-muted); color: var(--text-muted); }
+    @keyframes appealPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.55; }
+    }
+    @keyframes appealShake {
+      0%, 92%, 100% { transform: translateX(0); }
+      94% { transform: translateX(-2px); }
+      96% { transform: translateX(2px); }
+      98% { transform: translateX(-1px); }
+    }
+
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -3211,9 +3279,16 @@
         <div class="row">
           <div class="field">
             <label data-key="labelAppealCaseId">ID Sprawy / Zgłoszenia (np. FIA-0001)</label>
-            <select id="appealCaseId" required>
+            <select id="appealCaseId" required onchange="updateAppealDeadlineBadge()">
               <option value="" data-key="optNoAppealCases">Brak spraw dostępnych do apelacji</option>
             </select>
+            <div id="appealDeadlineBadge" class="appeal-deadline-badge" style="display:none;">
+              <span class="appeal-deadline-dot"></span>
+              <span class="appeal-deadline-track" style="flex:1;">
+                <span id="appealDeadlineFill" class="appeal-deadline-fill"></span>
+              </span>
+              <span id="appealDeadlineText" class="appeal-deadline-text"></span>
+            </div>
             <small style="color: var(--text-dim); font-size: 11px;" data-key="appealCaseHint">Nie masz obecnie żadnych spraw z wydanym werdyktem, od którego możesz się odwołać.</small>
           </div>
           <div class="field"><label data-key="labelNick">Twój Nick</label><input id="appealNick" type="text" required /></div>
@@ -3887,6 +3962,53 @@ function isWithinAppealWindow(decisionData) {
     if (!decisionData || !decisionData.issuedAt) return true;
     return (Date.now() - decisionData.issuedAt) <= APPEAL_WINDOW_MS;
 }
+
+// Wizualny, animowany licznik czasu pozostałego na apelację dla aktualnie wybranej
+// w formularzu sprawy: pasek + kropka zmieniają kolor (zielony → żółty → czerwony,
+// z pulsowaniem i lekkim "shake" gdy zostało mało czasu) w miarę zbliżania się do
+// upływu APPEAL_WINDOW_HOURS od decisionData.issuedAt. Wywoływane przy zmianie selecta,
+// po odświeżeniu listy spraw (populateAppealCaseOptions) oraz co 30s przez setInterval.
+function updateAppealDeadlineBadge() {
+    const badge = document.getElementById("appealDeadlineBadge");
+    const select = document.getElementById("appealCaseId");
+    const fill = document.getElementById("appealDeadlineFill");
+    const textEl = document.getElementById("appealDeadlineText");
+    if (!badge || !select || !fill || !textEl) return;
+
+    const caseId = select.value;
+    const record = caseId ? (globalIncidents || []).find(r => r.id === caseId) : null;
+    const issuedAt = record && record.decisionData && record.decisionData.issuedAt;
+
+    if (!caseId || !issuedAt) {
+        badge.style.display = "none";
+        return;
+    }
+
+    const msLeft = (issuedAt + APPEAL_WINDOW_MS) - Date.now();
+    const pctLeft = Math.max(0, Math.min(100, (msLeft / APPEAL_WINDOW_MS) * 100));
+    badge.style.display = "flex";
+    fill.style.width = pctLeft + "%";
+
+    badge.classList.remove("state-ok", "state-warn", "state-urgent", "state-expired");
+
+    if (msLeft <= 0) {
+        badge.classList.add("state-expired");
+        textEl.textContent = currentLang === 'pl' ? "Termin apelacji minął" : "Appeal deadline passed";
+        return;
+    }
+
+    const hoursLeft = msLeft / 3600000;
+    if (hoursLeft <= 2) badge.classList.add("state-urgent");
+    else if (hoursLeft <= 8) badge.classList.add("state-warn");
+    else badge.classList.add("state-ok");
+
+    const h = Math.floor(hoursLeft);
+    const m = Math.floor((msLeft % 3600000) / 60000);
+    textEl.textContent = currentLang === 'pl'
+        ? `pozostało ${h}h ${m}min`
+        : `${h}h ${m}min left`;
+}
+setInterval(updateAppealDeadlineBadge, 30000);
 
 function getTotalFileSize(files) {
     return files.reduce((sum, f) => sum + f.size, 0);
@@ -6275,6 +6397,7 @@ function populateAppealCaseOptions(discordId) {
     });
 
     if (eligibleCases.some(r => r.id === previousValue)) select.value = previousValue;
+    updateAppealDeadlineBadge();
 }
 
 function selectPlayerChatCase(caseId) {
