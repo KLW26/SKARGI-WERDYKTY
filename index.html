@@ -1133,6 +1133,127 @@
 
     .steward-chat-wrapper { display: none; flex-direction: column; }
 
+    /* === ROZMOWY GŁOSOWE (WebRTC) === */
+    .vc-call-btn {
+      background: rgba(0,200,83,0.12);
+      border: 1px solid rgba(0,200,83,0.4);
+      color: var(--green-text, #10b981);
+      padding: 7px 16px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .vc-call-btn:hover { background: rgba(0,200,83,0.22); border-color: #10b981; }
+    .vc-call-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .vc-active-bar {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 3500;
+      display: none;
+      align-items: center;
+      gap: 14px;
+      background: var(--bg-card);
+      border: 1px solid rgba(0,200,83,0.4);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+      border-radius: 6px;
+      padding: 12px 18px;
+      min-width: 260px;
+    }
+    .vc-active-bar.show { display: flex; }
+    .vc-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16,185,129,0.6);
+      animation: vc-pulse 1.4s infinite;
+      flex-shrink: 0;
+    }
+    .vc-dot.ringing { background: #fbbf24; box-shadow: 0 0 0 0 rgba(251,191,36,0.6); animation: vc-pulse-amber 0.9s infinite; }
+    @keyframes vc-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.55); }
+      70% { box-shadow: 0 0 0 10px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+    @keyframes vc-pulse-amber {
+      0% { box-shadow: 0 0 0 0 rgba(251,191,36,0.6); }
+      70% { box-shadow: 0 0 0 9px rgba(251,191,36,0); }
+      100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+    }
+    .vc-active-bar-info { flex-grow: 1; min-width: 0; }
+    .vc-active-bar-title { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+    .vc-active-bar-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .vc-active-bar-actions { display: flex; gap: 8px; }
+    .vc-icon-btn {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .vc-icon-btn:hover { border-color: var(--red); }
+    .vc-icon-btn.vc-mute-on { background: rgba(225,6,0,0.18); border-color: var(--red); color: #fff; }
+    .vc-icon-btn.vc-hangup { background: var(--red); border-color: var(--red); color: #fff; }
+    .vc-icon-btn.vc-hangup:hover { background: var(--red-dim); }
+
+    .vc-incoming-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(3px);
+      z-index: 4000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .vc-incoming-overlay.show { display: flex; }
+    .vc-incoming-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(251,191,36,0.4);
+      border-radius: 8px;
+      padding: 28px 32px;
+      text-align: center;
+      max-width: 340px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .vc-incoming-ring-icon {
+      font-size: 40px;
+      display: inline-block;
+      animation: vc-ring-shake 0.6s infinite;
+      margin-bottom: 10px;
+    }
+    @keyframes vc-ring-shake {
+      0%, 100% { transform: rotate(0deg); }
+      20% { transform: rotate(-18deg); }
+      40% { transform: rotate(14deg); }
+      60% { transform: rotate(-10deg); }
+      80% { transform: rotate(7deg); }
+    }
+    .vc-incoming-title { font-size: 13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .vc-incoming-name { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 4px; font-family: var(--font-heading); }
+    .vc-incoming-case { font-size: 12px; color: var(--text-dim); margin-bottom: 20px; }
+    .vc-incoming-actions { display: flex; gap: 14px; justify-content: center; }
+    .vc-incoming-actions button {
+      padding: 10px 22px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: none;
+    }
+    .vc-accept-btn { background: #10b981; color: #fff; }
+    .vc-decline-btn { background: var(--red); color: #fff; }
+
     /* === MODALS === */
     .login-modal, .desc-modal {
       position: fixed; inset: 0;
@@ -2586,6 +2707,31 @@
 </head>
 
 <body>
+<!-- === ROZMOWY GŁOSOWE: pływający pasek trwającej rozmowy + nakładka przychodzącego połączenia === -->
+<div id="vcActiveBar" class="vc-active-bar">
+  <span id="vcActiveDot" class="vc-dot"></span>
+  <div class="vc-active-bar-info">
+    <div class="vc-active-bar-title" id="vcActiveTitle">Łączenie...</div>
+    <div class="vc-active-bar-sub" id="vcActiveSub">-</div>
+  </div>
+  <div class="vc-active-bar-actions">
+    <button type="button" class="vc-icon-btn" id="vcMuteBtn" title="Wycisz mikrofon" onclick="vcToggleMute()">🎙️</button>
+    <button type="button" class="vc-icon-btn vc-hangup" title="Rozłącz" onclick="vcHangup()">📞</button>
+  </div>
+</div>
+<div id="vcIncomingOverlay" class="vc-incoming-overlay">
+  <div class="vc-incoming-card">
+    <div class="vc-incoming-ring-icon">📞</div>
+    <div class="vc-incoming-title">Połączenie przychodzące</div>
+    <div class="vc-incoming-name" id="vcIncomingName">-</div>
+    <div class="vc-incoming-case" id="vcIncomingCase">-</div>
+    <div class="vc-incoming-actions">
+      <button type="button" class="vc-accept-btn" onclick="vcAcceptCall()">✓ Odbierz</button>
+      <button type="button" class="vc-decline-btn" onclick="vcDeclineCall()">✕ Odrzuć</button>
+    </div>
+  </div>
+</div>
+<audio id="vcRemoteAudio" autoplay playsinline style="display:none;"></audio>
 <div id="siteReportWindowLock" style="display:none; position:fixed; inset:0; z-index:999999; background:var(--bg-void); color:var(--text); align-items:center; justify-content:center; text-align:center; padding:24px; font-family:var(--font-body);">
   <div style="max-width:480px;">
     <div style="font-size:40px; margin-bottom:16px;">🔒</div>
@@ -3135,7 +3281,10 @@
             <div class="player-chat-panel">
               <div id="playerChatActiveCaseBar" style="display:none; align-items:center; justify-content:space-between; background: rgba(0,200,83,0.08); border: 1px solid rgba(0,200,83,0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;">
                 <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
-                <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" id="vcPlayerCallBtn" class="vc-call-btn" onclick="vcStartCall('player')">📞 Zadzwoń do stewarda</button>
+                  <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
+                </div>
               </div>
               <p id="playerChatNoCaseMsg" style="font-size:12px; color:var(--text-dim); text-align:center;">Brak wybranej sprawy. Wybierz zgłoszenie z listy po lewej, aby zobaczyć czat.</p>
               <div id="playerChatBox" style="display:none;"></div>
@@ -3157,10 +3306,11 @@
     <div id="chatSection" class="section">
       <h2 class="section-title" data-key="chatTitle">Czat na Żywo (Panel Sędziowski)</h2>
       
-      <div class="row" style="margin-bottom:15px;">
+      <div class="row" style="margin-bottom:15px; align-items:center;">
         <select id="chatCaseSelect" style="max-width:320px;" onchange="handleStewardChatSelection(this)">
           <option value="">Wybierz ID zgłoszenia...</option>
         </select>
+        <button type="button" id="vcStewardCallBtn" class="vc-call-btn" onclick="vcStartCall('steward')">📞 Zadzwoń do gracza</button>
       </div>
 
       <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
@@ -5322,7 +5472,10 @@ function applyDriverAuthUI() {
             updatePlayerChatCaseSelectOptions(authorizedHistoryDiscordId);
         }
         populateAppealCaseOptions(discordDriverAuth.id);
+        vcWatchGlobalCallsForPlayer();
     } else {
+        vcStopGlobalCallsWatchForPlayer();
+        if (vcCurrentCaseId && vcRole === "player") vcHangup();
         if (loginBtn) loginBtn.style.display = "inline-flex";
         if (statusBar) statusBar.style.display = "none";
 
@@ -7649,6 +7802,8 @@ function adminLogout() {
         logAction(stewardNameOut, "AUTH", stewardIdOut, `Wylogowano z panelu administracyjnego.`);
         isAdminAuthenticated = false;
         loggedInSteward = null;
+        vcStopGlobalCallsWatchForSteward();
+        if (vcCurrentCaseId && vcRole === "steward") vcHangup();
         stewardLockBypass = false;
         updateSiteReportWindowLock();
         isTrashAuthenticated = false;
@@ -8928,6 +9083,432 @@ async function sendPlayerChatMessage() {
 }
 
 // ============================================================
+// === MODUŁ ROZMÓW GŁOSOWYCH (WebRTC, sygnalizacja przez Firebase) ===
+// ============================================================
+// Rozmowa toczy się bezpośrednio między przeglądarkami (peer-to-peer audio), a Firebase
+// Realtime Database służy WYŁĄCZNIE jako "skrzynka na liściki" do wymiany oferty/odpowiedzi
+// SDP i kandydatów ICE — węzeł calls/{caseId} jest tworzony na czas trwania połączenia
+// i kasowany po jego zakończeniu. Nie ma tu żadnego serwera audio pośredniczącego.
+//
+// Domyślnie używane są tylko publiczne serwery STUN Google — wystarczają w większości
+// sieci domowych/biurowych. Jeśli część graczy/stewardów ma problem z nawiązaniem
+// połączenia (restrykcyjne NAT, CGNAT operatora), dodaj tu własny serwer TURN
+// (np. z coturn, albo usługi typu Twilio Network Traversal / Metered.ca):
+// { urls: "turn:TWOJ_SERWER:3478", username: "...", credential: "..." }
+const VOICE_CALL_ICE_SERVERS = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" }
+];
+
+let vcPeerConnection = null;
+let vcLocalStream = null;
+let vcCurrentCaseId = null;
+let vcRole = null;          // "steward" | "player" — kim JESTEM w aktywnej/rozpoczynanej rozmowie
+let vcIsCaller = false;     // czy to JA zainicjowałem(am) tę rozmowę
+let vcCallsRef = null;
+let vcCallValueHandler = null;
+let vcCandidatesRef = null;
+let vcCandidatesHandler = null;
+let vcCallTimerInterval = null;
+let vcCallStartTs = null;
+let vcMuted = false;
+let vcPendingIncoming = null; // { caseId, myRole, offer, callerRole, callerName } — przychodzące, jeszcze nieodebrane
+let vcRingtoneCtx = null;
+let vcRingtoneNodes = null;
+let vcGlobalStewardRef = null, vcGlobalStewardHandler = null;
+let vcGlobalPlayerRef = null, vcGlobalPlayerHandler = null;
+
+function vcCheckSupport() {
+    if (!window.isSecureContext) {
+        alert(currentLang === 'pl'
+            ? "Rozmowy głosowe wymagają połączenia szyfrowanego (HTTPS). Otwórz stronę przez https://, aby móc dzwonić."
+            : "Voice calls require a secure connection (HTTPS). Open the page via https:// to make calls.");
+        return false;
+    }
+    if (!navigator.mediaDevices || !window.RTCPeerConnection) {
+        alert(currentLang === 'pl'
+            ? "Ta przeglądarka nie obsługuje rozmów głosowych (WebRTC)."
+            : "This browser does not support voice calls (WebRTC).");
+        return false;
+    }
+    return true;
+}
+
+function vcGetMyName(role) {
+    if (role === "steward") {
+        return (loggedInSteward && loggedInSteward.nick) || document.getElementById("chatNick")?.value || "Steward";
+    }
+    const caseId = selectedPlayerCaseId;
+    const relatedAppeal = (typeof globalAppeals !== "undefined" ? globalAppeals : []).find(a => a.appealId === caseId);
+    const relatedReport = (typeof globalIncidents !== "undefined" ? globalIncidents : []).find(r => r.id === caseId);
+    let nick = discordDriverAuth ? (discordDriverAuth.globalName || discordDriverAuth.username) : "Gracz";
+    if (relatedAppeal && relatedAppeal.discordId === authorizedHistoryDiscordId && relatedAppeal.nick) {
+        nick = relatedAppeal.nick;
+    } else if (relatedReport) {
+        if (relatedReport.discordId === authorizedHistoryDiscordId && relatedReport.nick) nick = relatedReport.nick;
+        else if (relatedReport.accusedDiscordId === authorizedHistoryDiscordId && relatedReport.accusedNick) nick = relatedReport.accusedNick;
+    }
+    return nick;
+}
+
+function vcPlayerOwnsCase(caseId) {
+    if (!authorizedHistoryDiscordId) return false;
+    const appeal = (typeof globalAppeals !== "undefined" ? globalAppeals : []).find(a => a.appealId === caseId);
+    if (appeal && appeal.discordId === authorizedHistoryDiscordId) return true;
+    const report = (typeof globalIncidents !== "undefined" ? globalIncidents : []).find(r => r.id === caseId);
+    if (report && (report.discordId === authorizedHistoryDiscordId || report.accusedDiscordId === authorizedHistoryDiscordId)) return true;
+    return false;
+}
+
+// === Inicjowanie połączenia ===
+async function vcStartCall(role) {
+    if (!vcCheckSupport()) return;
+    const caseId = role === "steward"
+        ? (document.getElementById("chatCaseSelect")?.value || "")
+        : (selectedPlayerCaseId || "");
+    if (!caseId) {
+        alert(currentLang === 'pl' ? "Najpierw wybierz sprawę, aby zadzwonić." : "Select a case first to start a call.");
+        return;
+    }
+    if (vcPeerConnection || vcCurrentCaseId) {
+        alert(currentLang === 'pl' ? "Masz już aktywne połączenie. Zakończ je, zanim rozpoczniesz kolejne." : "You already have an active call. End it before starting another.");
+        return;
+    }
+
+    const callRef = database.ref("calls/" + caseId);
+    let txResult;
+    try {
+        txResult = await callRef.transaction(current => {
+            if (current && current.status && current.status !== "ended" && current.status !== "declined" && current.status !== "missed") {
+                return; // abort — na tej sprawie już ktoś dzwoni/rozmawia
+            }
+            return {
+                status: "starting",
+                callerRole: role,
+                callerName: vcGetMyName(role),
+                startedAt: firebase.database.ServerValue.TIMESTAMP
+            };
+        });
+    } catch (err) {
+        alert(currentLang === 'pl' ? "Nie udało się rozpocząć połączenia: " + err.message : "Could not start the call: " + err.message);
+        return;
+    }
+    if (!txResult || !txResult.committed) {
+        alert(currentLang === 'pl' ? "Na tej sprawie trwa już rozmowa głosowa." : "There is already an ongoing voice call on this case.");
+        return;
+    }
+
+    try {
+        vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (err) {
+        callRef.remove();
+        alert(currentLang === 'pl' ? "Nie udało się uzyskać dostępu do mikrofonu: " + err.message : "Could not access the microphone: " + err.message);
+        return;
+    }
+
+    vcCurrentCaseId = caseId;
+    vcRole = role;
+    vcIsCaller = true;
+
+    vcCreatePeerConnection(caseId);
+    vcLocalStream.getTracks().forEach(track => vcPeerConnection.addTrack(track, vcLocalStream));
+
+    const offer = await vcPeerConnection.createOffer();
+    await vcPeerConnection.setLocalDescription(offer);
+
+    await callRef.update({ status: "ringing", offer: { type: offer.type, sdp: offer.sdp } });
+
+    vcAttachActiveCallListener(caseId);
+    vcRenderRinging();
+}
+
+function vcCreatePeerConnection(caseId) {
+    vcPeerConnection = new RTCPeerConnection({ iceServers: VOICE_CALL_ICE_SERVERS });
+
+    vcPeerConnection.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        const node = vcIsCaller ? "callerCandidates" : "calleeCandidates";
+        database.ref(`calls/${caseId}/${node}`).push(event.candidate.toJSON());
+    };
+
+    vcPeerConnection.ontrack = (event) => {
+        const audioEl = document.getElementById("vcRemoteAudio");
+        if (audioEl) audioEl.srcObject = event.streams[0];
+    };
+
+    const remoteNode = vcIsCaller ? "calleeCandidates" : "callerCandidates";
+    vcCandidatesRef = database.ref(`calls/${caseId}/${remoteNode}`);
+    vcCandidatesHandler = vcCandidatesRef.on("child_added", snap => {
+        const data = snap.val();
+        if (data) vcPeerConnection.addIceCandidate(new RTCIceCandidate(data)).catch(() => {});
+    });
+}
+
+function vcAttachActiveCallListener(caseId) {
+    vcCallsRef = database.ref("calls/" + caseId);
+    vcCallValueHandler = vcCallsRef.on("value", snap => vcHandleActiveCallUpdate(snap.val()));
+}
+
+async function vcHandleActiveCallUpdate(data) {
+    if (!vcCurrentCaseId) return;
+    if (!data) {
+        vcCleanupCall(currentLang === 'pl' ? "🔴 Połączenie zakończone" : "🔴 Call ended");
+        return;
+    }
+    if (data.status === "declined") {
+        vcCleanupCall(currentLang === 'pl' ? "🔴 Połączenie odrzucone" : "🔴 Call declined");
+        return;
+    }
+    if (data.status === "ended") {
+        vcCleanupCall(currentLang === 'pl' ? "🔴 Połączenie zakończone przez drugą stronę" : "🔴 Call ended by the other party");
+        return;
+    }
+    if (vcIsCaller && data.answer && vcPeerConnection && !vcPeerConnection.currentRemoteDescription) {
+        await vcPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        vcCallStartTs = Date.now();
+        vcRenderActive();
+        vcStartCallTimer();
+        return;
+    }
+    if (data.status === "active") {
+        if (!vcCallStartTs) vcCallStartTs = Date.now();
+        vcRenderActive();
+        if (!vcCallTimerInterval) vcStartCallTimer();
+    } else if (data.status === "ringing") {
+        vcRenderRinging();
+    }
+}
+
+// === Odbieranie połączenia ===
+function vcShowIncomingCall(caseId, callData, myRole) {
+    vcPendingIncoming = { caseId, myRole, offer: callData.offer, callerRole: callData.callerRole, callerName: callData.callerName };
+    const nameEl = document.getElementById("vcIncomingName");
+    const caseEl = document.getElementById("vcIncomingCase");
+    if (nameEl) nameEl.textContent = callData.callerName || (callData.callerRole === "steward" ? "Steward" : "Gracz");
+    if (caseEl) caseEl.textContent = (currentLang === 'pl' ? "Sprawa: " : "Case: ") + caseId;
+    const overlay = document.getElementById("vcIncomingOverlay");
+    if (overlay) overlay.classList.add("show");
+    vcStartRingtone();
+}
+
+function vcHideIncomingOverlay() {
+    const overlay = document.getElementById("vcIncomingOverlay");
+    if (overlay) overlay.classList.remove("show");
+    vcStopRingtone();
+}
+
+async function vcAcceptCall() {
+    if (!vcCheckSupport()) return;
+    const pending = vcPendingIncoming;
+    if (!pending) return;
+    vcHideIncomingOverlay();
+
+    const caseId = pending.caseId;
+    try {
+        vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (err) {
+        alert(currentLang === 'pl' ? "Nie udało się uzyskać dostępu do mikrofonu: " + err.message : "Could not access the microphone: " + err.message);
+        vcPendingIncoming = null;
+        return;
+    }
+
+    vcCurrentCaseId = caseId;
+    vcRole = pending.myRole;
+    vcIsCaller = false;
+
+    vcCreatePeerConnection(caseId);
+    vcLocalStream.getTracks().forEach(track => vcPeerConnection.addTrack(track, vcLocalStream));
+
+    await vcPeerConnection.setRemoteDescription(new RTCSessionDescription(pending.offer));
+    const answer = await vcPeerConnection.createAnswer();
+    await vcPeerConnection.setLocalDescription(answer);
+
+    await database.ref("calls/" + caseId).update({ status: "active", answer: { type: answer.type, sdp: answer.sdp } });
+
+    vcAttachActiveCallListener(caseId);
+    vcCallStartTs = Date.now();
+    vcRenderActive();
+    vcStartCallTimer();
+    vcPendingIncoming = null;
+}
+
+function vcDeclineCall() {
+    if (!vcPendingIncoming) return;
+    const caseId = vcPendingIncoming.caseId;
+    database.ref("calls/" + caseId).update({ status: "declined" }).then(() => {
+        setTimeout(() => database.ref("calls/" + caseId).remove(), 1200);
+    }).catch(() => {});
+    vcHideIncomingOverlay();
+    vcPendingIncoming = null;
+}
+
+// === Kończenie połączenia i sprzątanie ===
+function vcHangup() {
+    if (vcCurrentCaseId) {
+        database.ref("calls/" + vcCurrentCaseId).remove().catch(() => {});
+    }
+    vcCleanupCall(currentLang === 'pl' ? "🔴 Rozłączono" : "🔴 Call ended");
+}
+
+function vcCleanupCall(flashText) {
+    if (vcCandidatesRef && vcCandidatesHandler) vcCandidatesRef.off("child_added", vcCandidatesHandler);
+    vcCandidatesRef = null; vcCandidatesHandler = null;
+
+    if (vcCallsRef && vcCallValueHandler) vcCallsRef.off("value", vcCallValueHandler);
+    vcCallsRef = null; vcCallValueHandler = null;
+
+    if (vcPeerConnection) { try { vcPeerConnection.close(); } catch (e) {} vcPeerConnection = null; }
+    if (vcLocalStream) { vcLocalStream.getTracks().forEach(t => t.stop()); vcLocalStream = null; }
+    const audioEl = document.getElementById("vcRemoteAudio");
+    if (audioEl) audioEl.srcObject = null;
+
+    vcStopCallTimer();
+    vcCurrentCaseId = null;
+    vcRole = null;
+    vcIsCaller = false;
+    vcMuted = false;
+    const muteBtn = document.getElementById("vcMuteBtn");
+    if (muteBtn) { muteBtn.classList.remove("vc-mute-on"); muteBtn.textContent = "🎙️"; }
+
+    const bar = document.getElementById("vcActiveBar");
+    const title = document.getElementById("vcActiveTitle");
+    if (bar && flashText) {
+        if (title) title.textContent = flashText;
+        bar.classList.add("show");
+        setTimeout(() => bar.classList.remove("show"), 2000);
+    } else if (bar) {
+        bar.classList.remove("show");
+    }
+}
+
+function vcToggleMute() {
+    if (!vcLocalStream) return;
+    vcMuted = !vcMuted;
+    vcLocalStream.getAudioTracks().forEach(t => { t.enabled = !vcMuted; });
+    const btn = document.getElementById("vcMuteBtn");
+    if (btn) { btn.classList.toggle("vc-mute-on", vcMuted); btn.textContent = vcMuted ? "🔇" : "🎙️"; }
+}
+
+// === Renderowanie paska trwającej rozmowy ===
+function vcRenderRinging() {
+    const bar = document.getElementById("vcActiveBar");
+    const dot = document.getElementById("vcActiveDot");
+    const title = document.getElementById("vcActiveTitle");
+    const sub = document.getElementById("vcActiveSub");
+    if (!bar) return;
+    bar.classList.add("show");
+    if (dot) dot.classList.add("ringing");
+    if (title) title.textContent = vcIsCaller
+        ? (currentLang === 'pl' ? "📞 Dzwonię..." : "📞 Calling...")
+        : (currentLang === 'pl' ? "📞 Łączenie..." : "📞 Connecting...");
+    if (sub) sub.textContent = vcCurrentCaseId || "";
+}
+
+function vcRenderActive() {
+    const bar = document.getElementById("vcActiveBar");
+    const dot = document.getElementById("vcActiveDot");
+    const title = document.getElementById("vcActiveTitle");
+    if (!bar) return;
+    bar.classList.add("show");
+    if (dot) dot.classList.remove("ringing");
+    if (title) title.textContent = currentLang === 'pl' ? "🟢 Rozmowa w toku" : "🟢 Call in progress";
+    vcUpdateActiveBarTimer();
+}
+
+function vcStartCallTimer() {
+    vcStopCallTimer();
+    vcCallTimerInterval = setInterval(vcUpdateActiveBarTimer, 1000);
+    vcUpdateActiveBarTimer();
+}
+function vcStopCallTimer() {
+    if (vcCallTimerInterval) clearInterval(vcCallTimerInterval);
+    vcCallTimerInterval = null;
+    vcCallStartTs = null;
+}
+function vcUpdateActiveBarTimer() {
+    const sub = document.getElementById("vcActiveSub");
+    if (!sub || !vcCallStartTs) return;
+    const secs = Math.floor((Date.now() - vcCallStartTs) / 1000);
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+    const label = vcRole === "steward"
+        ? (currentLang === 'pl' ? "Rozmowa z graczem" : "Call with driver")
+        : (currentLang === 'pl' ? "Rozmowa ze stewardem" : "Call with steward");
+    sub.textContent = `${label} · ${mm}:${ss}`;
+}
+
+// === Prosty dzwonek (Web Audio, bez plików zewnętrznych) ===
+function vcStartRingtone() {
+    vcStopRingtone();
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        vcRingtoneCtx = ctx;
+        const beep = () => {
+            if (!vcRingtoneCtx) return;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.value = 880;
+            gain.gain.value = 0.06;
+            osc.connect(gain).connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.18);
+        };
+        beep();
+        vcRingtoneNodes = setInterval(beep, 900);
+    } catch (e) { /* Web Audio niedostępne — cisza, samo powiadomienie wizualne wystarczy */ }
+}
+function vcStopRingtone() {
+    if (vcRingtoneNodes) clearInterval(vcRingtoneNodes);
+    vcRingtoneNodes = null;
+    if (vcRingtoneCtx) { try { vcRingtoneCtx.close(); } catch (e) {} vcRingtoneCtx = null; }
+}
+
+// === Globalne wykrywanie połączeń przychodzących ===
+// Nasłuchujemy WYŁĄCZNIE węzłów calls/{caseId} o statusie "ringing" (zapytanie indeksowane
+// po "status"), dzięki czemu wymiana kandydatów ICE w trakcie trwającej już rozmowy nie
+// generuje zbędnego ruchu w tym nasłuchu.
+function vcHandleGlobalRinging(ringingCalls, myRole) {
+    const otherRole = myRole === "steward" ? "player" : "steward";
+    const stillPendingCaseId = vcPendingIncoming ? vcPendingIncoming.caseId : null;
+    let foundPending = false;
+
+    if (ringingCalls) {
+        Object.entries(ringingCalls).forEach(([caseId, callData]) => {
+            if (!callData || callData.callerRole !== otherRole) return;
+            if (myRole === "player" && !vcPlayerOwnsCase(caseId)) return;
+            if (caseId === stillPendingCaseId) { foundPending = true; return; }
+            if (vcCurrentCaseId || vcPendingIncoming) return; // już rozmawiam albo mam inne przychodzące — brak obsługi kilku rozmów naraz
+            vcShowIncomingCall(caseId, callData, myRole);
+        });
+    }
+
+    if (stillPendingCaseId && !foundPending) {
+        // Dzwoniący anulował połączenie, zanim zdążyliśmy odebrać.
+        vcHideIncomingOverlay();
+        vcPendingIncoming = null;
+    }
+}
+
+function vcWatchGlobalCallsForSteward() {
+    if (vcGlobalStewardRef) return;
+    vcGlobalStewardRef = database.ref("calls").orderByChild("status").equalTo("ringing");
+    vcGlobalStewardHandler = vcGlobalStewardRef.on("value", snap => vcHandleGlobalRinging(snap.val(), "steward"));
+}
+function vcStopGlobalCallsWatchForSteward() {
+    if (vcGlobalStewardRef && vcGlobalStewardHandler) vcGlobalStewardRef.off("value", vcGlobalStewardHandler);
+    vcGlobalStewardRef = null; vcGlobalStewardHandler = null;
+}
+function vcWatchGlobalCallsForPlayer() {
+    if (vcGlobalPlayerRef) return;
+    vcGlobalPlayerRef = database.ref("calls").orderByChild("status").equalTo("ringing");
+    vcGlobalPlayerHandler = vcGlobalPlayerRef.on("value", snap => vcHandleGlobalRinging(snap.val(), "player"));
+}
+function vcStopGlobalCallsWatchForPlayer() {
+    if (vcGlobalPlayerRef && vcGlobalPlayerHandler) vcGlobalPlayerRef.off("value", vcGlobalPlayerHandler);
+    vcGlobalPlayerRef = null; vcGlobalPlayerHandler = null;
+}
+
+// ============================================================
 // === MODUŁ ZARZĄDZANIA UŻYTKOWNIKAMI, ROLAMI I LOGAMI AKCJI ===
 // ============================================================
 
@@ -9014,6 +9595,7 @@ function finalizeAutoLogin() {
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
     renderNotifBell();
+    vcWatchGlobalCallsForSteward();
     const loginSourceMsg = (loggedInSteward && loggedInSteward.id === "external-judge")
         ? `Zalogowano do panelu administracyjnego jako sędzia spoza ligi (hasłem).`
         : `Zalogowano do panelu administracyjnego przez Discord.`;
