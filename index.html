@@ -7720,7 +7720,7 @@ async function saveEditedAppealVerdict() {
         const stewardNameV = loggedInSteward ? loggedInSteward.nick : "ADMIN";
         await logAction(stewardNameV, "VERDICT", caseId, `Zedytowano werdykt wydany w wyniku apelacji dla sprawy ${caseId}.`, {
             items: [{ path: `incidents/${caseId}/decisionData`, data: cloneForRestore(oldDecisionData) }]
-        });
+        }, updatedDecisionData);
 
         alert(currentLang === 'pl' ? "Werdykt apelacji został zaktualizowany." : "Appeal verdict has been updated.");
         closeAppealVerdictEditModal();
@@ -8216,7 +8216,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     }
 
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
-    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null);
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
@@ -10039,7 +10039,7 @@ async function getLoginSourceInfo() {
 // `restoreInfo` (opcjonalne) ma postać: { items: [ { path: "incidents/FIA-1", data: {...} }, ... ] }
 // gdzie `data` to stan sprzed akcji (do zapisania z powrotem pod `path`), albo `null`,
 // jeśli akcja utworzyła coś, co przy przywracaniu należy usunąć.
-async function logAction(steward, category, targetId, details, restoreInfo = null) {
+async function logAction(steward, category, targetId, details, restoreInfo = null, verdictSnapshot = null) {
     try {
         const newLogRef = database.ref("action_logs").push();
         const payload = {
@@ -10051,6 +10051,12 @@ async function logAction(steward, category, targetId, details, restoreInfo = nul
         };
         if (restoreInfo && Array.isArray(restoreInfo.items) && restoreInfo.items.length > 0) {
             payload.restore = { items: restoreInfo.items.map(it => ({ path: it.path, data: (it.data === undefined ? null : it.data) })) };
+        }
+        // Migawka werdyktu zapisana W MOMENCIE tej akcji — dzięki niej podgląd werdyktu
+        // z Dziennika Akcji działa zawsze, nawet jeśli sprawa zostanie później usunięta,
+        // a werdykt cofnięty albo nadpisany kolejną decyzją.
+        if (verdictSnapshot && verdictSnapshot.decision) {
+            payload.verdictSnapshot = cloneForRestore(verdictSnapshot);
         }
         await newLogRef.set(payload);
     } catch(err) {
@@ -10179,6 +10185,9 @@ function renderStewardsTable() {
 // decisionData sprzed tej akcji (dzięki mechanizmowi przywracania w logAction()).
 function logHasVerdictPreview(log) {
     if (!log || (log.category !== "VERDICT" && log.category !== "APPEAL") || !log.targetId) return false;
+    // Migawka zapisana bezpośrednio w logu w chwili wydania/edycji werdyktu — najpewniejsze
+    // źródło, bo nie zależy od tego, co stało się ze sprawą później (usunięcie, cofnięcie werdyktu, edycja).
+    if (log.verdictSnapshot && log.verdictSnapshot.decision) return true;
     const relatedCase = globalIncidents.find(r => r.id === log.targetId);
     if (relatedCase && relatedCase.decisionData) return true;
     const path = `incidents/${log.targetId}/decisionData`;
@@ -10216,13 +10225,20 @@ function openLogVerdictPreview(logId) {
     const path = `incidents/${caseId}/decisionData`;
     const restoreItem = log.restore && Array.isArray(log.restore.items) ? log.restore.items.find(it => it.path === path) : null;
     const beforeData = (restoreItem && restoreItem.data && restoreItem.data.decision) ? restoreItem.data : null;
-    const currentData = (relatedCase && relatedCase.decisionData) ? relatedCase.decisionData : null;
+    // Jeśli sprawa nadal istnieje i ma werdykt, pokazujemy jej NAJŚWIEŻSZY stan (mógł się
+    // zmienić po tej akcji, np. przez kolejną edycję). Jeśli nie — sięgamy po migawkę
+    // zapisaną w tym logu w chwili tamtej konkretnej akcji, żeby podgląd nigdy nie zniknął.
+    const liveData = (relatedCase && relatedCase.decisionData) ? relatedCase.decisionData : null;
+    const currentData = liveData || ((log.verdictSnapshot && log.verdictSnapshot.decision) ? log.verdictSnapshot : null);
+    const isSnapshotOnly = !liveData && !!currentData;
 
     let html = `<div style="margin-bottom:10px; font-size:12px; color:var(--text-dim);"><strong style="color:var(--text);">Sprawa:</strong> ${escapeHtml(caseId || "—")} &nbsp;|&nbsp; <strong style="color:var(--text);">Wpis logu:</strong> ${new Date(log.timestamp).toLocaleString("pl-PL")}</div>`;
 
     if (currentData) {
-        html += renderVerdictReadOnlyBlock(currentData, "⚖️ Aktualny werdykt sprawy:");
-        html += renderOriginalVerdictBox(currentData, caseId);
+        html += renderVerdictReadOnlyBlock(currentData, isSnapshotOnly
+            ? "⚖️ Werdykt zapisany w chwili tej akcji (sprawa niedostępna lub werdykt zmieniony/cofnięty od tego czasu):"
+            : "⚖️ Aktualny werdykt sprawy:");
+        if (!isSnapshotOnly) html += renderOriginalVerdictBox(currentData, caseId);
     }
     if (beforeData) {
         html += renderVerdictReadOnlyBlock(beforeData, "🕘 Stan werdyktu sprzed tej akcji:");
