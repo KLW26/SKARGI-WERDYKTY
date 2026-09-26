@@ -6148,6 +6148,40 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     }
 });
 
+// Zwraca pierwotny (sprzed jakiejkolwiek apelacji) werdykt z łańcucha decisionData —
+// przechodzi po polu previousDecisionData aż do najstarszego zapisanego wpisu. Zwraca
+// null, jeśli aktualny werdykt nie jest wynikiem rozpatrzenia apelacji (brak historii).
+function getOriginalDecisionData(decisionData) {
+    if (!decisionData) return null;
+    let current = decisionData;
+    while (current.previousDecisionData) {
+        current = current.previousDecisionData;
+    }
+    return current === decisionData ? null : current;
+}
+
+// Wspólny blok HTML pokazujący pierwotny werdykt sprzed apelacji — używany zarówno
+// w historii gracza, jak i w panelu admina (zgłoszenia i apelacje), żeby po wydaniu
+// werdyktu apelacji nadal było widać, jaka była pierwsza decyzja stewardów.
+function renderOriginalVerdictBox(decisionData) {
+    const orig = getOriginalDecisionData(decisionData);
+    if (!orig) return "";
+    const label = currentLang === 'pl' ? 'Pierwotny werdykt (sprzed apelacji)' : 'Original verdict (before appeal)';
+    const penaltyLabel = currentLang === 'pl' ? 'Kara' : 'Penalty';
+    const judgeLabel = currentLang === 'pl' ? 'Sędzia' : 'Judge';
+    return `
+        <div style="margin-top:8px; padding:8px; background:rgba(255,215,0,0.06); border-radius:6px; border-left:3px solid var(--gold); font-size:11px; color:#cbd5e1;">
+            <strong style="color:var(--gold);">🕘 ${label}:</strong>
+            <div style="margin-top:4px;">
+                ${escapeHtml(orig.decision || "")}<br>
+                <strong>${penaltyLabel}:</strong> ${escapeHtml(orig.timePenalty || 'brak')} / ${escapeHtml(orig.pointsPenalty || '0 pkt')}<br>
+                <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(orig.verdictDetails || "")}"</span><br>
+                <small style="color:#64748b;">${judgeLabel}: ${escapeHtml(orig.judge || "—")}${orig.issuedAt ? ' | ' + formatTimestamp(orig.issuedAt) : ''}</small>
+            </div>
+        </div>
+    `;
+}
+
 function fetchAndRenderHistory(discordId) {
     const container = document.getElementById("historyList");
     container.innerHTML = "";
@@ -6208,6 +6242,7 @@ function fetchAndRenderHistory(discordId) {
                         <div style="margin-top:8px;">
                             <button type="button" style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer;" onclick="renderVerdictToPng('${r.id}', this)">🖼 ${currentLang === 'pl' ? 'Pobierz jako PNG' : 'Download as PNG'}</button>
                         </div>
+                        ${renderOriginalVerdictBox(r.decisionData)}
                     </div>
                 </div>
             `;
@@ -6270,6 +6305,7 @@ function fetchAndRenderHistory(discordId) {
                             <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${dv.timePenalty || 'brak'}, Punkty: ${dv.pointsPenalty || '0'}<br>
                             <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
                             <small style="color:#64748b;">Sędzia: ${dv.judge}</small>
+                            ${renderOriginalVerdictBox(dv)}
                         </div>
                     </div>
                 `;
@@ -6745,6 +6781,7 @@ function renderAdmin() {
                             <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
                             ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                             <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                            ${renderOriginalVerdictBox(r.decisionData)}
                         </div>
                     ` : ''}
                 </td>
@@ -6805,6 +6842,7 @@ function renderAdmin() {
                         <strong>Kara:</strong> ${dv.timePenalty || 'brak'} / ${dv.pointsPenalty || '0'} pkt<br>
                         <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
                         <small style="color:#64748b;">Sędzia: ${dv.judge}</small>
+                        ${renderOriginalVerdictBox(dv)}
                     </div>
                 `;
             }
@@ -8120,6 +8158,13 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         guiltyDiscordId: verdictNoOneGuilty ? null : (accusedId || null),
         guiltyNick: winnerNick
     };
+    // Werdykt apelacji nadpisuje decisionData sprawy — zanim to zrobimy, zachowujemy
+    // pierwotny werdykt (i jego ewentualną wcześniejszą historię apelacji) w polu
+    // previousDecisionData, żeby po wydaniu werdyktu apelacji nadal było widać,
+    // jaka była pierwsza decyzja stewardów, a nie tylko ta ostateczna.
+    if (isAppealVerdict && mainReport && mainReport.decisionData) {
+        decisionDataToSave.previousDecisionData = mainReport.decisionData;
+    }
     if (mainReport) {
         restoreItemsVerdict.push(
             { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
