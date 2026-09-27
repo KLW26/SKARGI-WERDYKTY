@@ -9336,7 +9336,19 @@ async function sendPlayerChatMessage() {
 // { urls: "turn:TWOJ_SERWER:3478", username: "...", credential: "..." }
 const VOICE_CALL_ICE_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" }
+    { urls: "stun:stun1.l.google.com:19302" },
+    // Serwer TURN (przekaźnik audio) — bez niego rozmowa może "łączyć się" (SDP/oferta-odpowiedź
+    // przechodzi przez Firebase), ale głos nie popłynie w ŻADNĄ stronę, jeśli jedna ze stron
+    // siedzi za restrykcyjnym NAT/CGNAT lub firewallem blokującym bezpośrednie P2P.
+    // To jest darmowy, publiczny serwer testowy OpenRelay (metered.ca, ok. 20GB/mc za darmo).
+    // Jeśli w konsoli przeglądarki iceConnectionState nadal będzie "failed" mimo tego serwera,
+    // trzeba założyć własne darmowe konto na https://www.metered.ca/tools/openrelay/ (lub dashboard.metered.ca)
+    // i podmienić username/credential poniżej na własne, bo publiczne dane bywają zapchane.
+    { urls: "stun:stun.relay.metered.ca:80" },
+    { urls: "turn:global.relay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:global.relay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:global.relay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
 ];
 
 let vcPeerConnection = null;
@@ -9472,7 +9484,25 @@ function vcCreatePeerConnection(caseId) {
 
     vcPeerConnection.ontrack = (event) => {
         const audioEl = document.getElementById("vcRemoteAudio");
-        if (audioEl) audioEl.srcObject = event.streams[0];
+        if (audioEl) {
+            audioEl.srcObject = event.streams[0];
+            // Wymuś odtwarzanie na wypadek, gdyby przeglądarka zablokowała autoplay
+            const playPromise = audioEl.play();
+            if (playPromise && playPromise.catch) {
+                playPromise.catch(err => console.warn("[VoiceCall] audio.play() zablokowane:", err));
+            }
+        }
+    };
+
+    vcPeerConnection.oniceconnectionstatechange = () => {
+        const state = vcPeerConnection ? vcPeerConnection.iceConnectionState : "brak";
+        console.log("[VoiceCall] iceConnectionState:", state);
+        if (state === "failed" || state === "disconnected") {
+            const title = document.getElementById("vcActiveTitle");
+            const sub = document.getElementById("vcActiveSub");
+            if (title) title.textContent = currentLang === 'pl' ? "⚠️ Problem z połączeniem audio..." : "⚠️ Audio connection problem...";
+            if (sub) sub.textContent = currentLang === 'pl' ? "Sprawdź sieć / spróbuj ponownie" : "Check network / try again";
+        }
     };
 
     const remoteNode = vcIsCaller ? "calleeCandidates" : "callerCandidates";
