@@ -2767,6 +2767,54 @@
       98% { transform: translateX(-1px); }
     }
 
+    /* === ZNACZNIKI SPRAW (przypisanie / powiązane / wiek) === */
+    .case-chip{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin:4px 4px 0 0;border:1px solid var(--border);white-space:nowrap;}
+    .chip-rel{color:var(--purple-text);cursor:pointer;}
+    .chip-age-ok{color:var(--text-dim);}
+    .chip-age-warn{color:var(--amber-text);border-color:var(--amber-text);}
+    .chip-age-late{color:var(--red-text);border-color:var(--red-text);}
+    .chip-assign{color:var(--green-text);}
+    .chip-mine{color:#fff;background:#0f766e;border-color:#0f766e;}
+    .quick-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+    .quick-chips .case-chip{margin:0;cursor:pointer;background:transparent;color:var(--text-dim);font-family:inherit;}
+    .quick-chips .case-chip:hover{border-color:var(--red);color:var(--text);}
+    /* === KANAŁY GŁOSOWE (jak na Discordzie) === */
+    #vcPlayerCallBtn, #vcStewardCallBtn { display: none !important; } /* stare dzwonienie 1:1 zastąpione kanałami */
+    .vv-fab{position:fixed;left:18px;bottom:18px;z-index:3600;width:48px;height:48px;border-radius:50%;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:all .2s;padding:0;}
+    .vv-fab:hover{border-color:var(--red);}
+    .vv-fab.live{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25),0 6px 20px rgba(0,0,0,.4);}
+    .vv-fab-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;}
+    .vv-panel{position:fixed;left:18px;bottom:76px;z-index:3600;width:min(340px,92vw);max-height:70vh;display:none;flex-direction:column;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;box-shadow:0 12px 36px rgba(0,0,0,.5);overflow:hidden;}
+    .vv-panel.open{display:flex;}
+    .vv-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;}
+    .vv-head button{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;}
+    .vv-channels{overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+    .vv-ch{border:1px solid var(--border);border-radius:4px;padding:6px 8px;background:var(--bg-deep);}
+    .vv-ch.active{border-color:#22c55e;}
+    .vv-ch-row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+    .vv-ch-name{font-size:12px;font-weight:700;color:var(--text);}
+    .vv-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:3px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;}
+    .vv-btn:hover{border-color:#22c55e;color:var(--text);}
+    .vv-btn-leave{border-color:var(--red);color:var(--red-text);}
+    .vv-p{display:flex;align-items:center;gap:8px;padding:4px 2px 4px 10px;font-size:12px;}
+    .vv-av{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;flex:none;box-shadow:0 0 0 2px transparent;transition:box-shadow .1s;}
+    .vv-p.speaking .vv-av{box-shadow:0 0 0 2px #22c55e;}
+    .vv-pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+    .vv-pn em{color:var(--text-dim);font-style:normal;font-size:10px;}
+    .vv-pi{display:inline-flex;gap:3px;font-size:12px;}
+    .vv-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+    .vv-dot.ok{background:#22c55e;} .vv-dot.wait{background:#eab308;} .vv-dot.bad{background:#ef4444;}
+    .vv-p input[type=range]{width:64px;flex:none;accent-color:#22c55e;}
+    .vv-empty{padding:12px;font-size:12px;color:var(--text-dim);}
+    .vv-case-join{display:none;gap:6px;padding:8px;border-top:1px solid var(--border);}
+    .vv-case-join select{flex:1;min-width:0;font-size:11px;}
+    .vv-status{position:fixed;left:76px;bottom:18px;z-index:3600;display:none;align-items:center;gap:12px;background:var(--bg-card);border:1px solid rgba(34,197,94,.5);border-radius:6px;padding:7px 12px;box-shadow:0 8px 24px rgba(0,0,0,.45);max-width:calc(100vw - 100px);}
+    .vv-status-title{font-size:12px;font-weight:700;color:var(--text);}
+    .vv-status-sub{font-size:10px;color:var(--text-dim);}
+    .vv-controls{display:flex;gap:6px;}
+    .vv-controls button{background:var(--bg-deep);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 9px;cursor:pointer;font-size:14px;}
+    .vv-controls button.off{border-color:var(--red);background:rgba(225,6,0,.15);}
+    .vv-controls .vv-leave{background:#b91c1c;border-color:#b91c1c;color:#fff;font-size:11px;font-weight:700;}
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -2800,6 +2848,24 @@
   </div>
 </div>
 <audio id="vcRemoteAudio" autoplay playsinline style="display:none;"></audio>
+<button type="button" id="vvFab" class="vv-fab" onclick="vvTogglePanel()" title="Kanały głosowe">🎧<span id="vvFabBadge" class="vv-fab-badge">0</span></button>
+<div id="vvPanel" class="vv-panel">
+  <div class="vv-head"><strong>🔊 Kanały głosowe</strong><button type="button" onclick="vvTogglePanel()">✕</button></div>
+  <div id="vvChannels" class="vv-channels"></div>
+  <div id="vvCaseJoinWrap" class="vv-case-join">
+    <select id="vvCaseSelect"><option value="">Kanał sprawy…</option></select>
+    <button type="button" class="vv-btn" onclick="vvJoinSelectedCase()">Dołącz</button>
+  </div>
+</div>
+<div id="vvStatus" class="vv-status">
+  <div><div id="vvStatusTitle" class="vv-status-title">-</div><div id="vvStatusSub" class="vv-status-sub">-</div></div>
+  <div class="vv-controls">
+    <button type="button" id="vvMicBtn" onclick="vvToggleMic()">🎙️</button>
+    <button type="button" id="vvDeafBtn" onclick="vvToggleDeaf()">🎧</button>
+    <button type="button" class="vv-leave" onclick="vvLeave()">📞 Rozłącz</button>
+  </div>
+</div>
+<div id="vvAudio" style="display:none;"></div>
 <div id="customBgLayer" aria-hidden="true"></div>
 <div id="toastContainer"></div>
 <div id="verdictPngTemplate" style="position:fixed; top:0; left:-99999px; z-index:-1;"></div>
@@ -3383,6 +3449,7 @@
                 <span style="font-size:12px; color: var(--text);">Aktywna rozmowa dot. zgłoszenia: <strong id="playerChatActiveCaseLabel" style="color:#10b981;">-</strong></span>
                 <div style="display:flex; gap:8px;">
                   <button type="button" id="vcPlayerCallBtn" class="vc-call-btn" onclick="vcStartCall('player')">📞 Zadzwoń do stewarda</button>
+                  <button type="button" class="vc-call-btn" onclick="vvJoinFromChat('player')">🎧 Kanał głosowy sprawy</button>
                   <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:11px;" onclick="deselectPlayerChatCase()">✕ Zmień zgłoszenie</button>
                 </div>
               </div>
@@ -3411,6 +3478,7 @@
           <option value="">Wybierz ID zgłoszenia...</option>
         </select>
         <button type="button" id="vcStewardCallBtn" class="vc-call-btn" onclick="vcStartCall('steward')">📞 Zadzwoń do gracza</button>
+        <button type="button" class="vc-call-btn" onclick="vvJoinFromChat('steward')">🎧 Kanał głosowy sprawy</button>
       </div>
 
       <div id="stewardChatContentWrapper" class="steward-chat-wrapper">
@@ -3480,6 +3548,8 @@
             <div class="stat-box"><span id="lblStatPending" style="color:var(--amber-text);">Oczekujące</span><strong id="statPending">0</strong></div>
             <div class="stat-box"><span id="lblStatAccepted" style="color:var(--green-text);">Przyjęte</span><strong id="statAccepted">0</strong></div>
             <div class="stat-box"><span id="lblStatAgainst" style="color:var(--red-text);">Odrzucone</span><strong id="statRejected">0</strong></div>
+            <div class="stat-box" style="cursor:pointer;" title="Kliknij, aby pokazać tylko zalegające" onclick="document.getElementById('adminFilterAge').value='stale'; renderAdmin();"><span style="color:var(--red-text);">Zalegające &gt;48h</span><strong id="statStale">0</strong></div>
+            <div class="stat-box" style="cursor:pointer;" title="Kliknij, aby pokazać tylko Twoje otwarte sprawy" onclick="document.getElementById('adminFilterAssign').value='mine'; renderAdmin();"><span style="color:var(--green-text);">Moje sprawy</span><strong id="statMine">0</strong></div>
           </div>
         </div>
 
@@ -3542,11 +3612,28 @@
         </select>
       </div>
 
+      <div class="admin-controls" id="adminExtraFilters">
+        <select id="adminFilterAssign" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Przypisanie: wszystkie</option>
+          <option value="mine">Moje sprawy</option>
+          <option value="free">Nieprzypisane</option>
+          <option value="taken">Przypisane innym</option>
+        </select>
+        <select id="adminFilterAge" class="filter-select" onchange="renderAdmin()">
+          <option value="ALL">Wiek: dowolny</option>
+          <option value="stale">Zalegające (oczekują &gt;48h)</option>
+        </select>
+        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px;">Od <input type="date" id="adminDateFrom" class="filter-select" onchange="renderAdmin()"></label>
+        <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px;">Do <input type="date" id="adminDateTo" class="filter-select" onchange="renderAdmin()"></label>
+        <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="resetAdminExtraFilters()">✕ Wyczyść filtry</button>
+      </div>
+
       <div id="bulkBar" class="bulk-actions-bar">
         <span id="bulkSelectedCount" style="font-weight: 600; font-size: 13px; color: var(--text);">Wybrano: 0 zgłoszeń</span>
         <div class="btns">
           <button class="btn-success" onclick="bulkStatusUpdate('Przyjęte')">Masowo Przyjmij</button>
           <button class="btn-danger" onclick="bulkStatusUpdate('Odrzucone')">Masowo Odrzuć</button>
+          <button style="background:#0f766e;" onclick="bulkClaim()">Przejmij zaznaczone</button>
           <button id="bulkDeleteBtn" style="background: #64748b;" onclick="bulkDelete()">Masowo Usuń</button>
         </div>
       </div>
@@ -3617,6 +3704,8 @@
           </div>
         </div>
 
+        <div id="verdictHistoryBox" style="display:none;margin-bottom:16px;padding:12px 14px;border:1px solid var(--border);border-radius:4px;background:var(--bg-deep);font-size:12px;line-height:1.6;"></div>
+
         <form id="responseForm">
           <div class="row">
             <div class="field">
@@ -3635,6 +3724,14 @@
             </div>            </div>
           </div>
   
+          <div class="field" id="verdictTemplateBox" style="background:var(--bg-deep);border:1px dashed var(--border);padding:10px 12px;border-radius:4px;">
+            <label>📋 Szablon werdyktu</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <select id="verdictTemplateSelect" class="filter-select" style="flex:1;min-width:180px;" onchange="applyVerdictTemplate(this.value)"><option value="">— wybierz szablon —</option></select>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="saveVerdictTemplate()">💾 Zapisz bieżący jako szablon</button>
+              <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="deleteVerdictTemplate()">🗑 Usuń</button>
+            </div>
+          </div>
           <div class="field">
             <label for="decision" data-key="decisionLabel">Decyzja</label>
             <select id="decision" required onchange="handleDecisionChange()">
@@ -3655,10 +3752,12 @@
             <div class="field" id="timePenaltyField">
               <label for="timePenalty" data-key="timeLabel">Kara czasowa</label>
               <input id="timePenalty" type="text" placeholder="np. +5s / brak">
+              <div class="quick-chips"><button type="button" class="case-chip" onclick="setPenaltyQuick('timePenalty','+5s')">+5s</button><button type="button" class="case-chip" onclick="setPenaltyQuick('timePenalty','+10s')">+10s</button><button type="button" class="case-chip" onclick="setPenaltyQuick('timePenalty','+15s')">+15s</button><button type="button" class="case-chip" onclick="setPenaltyQuick('timePenalty','+30s')">+30s</button><button type="button" class="case-chip" onclick="setPenaltyQuick('timePenalty','brak')">brak</button></div>
             </div>
             <div class="field" id="pointsPenaltyField">
               <label for="pointsPenalty" data-key="pointsLabel">Punkty karne</label>
               <input id="pointsPenalty" type="text" placeholder="np. 2 pkt">
+              <div class="quick-chips"><button type="button" class="case-chip" onclick="setPenaltyQuick('pointsPenalty','1 pkt')">1 pkt</button><button type="button" class="case-chip" onclick="setPenaltyQuick('pointsPenalty','2 pkt')">2 pkt</button><button type="button" class="case-chip" onclick="setPenaltyQuick('pointsPenalty','3 pkt')">3 pkt</button><button type="button" class="case-chip" onclick="setPenaltyQuick('pointsPenalty','4 pkt')">4 pkt</button></div>
             </div>
           </div>
   
@@ -3920,6 +4019,7 @@
                     <option value="TRASH">Operacje na Koszu</option>
                     <option value="RESTORE">Przywracanie danych</option>
                     <option value="AUTH">Logowania (AUTH)</option>
+                    <option value="VOICE">Rozmowy głosowe</option>
                 </select>
             </div>
             <div class="table-wrapper">
@@ -6689,6 +6789,8 @@ function renderAdmin() {
     const filterStatus = document.getElementById("adminFilterStatus").value;
     const filterTrack = document.getElementById("adminFilterTrack").value;
     const filterCategory = document.getElementById("adminFilterCategory").value;
+    const fAssign = document.getElementById("adminFilterAssign").value, fAge = document.getElementById("adminFilterAge").value;
+    const dFrom = document.getElementById("adminDateFrom").value, dTo = document.getElementById("adminDateTo").value;
 
     let cAll = 0, cPending = 0, cAccepted = 0, cRejected = 0;
     globalIncidents.forEach(r => {
@@ -6750,10 +6852,10 @@ function renderAdmin() {
         const matchesTrack = (filterTrack === "ALL") || (r.track === filterTrack);
         const matchesCategory = (filterCategory === "ALL") || (r.category === filterCategory);
         const matchesSplit = (adminSplitFilter === "ALL") || (r.split === adminSplitFilter);
-        return matchesSearch && matchesStatus && matchesTrack && matchesCategory && matchesSplit;
+        return matchesSearch && matchesStatus && matchesTrack && matchesCategory && matchesSplit && passesExtraFilters(r, fAssign, fAge, dFrom, dTo);
     });
 
-    const filterSignature = JSON.stringify([searchQuery, filterStatus, filterTrack, filterCategory, adminSplitFilter, adminSortColumn, adminSortDir]);
+    const filterSignature = JSON.stringify([fAssign, fAge, dFrom, dTo, searchQuery, filterStatus, filterTrack, filterCategory, adminSplitFilter, adminSortColumn, adminSortDir]);
     if (adminLastFilterSignature !== filterSignature) { adminCurrentPage = 1; adminLastFilterSignature = filterSignature; }
     const totalPages = Math.max(1, Math.ceil(filteredIncidents.length / adminPageSize));
     if (adminCurrentPage > totalPages) adminCurrentPage = totalPages;
@@ -6787,12 +6889,18 @@ function renderAdmin() {
             if (perms.access_trash || isRoot) {
                 incActionsHtml += `<button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>`;
             }
+            if ((perms.review_incidents || isRoot) && loggedInSteward) {
+                const mineA = r.assignedTo && r.assignedTo.id === loggedInSteward.id;
+                incActionsHtml += mineA
+                    ? `<button style="background:#374151;" onclick="claimCase('${r.id}', true)">Zwolnij</button>`
+                    : `<button style="background:#0f766e;" onclick="claimCase('${r.id}')">Przejmij</button>`;
+            }
             if (!incActionsHtml) incActionsHtml = `<span style="font-size:10px; color:var(--text-dim); text-align:center;">Brak uprawnień</span>`;
 
             tr.innerHTML = `
                 <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
                 <td>
-                    <strong style="color:var(--text);">${r.id}</strong>
+                    <strong style="color:var(--text);">${r.id}</strong>${caseBadgesHtml(r)}
                     ${(loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
                 </td>
                 <td style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${formatTimestamp(r.timestamp)}</td>
@@ -6825,7 +6933,7 @@ function renderAdmin() {
                 </td>
                 <td>${renderEvidenceHtml(r, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
-                    <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>
+                    <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>${assignChipHtml(r)}
                     <div class="action-btns">
                         ${incActionsHtml}
                     </div>
@@ -9430,7 +9538,7 @@ async function vcStartCall(role) {
     let txResult;
     try {
         txResult = await callRef.transaction(current => {
-            if (current && current.status && current.status !== "ended" && current.status !== "declined" && current.status !== "missed") {
+            if (current && current.status && current.status !== "ended" && current.status !== "declined" && current.status !== "missed" && !(["starting", "ringing"].includes(current.status) && current.startedAt && Date.now() - current.startedAt > 90000)) {
                 return; // abort — na tej sprawie już ktoś dzwoni/rozmawia
             }
             return {
@@ -9450,7 +9558,7 @@ async function vcStartCall(role) {
     }
 
     try {
-        vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
     } catch (err) {
         callRef.remove();
         alert(currentLang === 'pl' ? "Nie udało się uzyskać dostępu do mikrofonu: " + err.message : "Could not access the microphone: " + err.message);
@@ -9574,7 +9682,7 @@ async function vcAcceptCall() {
 
     const caseId = pending.caseId;
     try {
-        vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
     } catch (err) {
         alert(currentLang === 'pl' ? "Nie udało się uzyskać dostępu do mikrofonu: " + err.message : "Could not access the microphone: " + err.message);
         vcPendingIncoming = null;
@@ -10352,6 +10460,7 @@ function renderLogsTable() {
         else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
         else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
         else if (log.category === "AUTH") catBadge = `<span class="badge" style="background:#a855f7; color:#fff; border-color:#7e22ce;">AUTH</span>`;
+        else if (log.category === "VOICE") catBadge = `<span class="badge" style="background:#0f766e; color:#fff; border-color:#0f766e;">ROZMOWA</span>`;
         else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
 
         const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
@@ -10471,6 +10580,7 @@ function renderDeletedLogsTable() {
         else if (log.category === "TRASH") catBadge = `<span class="badge badge-rejected">KOSZ</span>`;
         else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
         else if (log.category === "AUTH") catBadge = `<span class="badge" style="background:#a855f7; color:#fff; border-color:#7e22ce;">AUTH</span>`;
+        else if (log.category === "VOICE") catBadge = `<span class="badge" style="background:#0f766e; color:#fff; border-color:#0f766e;">ROZMOWA</span>`;
         else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
 
         const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
@@ -11089,6 +11199,820 @@ window.addEventListener("DOMContentLoaded", () => {
     // ...i ponownie po pełnym załadowaniu strony (na wypadek treści dociąganych asynchronicznie)
     window.addEventListener('load', applyAllSavedPickerStyles);
 })();
+</script>
+
+<script>
+/* === ROZBUDOWA 121: szablony werdyktów, przypisanie spraw, powiązane zgłoszenia, wiek, filtr dat === */
+function incTs(r) { const n = Number(r.timestamp); return n || new Date(r.timestamp).getTime() || 0; }
+function isRootSteward() { return !!loggedInSteward && (loggedInSteward.role === "Główny Steward" || loggedInSteward.role === "ROOT"); }
+
+function relatedCases(r) {
+    if (!r.accusedDiscordId) return [];
+    return globalIncidents.filter(x => x.id !== r.id && x.accusedDiscordId === r.accusedDiscordId && x.track === r.track && (x.split || "") === (r.split || ""));
+}
+function caseBadgesHtml(r) {
+    let h = "";
+    const rel = relatedCases(r);
+    if (rel.length) {
+        h += `<div><span class="case-chip chip-rel" data-q="${escapeHtml(r.accusedNick || "")}" onclick="document.getElementById('adminSearch').value=this.dataset.q; renderAdmin();" title="Ten sam oskarżony, tor i split: ${escapeHtml(rel.map(x => x.id).join(", "))}">🔗 ${rel.length} powiązane</span></div>`;
+    }
+    if (r.status === "Oczekuje") {
+        const hrs = Math.floor((Date.now() - incTs(r)) / 3600000);
+        const txt = hrs < 48 ? hrs + "h" : Math.floor(hrs / 24) + "d " + (hrs % 24) + "h";
+        const cls = hrs >= 96 ? "chip-age-late" : hrs >= 48 ? "chip-age-warn" : "chip-age-ok";
+        h += `<div><span class="case-chip ${cls}" title="Czas oczekiwania na rozpatrzenie">⏱ ${txt}</span></div>`;
+    }
+    return h;
+}
+function assignChipHtml(r) {
+    if (!r.assignedTo) return "";
+    const mine = loggedInSteward && r.assignedTo.id === loggedInSteward.id;
+    return ` <span class="case-chip ${mine ? "chip-mine" : "chip-assign"}" title="Sprawę rozpatruje ten steward">👤 ${escapeHtml(r.assignedTo.nick || "?")}</span>`;
+}
+function passesExtraFilters(r, fAssign, fAge, dFrom, dTo) {
+    const myId = loggedInSteward ? loggedInSteward.id : null;
+    if (fAssign === "mine" && !(r.assignedTo && r.assignedTo.id === myId)) return false;
+    if (fAssign === "free" && r.assignedTo) return false;
+    if (fAssign === "taken" && !(r.assignedTo && r.assignedTo.id !== myId)) return false;
+    if (fAge === "stale" && !(r.status === "Oczekuje" && Date.now() - incTs(r) > 48 * 3600000)) return false;
+    const ts = incTs(r);
+    if (dFrom && ts < new Date(dFrom + "T00:00:00").getTime()) return false;
+    if (dTo && ts > new Date(dTo + "T23:59:59").getTime()) return false;
+    return true;
+}
+function resetAdminExtraFilters() {
+    ["adminFilterAssign", "adminFilterAge"].forEach(id => document.getElementById(id).selectedIndex = 0);
+    ["adminDateFrom", "adminDateTo"].forEach(id => document.getElementById(id).value = "");
+    renderAdmin();
+}
+async function claimCase(id, release) {
+    const it = globalIncidents.find(r => r.id === id);
+    if (!it || !loggedInSteward) return;
+    if (!release && conflictOf(it) && !isRootSteward()) return alert("Konflikt interesów: jesteś stroną tej sprawy, więc nie możesz jej przejąć.");
+    const cur = it.assignedTo || null;
+    if (!release && cur && cur.id !== loggedInSteward.id && !confirm("Sprawa jest już przypisana do: " + cur.nick + ". Przejąć ją?")) return;
+    const val = release ? null : { id: loggedInSteward.id || loggedInSteward.nick, nick: loggedInSteward.nick, ts: Date.now() };
+    await database.ref("incidents/" + id + "/assignedTo").set(val);
+    await logAction(loggedInSteward.nick, "VERDICT", id, release ? "Zwolniono sprawę (była przypisana: " + (cur ? cur.nick : "—") + ")" : "Przejęto sprawę do rozpatrzenia" + (cur ? " od: " + cur.nick : ""), { items: [{ path: "incidents/" + id + "/assignedTo", data: cur }] });
+}
+
+/* --- szablony werdyktów --- */
+let verdictTemplates = {};
+let lastTplText = "";
+function canManageTemplates() { return isRootSteward() || !!(loggedInSteward && loggedInSteward.permissions && loggedInSteward.permissions.review_incidents); }
+function renderTemplateSelect() {
+    const sel = document.getElementById("verdictTemplateSelect");
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— wybierz szablon —</option>';
+    Object.entries(verdictTemplates).sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), "pl")).forEach(([k, t]) => {
+        const o = document.createElement("option");
+        o.value = k; o.textContent = t.name;
+        sel.appendChild(o);
+    });
+    sel.value = verdictTemplates[cur] ? cur : "";
+}
+database.ref("verdictTemplates").on("value", snap => { verdictTemplates = snap.val() || {}; renderTemplateSelect(); });
+function applyVerdictTemplate(key) {
+    const t = verdictTemplates[key];
+    if (!t) return;
+    const dec = document.getElementById("decision");
+    if ([...dec.options].some(o => o.value === t.decision)) dec.value = t.decision;
+    if (typeof handleDecisionChange === "function") handleDecisionChange();
+    document.getElementById("timePenalty").value = t.timePenalty || "";
+    document.getElementById("pointsPenalty").value = t.pointsPenalty || "";
+    const ta = document.getElementById("verdictDetails");
+    let cur = ta.value;
+    if (lastTplText && cur.startsWith(lastTplText)) cur = cur.slice(lastTplText.length).replace(/^\n+/, "");
+    lastTplText = t.details || "";
+    ta.value = lastTplText ? lastTplText + (cur ? "\n\n" + cur : "") : cur;
+}
+async function saveVerdictTemplate() {
+    if (!canManageTemplates()) return alert("Brak uprawnień do zarządzania szablonami.");
+    const decision = document.getElementById("decision").value;
+    if (!decision) return alert("Najpierw wybierz decyzję, którą ma zawierać szablon.");
+    const name = prompt("Nazwa szablonu:", decision);
+    if (!name || !name.trim()) return;
+    const details = document.getElementById("verdictDetails").value.split(/\n*Sprawa [^\n]*\| Tor:/)[0].trim();
+    await database.ref("verdictTemplates").push().set({
+        name: name.trim(), decision,
+        timePenalty: document.getElementById("timePenalty").value.trim(),
+        pointsPenalty: document.getElementById("pointsPenalty").value.trim(),
+        details, createdBy: loggedInSteward.nick, ts: Date.now()
+    });
+    await logAction(loggedInSteward.nick, "VERDICT", "SZABLON", "Zapisano szablon werdyktu: " + name.trim());
+}
+async function deleteVerdictTemplate() {
+    if (!canManageTemplates()) return alert("Brak uprawnień do zarządzania szablonami.");
+    const key = document.getElementById("verdictTemplateSelect").value;
+    const t = verdictTemplates[key];
+    if (!t) return alert("Wybierz szablon do usunięcia.");
+    if (!confirm('Usunąć szablon "' + t.name + '"?')) return;
+    await database.ref("verdictTemplates/" + key).remove();
+    await logAction(loggedInSteward.nick, "VERDICT", "SZABLON", "Usunięto szablon werdyktu: " + t.name, { items: [{ path: "verdictTemplates/" + key, data: t }] });
+}
+</script>
+
+<script>
+/* === ROZBUDOWA 122: historia kierowcy w werdykcie, konflikt interesów, masowe przejmowanie, licznik zaległych, wykrywanie duplikatów === */
+function conflictOf(inc) {
+    if (!inc || !loggedInSteward || loggedInSteward.id === "external-judge") return null;
+    const me = String(loggedInSteward.id);
+    if (String(inc.discordId) === me) return "zgłaszającym";
+    if (String(inc.accusedDiscordId) === me) return "oskarżonym";
+    return null;
+}
+function verdictCaseFromForm() {
+    const raw = (document.getElementById("caseId").value || "").trim().split(/\s+/)[0];
+    return globalIncidents.find(r => r.id === raw) || null;
+}
+function updateVerdictHistoryBox() {
+    const box = document.getElementById("verdictHistoryBox");
+    if (!box) return;
+    const inc = verdictCaseFromForm();
+    const idField = (document.getElementById("accusedId").value || "").trim();
+    const target = idField || (inc && inc.accusedDiscordId) || "";
+    let html = "";
+    const role = conflictOf(inc);
+    if (role) {
+        html += `<div style="color:var(--red-text);font-weight:700;margin-bottom:8px;">⛔ Konflikt interesów: jesteś ${role} w tej sprawie. ${isRootSteward() ? "Wysłanie werdyktu wymaga dodatkowego potwierdzenia." : "Nie możesz wydać werdyktu — przekaż sprawę innemu sędziemu."}</div>`;
+    }
+    if (/^\d+$/.test(target)) {
+        const h = computeDriverPenalties(target);
+        if (h && h.found) {
+            const n = h.penaltyIncidents.length;
+            const repeat = n >= 2 || h.seasonPoints > 0;
+            html += `<div style="font-weight:700;color:${repeat ? "var(--amber-text)" : "var(--text)"};">${repeat ? "⚠️ " : ""}Historia: ${escapeHtml(h.displayName)} — kar w historii: ${n}, punkty w sezonie: ${h.seasonPoints}, razem: ${h.totalPoints}</div>`;
+            h.penaltyIncidents.slice(0, 3).forEach(r => {
+                const d = r.decisionData;
+                html += `<div style="color:var(--text-dim);">• ${escapeHtml(r.fiaId || r.id)} · ${escapeHtml(d.decision || "")} · ${escapeHtml(d.timePenalty || "brak")} / ${escapeHtml(d.pointsPenalty || "0")} pkt · ${d.issuedAt ? formatTimestamp(d.issuedAt) : ""}</div>`;
+            });
+        } else if (h) {
+            html += `<div style="color:var(--text-dim);">Brak wcześniejszych kar dla tego kierowcy.</div>`;
+        }
+    }
+    box.style.display = html ? "block" : "none";
+    box.innerHTML = html;
+}
+["transferToVerdictPanel", "transferAppealToVerdict", "pickGuiltyParty"].forEach(n => {
+    const orig = window[n];
+    if (typeof orig !== "function") return;
+    window[n] = function () { const r = orig.apply(this, arguments); updateVerdictHistoryBox(); return r; };
+});
+["accusedId", "caseId"].forEach(id => document.getElementById(id).addEventListener("input", updateVerdictHistoryBox));
+
+document.addEventListener("submit", e => {
+    if (!e.target || e.target.id !== "responseForm") return;
+    const role = conflictOf(verdictCaseFromForm());
+    if (!role) return;
+    if (!isRootSteward()) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        alert("Konflikt interesów: jesteś " + role + " w tej sprawie, więc nie możesz wydać werdyktu.");
+    } else if (!confirm("Jesteś " + role + " w tej sprawie. Na pewno wydać werdykt?")) {
+        e.preventDefault(); e.stopImmediatePropagation();
+    }
+}, true);
+
+async function bulkClaim() {
+    if (!loggedInSteward) return;
+    const perms = loggedInSteward.permissions || {};
+    if (!(isRootSteward() || perms.review_incidents)) return alert("Brak uprawnień.");
+    const ids = [...document.querySelectorAll(".admin-row-cb:checked")].map(c => c.dataset.id);
+    const me = { id: loggedInSteward.id || loggedInSteward.nick, nick: loggedInSteward.nick, ts: Date.now() };
+    const upd = {}, restore = [];
+    let taken = 0, conflict = 0;
+    ids.forEach(id => {
+        const it = globalIncidents.find(r => r.id === id);
+        if (!it) return;
+        if (conflictOf(it)) { conflict++; return; }
+        if (it.assignedTo && it.assignedTo.id !== me.id) { taken++; return; }
+        if (it.assignedTo) return;
+        upd["incidents/" + id + "/assignedTo"] = me;
+        restore.push({ path: "incidents/" + id + "/assignedTo", data: null });
+    });
+    const n = restore.length;
+    if (!n) return alert("Nic do przejęcia: zaznaczone sprawy są już przypisane" + (conflict ? " lub jesteś ich stroną." : "."));
+    await database.ref().update(upd);
+    await logAction(loggedInSteward.nick, "VERDICT", "MASOWE", "Masowo przejęto " + n + " spraw: " + Object.keys(upd).map(p => p.split("/")[1]).join(", "), { items: restore });
+    if (taken || conflict) alert("Przejęto: " + n + ". Pominięto: " + taken + " (przypisane innym) i " + conflict + " (konflikt interesów).");
+}
+
+const _renderAdminBase = renderAdmin;
+renderAdmin = function () {
+    _renderAdminBase.apply(this, arguments);
+    const el = document.getElementById("statStale");
+    if (el) el.textContent = globalIncidents.filter(r => r.status === "Oczekuje" && Date.now() - incTs(r) > 48 * 3600000).length;
+};
+
+const _openReportPreviewBase = openReportPreview;
+openReportPreview = function () {
+    _openReportPreviewBase.apply(this, arguments);
+    try {
+        const v = id => ((document.getElementById(id) || {}).value || "").trim();
+        const rid = v("discordId"), acc = v("accusedDiscordId"), tr = v("track"), sp = v("split");
+        if (!rid || !acc) return;
+        const dups = globalIncidents.filter(r => r.discordId === rid && r.accusedDiscordId === acc && r.track === tr && (r.split || "") === (sp === "—" ? "" : sp));
+        if (!dups.length) return;
+        const body = document.getElementById("reportPreviewBody");
+        body.innerHTML += `<div style="margin-top:10px;padding:8px 10px;border:1px solid var(--amber-text);color:var(--amber-text);border-radius:3px;white-space:normal;">⚠️ Masz już zgłoszenie na tego kierowcę z tego samego toru i splitu: ${dups.map(r => escapeHtml(r.fiaId || r.id) + " (" + escapeHtml(r.status || "") + ")").join(", ")}. Jeśli to to samo zdarzenie, nie wysyłaj duplikatu — możesz złożyć apelację albo napisać na czacie sprawy.</div>`;
+    } catch (e) { console.error(e); }
+};
+</script>
+
+<script>
+/* === ROZBUDOWA 123: szybkie kary, prognoza progu punktów, powiązane werdykty, potwierdzenie przed wysłaniem, wiek apelacji, "Moje sprawy" === */
+const OPEN_STATUSES = ["Oczekuje", "W apelacji"];
+
+// Dokładniejsze wyszukiwanie sprawy z pola "ID sprawy" (wielkość liter, "#", format "FIA-1 (APP-1)" i samo "APP-1").
+function verdictCaseFromForm() {
+    const raw = (document.getElementById("caseId").value || "").trim();
+    const norm = x => String(x || "").trim().replace(/^#/, "").toUpperCase();
+    const app = raw.match(/APP-\d+/i);
+    const base = norm(raw.split(/\s+/)[0]);
+    let inc = globalIncidents.find(r => norm(r.id) === base || norm(r.fiaId) === base);
+    if (!inc && app) {
+        const ap = globalAppeals.find(a => norm(a.appealId) === norm(app[0]));
+        if (ap) inc = globalIncidents.find(r => r.id === ap.caseId);
+    }
+    return inc || null;
+}
+
+function setPenaltyQuick(inputId, val) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.value = val;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+const _updateVerdictHistoryBase = updateVerdictHistoryBox;
+updateVerdictHistoryBox = function () {
+    _updateVerdictHistoryBase.apply(this, arguments);
+    const box = document.getElementById("verdictHistoryBox");
+    if (!box) return;
+    const inc = verdictCaseFromForm();
+    let extra = "";
+    const target = ((document.getElementById("accusedId").value || "").trim()) || (inc && inc.accusedDiscordId) || "";
+
+    // Prognoza progu punktów — tylko dla sprawy bez werdyktu (inaczej kara byłaby policzona podwójnie).
+    const add = parsePenaltyPoints(document.getElementById("pointsPenalty").value);
+    if (inc && !inc.decisionData && add > 0 && /^\d+$/.test(target)) {
+        const h = computeDriverPenalties(target);
+        const base = h && h.found ? h.seasonPoints : 0;
+        const thr = seasonSettings.threshold || 12;
+        const total = base + add;
+        extra += `<div style="margin-top:6px;font-weight:700;color:${total >= thr ? "var(--red-text)" : "var(--text)"};">${total >= thr ? "⛔ " : ""}Po tej karze: ${total} pkt w sezonie (próg: ${thr})${total >= thr ? " — PRÓG PRZEKROCZONY" : ""}</div>`;
+    }
+
+    // Powiązane sprawy — ten sam oskarżony, tor i split — dla spójności werdyktów.
+    const rel = inc ? relatedCases(inc) : [];
+    if (rel.length) {
+        extra += `<div style="margin-top:8px;color:var(--purple-text);font-weight:700;">🔗 Powiązane sprawy (ten sam oskarżony, tor i split):</div>`;
+        rel.slice(0, 4).forEach(r => {
+            const d = r.decisionData;
+            extra += `<div style="color:var(--text-dim);">• ${escapeHtml(r.fiaId || r.id)} · ${escapeHtml(r.status || "")}${d ? " · " + escapeHtml(d.decision || "") + " · " + escapeHtml(d.timePenalty || "brak") + " / " + escapeHtml(d.pointsPenalty || "0") + " pkt" : ""}</div>`;
+        });
+    }
+    if (extra) { box.style.display = "block"; box.innerHTML += extra; }
+};
+["pointsPenalty"].forEach(id => document.getElementById(id).addEventListener("input", updateVerdictHistoryBox));
+document.getElementById("decision").addEventListener("change", updateVerdictHistoryBox);
+
+// Potwierdzenie przed wysłaniem werdyktu (werdykt idzie na Discord i pinguje gracza).
+document.addEventListener("submit", e => {
+    if (!e.target || e.target.id !== "responseForm") return;
+    const g = id => ((document.getElementById(id) || {}).value || "").trim();
+    const noOne = typeof verdictNoOneGuilty !== "undefined" && verdictNoOneGuilty;
+    const msg = "Wysłać werdykt?\n\n" +
+        "Sprawa: " + g("caseId") + "\n" +
+        "Decyzja: " + g("decision") + "\n" +
+        "Kara: " + (g("timePenalty") || "brak") + " / " + (g("pointsPenalty") || "0") + " pkt\n" +
+        "Ping: " + (noOne ? "nikt (nikt nie winny)" : (g("accusedId") || "—")) + "\n\n" +
+        "Werdykt zostanie opublikowany na Discordzie.";
+    if (!confirm(msg)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+
+// Chip przypisania tylko dla spraw, które wciąż są otwarte.
+assignChipHtml = function (r) {
+    if (!r.assignedTo || !OPEN_STATUSES.includes(r.status)) return "";
+    const mine = loggedInSteward && r.assignedTo.id === loggedInSteward.id;
+    return ` <span class="case-chip ${mine ? "chip-mine" : "chip-assign"}" title="Sprawę rozpatruje ten steward">👤 ${escapeHtml(r.assignedTo.nick || "?")}</span>`;
+};
+
+const _renderAdminBase2 = renderAdmin;
+renderAdmin = function () {
+    _renderAdminBase2.apply(this, arguments);
+    const myId = loggedInSteward ? loggedInSteward.id : null;
+    const mine = document.getElementById("statMine");
+    if (mine) mine.textContent = myId ? globalIncidents.filter(r => r.assignedTo && r.assignedTo.id === myId && OPEN_STATUSES.includes(r.status)).length : 0;
+
+    // Wiek nowych apelacji (wiersz apelacji nie ma data-atrybutów, więc dopasowujemy po ID z pierwszej komórki).
+    document.querySelectorAll("#adminAppealsTableBody tr").forEach(tr => {
+        const td = tr.firstElementChild, strong = td && td.querySelector("strong");
+        if (!strong || td.querySelector(".appeal-age")) return;
+        const a = globalAppeals.find(x => x.appealId === strong.textContent.trim());
+        if (!a || (a.status && a.status !== "Nowa")) return;
+        const hrs = Math.floor((Date.now() - incTs(a)) / 3600000);
+        const txt = hrs < 48 ? hrs + "h" : Math.floor(hrs / 24) + "d " + (hrs % 24) + "h";
+        const cls = hrs >= 96 ? "chip-age-late" : hrs >= 48 ? "chip-age-warn" : "chip-age-ok";
+        td.insertAdjacentHTML("beforeend", `<div><span class="case-chip appeal-age ${cls}" title="Czas oczekiwania apelacji na rozpatrzenie">⏱ ${txt}</span></div>`);
+    });
+};
+</script>
+
+<script>
+/* === ROZBUDOWA 124: niezawodność rozmów głosowych (limit dzwonienia, sprzątanie po zamknięciu karty, odzyskiwanie łącza, dziennik, powiadomienie) === */
+let vcRingTimeout = null, vcIceFailTimer = null, vcArmedCase = null, vcTitleTimer = null, vcOrigTitle = null;
+const VC_RING_LIMIT_MS = 45000;      // po tylu ms bez odebrania połączenie jest uznawane za nieodebrane
+const VC_ICE_FAIL_LIMIT_MS = 25000;  // po tylu ms bez łącza audio rozmowa jest kończona
+
+// Gdy któraś strona zamknie kartę / straci sieć, węzeł rozmowy znika i druga strona dostaje „zakończono”
+// (wcześniej rozmowa wisiała w bazie i blokowała dzwonienie na tej sprawie).
+function vcArmDisconnectCleanup() {
+    if (!vcCurrentCaseId || vcArmedCase === vcCurrentCaseId) return;
+    vcArmedCase = vcCurrentCaseId;
+    try { database.ref("calls/" + vcCurrentCaseId).onDisconnect().remove(); } catch (e) {}
+}
+
+const _vcRenderRingingBase = vcRenderRinging;
+vcRenderRinging = function () {
+    _vcRenderRingingBase.apply(this, arguments);
+    vcArmDisconnectCleanup();
+    if (vcIsCaller && !vcRingTimeout && !vcCallStartTs) {
+        const cid = vcCurrentCaseId;
+        vcRingTimeout = setTimeout(async () => {
+            vcRingTimeout = null;
+            if (vcCurrentCaseId !== cid || !vcIsCaller || vcCallStartTs) return;
+            try {
+                await database.ref("calls/" + cid).update({ status: "missed" });
+                setTimeout(() => database.ref("calls/" + cid).remove().catch(() => {}), 1500);
+            } catch (e) {}
+            vcCleanupCall("📵 Brak odpowiedzi");
+        }, VC_RING_LIMIT_MS);
+    }
+};
+
+const _vcRenderActiveBase = vcRenderActive;
+vcRenderActive = function () {
+    _vcRenderActiveBase.apply(this, arguments);
+    vcArmDisconnectCleanup();
+    if (vcRingTimeout) { clearTimeout(vcRingTimeout); vcRingTimeout = null; }
+};
+
+// Odzyskiwanie łącza: po powrocie audio pasek wraca do „Rozmowa w toku”, a martwe łącze kończy rozmowę.
+const _vcCreatePeerConnectionBase = vcCreatePeerConnection;
+vcCreatePeerConnection = function () {
+    _vcCreatePeerConnectionBase.apply(this, arguments);
+    const pc = vcPeerConnection;
+    if (!pc) return;
+    pc.addEventListener("iceconnectionstatechange", () => {
+        if (pc !== vcPeerConnection) return;
+        const st = pc.iceConnectionState;
+        if (st === "connected" || st === "completed") {
+            if (vcIceFailTimer) { clearTimeout(vcIceFailTimer); vcIceFailTimer = null; }
+            if (vcCallStartTs) vcRenderActive();
+        } else if ((st === "failed" || st === "disconnected") && !vcIceFailTimer) {
+            vcIceFailTimer = setTimeout(() => {
+                vcIceFailTimer = null;
+                if (pc === vcPeerConnection && pc.iceConnectionState !== "connected" && pc.iceConnectionState !== "completed") {
+                    vcHangup();
+                    alert("Połączenie audio nie zostało nawiązane. Spróbuj ponownie — jeśli problem się powtarza, jedna ze stron może wymagać serwera TURN.");
+                }
+            }, VC_ICE_FAIL_LIMIT_MS);
+        }
+    });
+};
+
+// Sprzątanie + wpis do dziennika akcji (po stronie stewarda, z czasem trwania).
+const _vcCleanupCallBase = vcCleanupCall;
+vcCleanupCall = function (flashText) {
+    const cid = vcCurrentCaseId, role = vcRole, started = vcCallStartTs;
+    if (vcRingTimeout) { clearTimeout(vcRingTimeout); vcRingTimeout = null; }
+    if (vcIceFailTimer) { clearTimeout(vcIceFailTimer); vcIceFailTimer = null; }
+    _vcCleanupCallBase.apply(this, arguments);
+    if (!cid) return;
+    vcArmedCase = null;
+    try { database.ref("calls/" + cid).onDisconnect().cancel(); } catch (e) {}
+    if (role === "steward" && loggedInSteward) {
+        let dur = "bez połączenia";
+        if (started) {
+            const secs = Math.floor((Date.now() - started) / 1000);
+            dur = "czas " + String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+        }
+        logAction(loggedInSteward.nick, "VOICE", cid, "Rozmowa głosowa w sprawie " + cid + " — " + dur + (flashText ? " (" + String(flashText).replace(/^[^\p{L}]+/u, "") + ")" : ""));
+    }
+};
+
+// Powiadomienie o połączeniu przychodzącym także w tle: migający tytuł karty (+ dźwięk/Notification, jeśli włączone).
+function vcStartTitleFlash(text) {
+    vcStopTitleFlash();
+    vcOrigTitle = document.title;
+    let on = false;
+    vcTitleTimer = setInterval(() => { on = !on; document.title = on ? "📞 " + text : vcOrigTitle; }, 900);
+}
+function vcStopTitleFlash() {
+    if (vcTitleTimer) clearInterval(vcTitleTimer);
+    vcTitleTimer = null;
+    if (vcOrigTitle !== null) document.title = vcOrigTitle;
+    vcOrigTitle = null;
+}
+const _vcShowIncomingBase = vcShowIncomingCall;
+vcShowIncomingCall = function (caseId, callData, myRole) {
+    _vcShowIncomingBase.apply(this, arguments);
+    const who = (callData && callData.callerName) || (callData && callData.callerRole === "steward" ? "Steward" : "Gracz");
+    vcStartTitleFlash("Połączenie: " + who);
+    try { notifyAdmin("📞 Połączenie przychodzące", who + " · " + caseId); } catch (e) {}
+};
+const _vcHideIncomingBase = vcHideIncomingOverlay;
+vcHideIncomingOverlay = function () {
+    _vcHideIncomingBase.apply(this, arguments);
+    vcStopTitleFlash();
+};
+</script>
+
+<script>
+/* === KANAŁY GŁOSOWE (jak na Discordzie): wejdź/wyjdź, kilka osób naraz, kto mówi, wyciszenie, głośność per osoba === */
+(function () {
+    "use strict";
+    const VV_MAX = 8;
+    const st = { ch: null, myId: null, stream: null, peers: {}, muted: false, deaf: false, mutedBeforeDeaf: false,
+                 ready: false, cleanups: [], ctx: null, analysers: {}, speaking: {}, speakTimer: null, tick: null, joinedTs: 0 };
+    let presence = {}, presenceRef = null, presenceHandler = null, panelOpen = false, sliderDown = false, eligTick = 0, selSig = "";
+
+    const $ = id => document.getElementById(id);
+    function me() {
+        if (typeof isAdminAuthenticated !== "undefined" && isAdminAuthenticated && loggedInSteward)
+            return { role: "steward", name: loggedInSteward.nick || "Steward", id: String(loggedInSteward.id || "") };
+        if (typeof discordDriverAuth !== "undefined" && discordDriverAuth)
+            return { role: "player", name: discordDriverAuth.globalName || discordDriverAuth.username || "Gracz", id: String(authorizedHistoryDiscordId || discordDriverAuth.id || "") };
+        return null;
+    }
+    const chKey = caseId => "case_" + String(caseId).replace(/[.#$\[\]\/]/g, "_");
+    function caseByKey() { const m = {}; globalIncidents.forEach(r => { m[chKey(r.id)] = r; }); return m; }
+    function chName(key) {
+        if (key === "stewards") return "Kanał sędziowski";
+        const r = caseByKey()[key];
+        return "Sprawa " + (r ? (r.fiaId || r.id) : String(key).slice(5));
+    }
+    function channelList() {
+        const m = me(); if (!m) return [];
+        const list = [], map = caseByKey();
+        if (m.role === "steward") {
+            list.push({ id: "stewards", name: "Kanał sędziowski", icon: "🛡️" });
+            const keys = new Set(Object.keys(presence).filter(k => k.indexOf("case_") === 0 && Object.keys(presence[k] || {}).length));
+            if (st.ch && st.ch.indexOf("case_") === 0) keys.add(st.ch);
+            keys.forEach(k => list.push({ id: k, name: chName(k), icon: "⚖️" }));
+        } else {
+            const mine = new Set();
+            globalIncidents.forEach(r => { if (m.id && (String(r.discordId) === m.id || String(r.accusedDiscordId) === m.id)) mine.add(r.id); });
+            globalAppeals.forEach(a => { if (m.id && String(a.discordId) === m.id && a.caseId) mine.add(a.caseId); });
+            [...mine].map(id => map[chKey(id)]).filter(Boolean)
+                .sort((a, b) => incTs(b) - incTs(a)).slice(0, 15)
+                .forEach(r => list.push({ id: chKey(r.id), name: "Sprawa " + (r.fiaId || r.id), icon: "⚖️" }));
+        }
+        return list;
+    }
+    function canJoin(id) {
+        const m = me(); if (!m) return false;
+        if (m.role === "steward") return id === "stewards" || id.indexOf("case_") === 0;
+        return channelList().some(c => c.id === id);
+    }
+
+    /* ---------- audio: kontekst, dźwięki, wykrywanie mówienia ---------- */
+    function ensureCtx() {
+        if (!st.ctx) st.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (st.ctx.state === "suspended") st.ctx.resume().catch(() => {});
+        return st.ctx;
+    }
+    function tone(seq) {
+        try {
+            const ctx = ensureCtx(); let t = ctx.currentTime;
+            seq.forEach(([f, d]) => {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = "sine"; o.frequency.value = f;
+                g.gain.setValueAtTime(0.0001, t);
+                g.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+                o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + d + 0.02); t += d;
+            });
+        } catch (e) {}
+    }
+    const SND_JOIN = [[520, 0.08], [780, 0.1]], SND_LEAVE = [[780, 0.08], [520, 0.1]];
+    function attachAnalyser(id, stream) {
+        try {
+            const ctx = ensureCtx(); detachAnalyser(id);
+            const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser();
+            an.fftSize = 512; src.connect(an);
+            st.analysers[id] = { an, src, buf: new Uint8Array(an.fftSize), hold: 0 };
+        } catch (e) {}
+    }
+    function detachAnalyser(id) {
+        const a = st.analysers[id];
+        if (a) { try { a.src.disconnect(); } catch (e) {} delete st.analysers[id]; }
+        delete st.speaking[id];
+    }
+    function speakTick() {
+        let changed = false; const now = Date.now();
+        Object.keys(st.analysers).forEach(id => {
+            const a = st.analysers[id]; a.an.getByteTimeDomainData(a.buf);
+            let sum = 0; for (let i = 0; i < a.buf.length; i++) { const v = (a.buf[i] - 128) / 128; sum += v * v; }
+            let on = Math.sqrt(sum / a.buf.length) > 0.025;
+            if (id === st.myId && st.muted) on = false;
+            if (on) a.hold = now + 250;
+            const sp = now < a.hold;
+            if (!!st.speaking[id] !== sp) { st.speaking[id] = sp; changed = true; }
+        });
+        if (changed) applySpeaking();
+    }
+    function applySpeaking() {
+        document.querySelectorAll("#vvChannels .vv-p").forEach(el => el.classList.toggle("speaking", !!st.speaking[el.dataset.mid]));
+    }
+
+    /* ---------- sygnalizacja i połączenia (mesh P2P przez Firebase) ---------- */
+    function sendSignal(to, type, data) {
+        if (!st.ch) return;
+        database.ref("voiceSignals/" + st.ch + "/" + to).push({ from: st.myId, type, data: JSON.stringify(data), ts: firebase.database.ServerValue.TIMESTAMP });
+    }
+    function getPeer(pid) {
+        if (st.peers[pid]) return st.peers[pid];
+        const pc = new RTCPeerConnection({ iceServers: VOICE_CALL_ICE_SERVERS });
+        const peer = { pid, pc, pend: [], audio: null, vol: 1, rt: null };
+        st.peers[pid] = peer;
+        if (st.stream) st.stream.getTracks().forEach(t => pc.addTrack(t, st.stream));
+        pc.onicecandidate = e => { if (e.candidate) sendSignal(pid, "cand", e.candidate.toJSON()); };
+        pc.ontrack = e => {
+            if (!peer.audio) {
+                const a = document.createElement("audio");
+                a.autoplay = true; a.playsInline = true; a.muted = st.deaf; a.volume = peer.vol;
+                $("vvAudio").appendChild(a); peer.audio = a;
+            }
+            peer.audio.srcObject = e.streams[0];
+            const p = peer.audio.play(); if (p && p.catch) p.catch(() => {});
+            attachAnalyser(pid, e.streams[0]);
+        };
+        pc.onconnectionstatechange = () => {
+            updateDots(); updateStatus();
+            const s = pc.connectionState;
+            if (s === "connected") { clearTimeout(peer.rt); }
+            else if (s === "failed") restartIce(peer);
+            else if (s === "disconnected") { clearTimeout(peer.rt); peer.rt = setTimeout(() => { if (pc.connectionState !== "connected") restartIce(peer); }, 6000); }
+        };
+        return peer;
+    }
+    async function makeOffer(peer, restart) {
+        const offer = await peer.pc.createOffer({ iceRestart: !!restart });
+        await peer.pc.setLocalDescription(offer);
+        sendSignal(peer.pid, "offer", { type: offer.type, sdp: offer.sdp });
+    }
+    function restartIce(peer) { if (st.ch && st.myId < peer.pid) makeOffer(peer, true).catch(e => console.warn("[Voice] restart", e)); }
+    async function flushCands(peer) {
+        const q = peer.pend; peer.pend = [];
+        for (const c of q) { try { await peer.pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {} }
+    }
+    async function onSignal(snap) {
+        const m = snap.val(); snap.ref.remove().catch(() => {});
+        if (!m || !st.ch || !m.from || m.from === st.myId) return;
+        let data; try { data = JSON.parse(m.data); } catch (e) { return; }
+        const peer = getPeer(m.from);
+        try {
+            if (m.type === "offer") {
+                await peer.pc.setRemoteDescription(new RTCSessionDescription(data));
+                await flushCands(peer);
+                const ans = await peer.pc.createAnswer();
+                await peer.pc.setLocalDescription(ans);
+                sendSignal(m.from, "answer", { type: ans.type, sdp: ans.sdp });
+            } else if (m.type === "answer") {
+                await peer.pc.setRemoteDescription(new RTCSessionDescription(data));
+                await flushCands(peer);
+            } else if (m.type === "cand") {
+                if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(new RTCIceCandidate(data)).catch(() => {});
+                else peer.pend.push(data);
+            }
+        } catch (e) { console.warn("[Voice] signal", m.type, e); }
+    }
+    function closePeer(id) {
+        const p = st.peers[id]; if (!p) return;
+        clearTimeout(p.rt);
+        try { p.pc.close(); } catch (e) {}
+        if (p.audio) { p.audio.srcObject = null; p.audio.remove(); }
+        detachAnalyser(id); delete st.peers[id];
+    }
+    function onMemberAdded(id) {
+        if (id === st.myId || !st.ch) return;
+        const peer = getPeer(id);
+        if (st.myId < id) makeOffer(peer).catch(e => console.warn("[Voice] offer", e));
+        if (st.ready) tone(SND_JOIN);
+    }
+    function onMemberRemoved(id) {
+        if (id === st.myId) return;
+        closePeer(id);
+        if (st.ready) tone(SND_LEAVE);
+        updateStatus();
+    }
+
+    /* ---------- wejście / wyjście ---------- */
+    async function join(chId) {
+        const m = me(); if (!m) return;
+        if (!canJoin(chId)) return alert("Nie masz dostępu do tego kanału.");
+        if (st.ch === chId) return;
+        if (!window.isSecureContext || !navigator.mediaDevices || !window.RTCPeerConnection)
+            return alert("Kanały głosowe wymagają połączenia HTTPS i przeglądarki z obsługą WebRTC.");
+        if (Object.keys(presence[chId] || {}).length >= VV_MAX) return alert("Kanał jest pełny (maks. " + VV_MAX + " osób).");
+        if (st.ch) await leave();
+        let stream;
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false }); }
+        catch (e) { return alert("Brak dostępu do mikrofonu: " + e.message); }
+        ensureCtx();
+        st.ch = chId; st.myId = Math.random().toString(36).slice(2, 10); st.stream = stream;
+        st.peers = {}; st.muted = false; st.deaf = false; st.ready = false; st.joinedTs = Date.now(); st.cleanups = [];
+        const sigRef = database.ref("voiceSignals/" + chId + "/" + st.myId);
+        const memRef = database.ref("voiceMembers/" + chId);
+        const meRef = memRef.child(st.myId);
+        const myId = st.myId;
+        const mePayload = () => ({ name: m.name, role: m.role, discordId: m.id, muted: st.muted, deaf: st.deaf, joinedAt: firebase.database.ServerValue.TIMESTAMP });
+
+        // 1) najpierw nasłuch sygnałów, dopiero potem ogłaszamy obecność — nikt nie wyśle oferty w próżnię
+        const sigH = sigRef.on("child_added", onSignal);
+        st.cleanups.push(() => sigRef.off("child_added", sigH));
+        await meRef.set(mePayload());
+        meRef.onDisconnect().remove(); sigRef.onDisconnect().remove();
+        attachAnalyser(myId, stream);
+
+        // 2) pozostali uczestnicy
+        const addH = memRef.on("child_added", s => onMemberAdded(s.key));
+        const remH = memRef.on("child_removed", s => onMemberRemoved(s.key));
+        st.cleanups.push(() => { memRef.off("child_added", addH); memRef.off("child_removed", remH); });
+        memRef.once("value").then(() => { if (st.myId === myId) st.ready = true; });
+
+        // 3) po chwilowej utracie sieci Firebase usuwa nasz wpis (onDisconnect) — odtwarzamy go i odnawiamy połączenia
+        let firstConn = true;
+        const connRef = database.ref(".info/connected");
+        const connH = connRef.on("value", s => {
+            if (s.val() !== true) return;
+            if (firstConn) { firstConn = false; return; }
+            if (st.myId !== myId) return;
+            meRef.set(mePayload()).then(() => {
+                meRef.onDisconnect().remove(); sigRef.onDisconnect().remove();
+                Object.keys(st.peers).forEach(id => { if (myId < id) makeOffer(st.peers[id], true).catch(() => {}); });
+            });
+        });
+        st.cleanups.push(() => connRef.off("value", connH));
+
+        st.speakTimer = setInterval(speakTick, 100);
+        st.tick = setInterval(updateStatus, 1000);
+        tone(SND_JOIN); updateStatus(); render();
+    }
+    async function leave() {
+        if (!st.ch) return;
+        const ch = st.ch, id = st.myId, started = st.joinedTs, m = me();
+        st.cleanups.forEach(f => { try { f(); } catch (e) {} }); st.cleanups = [];
+        clearInterval(st.speakTimer); clearInterval(st.tick);
+        Object.keys(st.peers).forEach(closePeer);
+        Object.keys(st.analysers).forEach(detachAnalyser);
+        if (st.stream) st.stream.getTracks().forEach(t => t.stop());
+        st.stream = null; st.ch = null; st.myId = null; st.muted = false; st.deaf = false;
+        tone(SND_LEAVE); updateStatus(); render();
+        const meRef = database.ref("voiceMembers/" + ch + "/" + id), sigRef = database.ref("voiceSignals/" + ch + "/" + id);
+        try { meRef.onDisconnect().cancel(); sigRef.onDisconnect().cancel(); await meRef.remove(); sigRef.remove(); } catch (e) {}
+        if (m && m.role === "steward") {
+            const secs = Math.floor((Date.now() - started) / 1000);
+            logAction(m.name, "VOICE", ch, "Kanał głosowy „" + chName(ch) + "” — czas " + String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0"));
+        }
+    }
+
+    /* ---------- mikrofon / słuchawki ---------- */
+    function pushMyState() { if (st.ch) database.ref("voiceMembers/" + st.ch + "/" + st.myId).update({ muted: st.muted, deaf: st.deaf }).catch(() => {}); }
+    function setMute(v) {
+        st.muted = v;
+        if (st.stream) st.stream.getAudioTracks().forEach(t => { t.enabled = !v; });
+        pushMyState(); updateStatus();
+    }
+    function setDeaf(v) {
+        if (v) { st.mutedBeforeDeaf = st.muted; st.deaf = true; Object.values(st.peers).forEach(p => { if (p.audio) p.audio.muted = true; }); setMute(true); }
+        else { st.deaf = false; Object.values(st.peers).forEach(p => { if (p.audio) p.audio.muted = false; }); setMute(st.mutedBeforeDeaf); }
+    }
+    window.vvToggleMic = function () { if (!st.ch) return; if (st.deaf) { setDeaf(false); return; } setMute(!st.muted); };
+    window.vvToggleDeaf = function () { if (!st.ch) return; setDeaf(!st.deaf); };
+    window.vvLeave = function () { leave(); };
+
+    /* ---------- interfejs ---------- */
+    function hue(str) { let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360; return h; }
+    function updateDots() {
+        document.querySelectorAll("#vvChannels [data-cs]").forEach(d => {
+            const p = st.peers[d.dataset.cs], s = p ? p.pc.connectionState : "new";
+            const cls = s === "connected" ? "ok" : (s === "failed" || s === "disconnected") ? "bad" : "wait";
+            d.className = "vv-dot " + cls;
+            d.title = cls === "ok" ? "Połączono" : cls === "bad" ? "Problem z połączeniem" : "Łączenie…";
+        });
+    }
+    function updateStatus() {
+        const box = $("vvStatus"), fab = $("vvFab");
+        if (!box || !fab) return;
+        fab.classList.toggle("live", !!st.ch);
+        if (!st.ch) { box.style.display = "none"; return; }
+        box.style.display = "flex";
+        const n = Object.keys(presence[st.ch] || {}).length;
+        const bad = Object.values(st.peers).filter(p => p.pc.connectionState !== "connected").length;
+        const secs = Math.floor((Date.now() - st.joinedTs) / 1000);
+        $("vvStatusTitle").textContent = chName(st.ch);
+        $("vvStatusSub").textContent = (bad ? "🟡 Łączenie… · " : "🟢 Połączono · ") + n + " os. · " + String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+        const mic = $("vvMicBtn"), dn = $("vvDeafBtn");
+        mic.textContent = st.muted ? "🔇" : "🎙️"; mic.classList.toggle("off", st.muted);
+        mic.title = st.muted ? "Włącz mikrofon" : "Wycisz mikrofon";
+        dn.textContent = st.deaf ? "🚫" : "🎧"; dn.classList.toggle("off", st.deaf);
+        dn.title = st.deaf ? "Włącz dźwięk" : "Wyłącz dźwięk (słuchawki)";
+    }
+    function render() {
+        const wrap = $("vvChannels"); if (!wrap || sliderDown) return;
+        const m = me(), list = channelList();
+        let total = 0, html = "";
+        list.forEach(c => {
+            const members = Object.entries(presence[c.id] || {}).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+            total += members.length;
+            const joined = st.ch === c.id;
+            html += `<div class="vv-ch${joined ? " active" : ""}"><div class="vv-ch-row"><span class="vv-ch-name">${c.icon} ${escapeHtml(c.name)}</span>` +
+                (joined ? `<button type="button" class="vv-btn vv-btn-leave" data-vv="leave">Wyjdź</button>`
+                        : `<button type="button" class="vv-btn" data-vv="join" data-ch="${escapeHtml(c.id)}">${members.length >= VV_MAX ? "Pełny" : "Dołącz"}</button>`) + `</div>`;
+            members.forEach(([mid, p]) => {
+                const self = mid === st.myId, nm = String(p.name || "?");
+                html += `<div class="vv-p" data-mid="${escapeHtml(mid)}"><span class="vv-av" style="background:hsl(${hue(nm)},50%,38%)">${escapeHtml(nm.trim().charAt(0).toUpperCase())}</span>` +
+                    `<span class="vv-pn">${escapeHtml(nm)}${self ? " <em>(Ty)</em>" : ""}</span><span class="vv-pi">` +
+                    (p.role === "steward" ? `<span title="Steward">🛡️</span>` : "") +
+                    (p.muted ? `<span title="Mikrofon wyciszony">🔇</span>` : "") +
+                    (p.deaf ? `<span title="Dźwięk wyłączony">🙉</span>` : "") + `</span>` +
+                    (joined && !self ? `<span class="vv-dot wait" data-cs="${escapeHtml(mid)}"></span><input type="range" min="0" max="100" value="${Math.round(((st.peers[mid] || {}).vol == null ? 1 : st.peers[mid].vol) * 100)}" data-vol="${escapeHtml(mid)}" title="Głośność tej osoby">` : "") +
+                    `</div>`;
+            });
+            html += `</div>`;
+        });
+        if (!list.length) html = `<div class="vv-empty">Brak kanałów. Kanał sprawy pojawi się, gdy będziesz miał zgłoszenie.</div>`;
+        wrap.innerHTML = html;
+        const badge = $("vvFabBadge");
+        badge.textContent = total; badge.style.display = total ? "flex" : "none";
+
+        const joinWrap = $("vvCaseJoinWrap");
+        joinWrap.style.display = m && m.role === "steward" ? "flex" : "none";
+        if (m && m.role === "steward") {
+            const sel = $("vvCaseSelect"), items = [...globalIncidents].sort((a, b) => incTs(b) - incTs(a)).slice(0, 80);
+            const sig = items.map(r => r.id).join("|");
+            if (sig !== selSig) {
+                const cur = sel.value; selSig = sig;
+                sel.innerHTML = '<option value="">Kanał sprawy…</option>' + items.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml((r.fiaId || r.id) + " — " + (r.nick || "?") + " vs " + (r.accusedNick || "?"))}</option>`).join("");
+                sel.value = cur;
+            }
+        }
+        applySpeaking(); updateDots(); updateStatus();
+    }
+    window.vvTogglePanel = function () {
+        panelOpen = !panelOpen; $("vvPanel").classList.toggle("open", panelOpen);
+        if (panelOpen) render();
+    };
+    window.vvJoinSelectedCase = function () {
+        const v = $("vvCaseSelect").value; if (!v) return alert("Wybierz sprawę z listy.");
+        join(chKey(v));
+    };
+    window.vvJoinFromChat = function (role) {
+        const raw = role === "steward" ? ($("chatCaseSelect") || {}).value : selectedPlayerCaseId;
+        if (!raw) return alert("Najpierw wybierz sprawę.");
+        const ap = globalAppeals.find(a => a.appealId === raw);
+        panelOpen = true; $("vvPanel").classList.add("open");
+        join(chKey(ap ? ap.caseId : raw));
+    };
+
+    /* ---------- obecność (kto jest na kanałach) ---------- */
+    function attachPresence() {
+        presenceRef = database.ref("voiceMembers");
+        presenceHandler = presenceRef.on("value", s => { presence = s.val() || {}; render(); });
+    }
+    function detachPresence() {
+        if (presenceRef && presenceHandler) presenceRef.off("value", presenceHandler);
+        presenceRef = null; presenceHandler = null; presence = {};
+    }
+    const panel = $("vvPanel");
+    panel.addEventListener("click", e => {
+        const b = e.target.closest("[data-vv]"); if (!b) return;
+        if (b.dataset.vv === "join") join(b.dataset.ch); else if (b.dataset.vv === "leave") leave();
+    });
+    panel.addEventListener("input", e => {
+        const r = e.target.closest("[data-vol]"); if (!r) return;
+        const p = st.peers[r.dataset.vol]; if (!p) return;
+        p.vol = r.value / 100; if (p.audio) p.audio.volume = p.vol;
+    });
+    panel.addEventListener("pointerdown", e => { if (e.target.closest("[data-vol]")) sliderDown = true; });
+    document.addEventListener("pointerup", () => { if (sliderDown) { sliderDown = false; render(); } });
+
+    setInterval(() => {
+        const m = me(), fab = $("vvFab");
+        fab.style.display = m ? "flex" : "none";
+        if (!m) { if (presenceRef) { detachPresence(); } if (st.ch) leave(); $("vvPanel").classList.remove("open"); panelOpen = false; return; }
+        if (!presenceRef) attachPresence();
+        if (panelOpen && ++eligTick % 3 === 0) render();
+    }, 1500);
+
+    window.addEventListener("beforeunload", () => {
+        if (st.ch) { try { database.ref("voiceMembers/" + st.ch + "/" + st.myId).remove(); } catch (e) {} }
+    });
+})();
+
 </script>
 </body>
 </html>
