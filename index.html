@@ -11789,7 +11789,7 @@ vcHideIncomingOverlay = function () {
     function restartIce(peer) { if (st.ch && st.myId < peer.pid) makeOffer(peer, true).catch(e => console.warn("[Voice] restart", e)); }
     async function flushCands(peer) {
         const q = peer.pend; peer.pend = [];
-        for (const c of q) { try { await peer.pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {} }
+        for (const c of q) { try { await peer.pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.warn("[VV] addIceCandidate (z kolejki) BŁĄD:", e && e.message); } }
     }
     async function onSignal(snap) {
         const m = snap.val(); snap.ref.remove().catch(() => {});
@@ -11808,7 +11808,8 @@ vcHideIncomingOverlay = function () {
                 await peer.pc.setRemoteDescription(new RTCSessionDescription(data));
                 await flushCands(peer);
             } else if (m.type === "cand") {
-                if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(new RTCIceCandidate(data)).catch(() => {});
+                peer.rc = (peer.rc || 0) + 1;
+                if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(new RTCIceCandidate(data)).catch(e => console.warn("[VV] addIceCandidate BŁĄD:", e && e.message, data && data.candidate));
                 else peer.pend.push(data);
             }
         } catch (e) { console.warn("[Voice] signal", m.type, e); }
@@ -11924,7 +11925,8 @@ vcHideIncomingOverlay = function () {
         else console.log("[mikrofon] brak strumienia");
         for (const id of Object.keys(st.peers)) {
             const p = st.peers[id], pc = p.pc;
-            console.log("[peer " + id + "] connection:", pc.connectionState, "| ice:", pc.iceConnectionState, "| signaling:", pc.signalingState, "| zebrane kandydaty lokalne:", JSON.stringify(p.cands));
+            console.log("[peer " + id + "] connection:", pc.connectionState, "| ice:", pc.iceConnectionState, "| signaling:", pc.signalingState, "| zebrane kandydaty lokalne:", JSON.stringify(p.cands), "| odebrane kandydaty zdalne (liczba sygnałów):", p.rc || 0);
+            if (!p.rc) console.warn("   ⚠ nie odebrano ŻADNEGO kandydata od drugiej strony — druga osoba ich nie wysyła (stara wersja pliku? inna karta/rola?) albo nie docierają przez Firebase");
             if (!p.cands.relay) console.warn("   ⚠ brak kandydata typu relay — TURN nieosiągalny z tej sieci lub błędne dane TURN");
             if (p.audio) console.log("   <audio> paused:", p.audio.paused, "muted:", p.audio.muted, "volume:", p.audio.volume, "readyState:", p.audio.readyState);
             else console.log("   brak elementu <audio> (nie odebrano ścieżki)");
@@ -11936,6 +11938,7 @@ vcHideIncomingOverlay = function () {
                         const cp = m[r.selectedCandidatePairId], lc = m[cp.localCandidateId] || {}, rc = m[cp.remoteCandidateId] || {};
                         console.log("   wybrana para: lokalny", lc.candidateType, "↔ zdalny", rc.candidateType, "| bajty wysł./odebr.:", cp.bytesSent, "/", cp.bytesReceived);
                     }
+                    if (r.type === "candidate-pair") { const lc = m[r.localCandidateId] || {}, rc = m[r.remoteCandidateId] || {}; console.log("   para:", lc.candidateType, "↔", rc.candidateType, "stan:", r.state, r.nominated ? "(wybrana)" : ""); }
                     if (r.type === "inbound-rtp" && r.kind === "audio") console.log("   OTRZYMANE audio: bajty", r.bytesReceived, "pakiety", r.packetsReceived);
                     if (r.type === "outbound-rtp" && r.kind === "audio") console.log("   WYSŁANE audio: bajty", r.bytesSent, "pakiety", r.packetsSent);
                 });
