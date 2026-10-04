@@ -9452,7 +9452,21 @@ let VOICE_CALL_ICE_SERVERS = [
         const r = await fetch("https://sedziowie.metered.live/api/v1/turn/credentials?apiKey=66cf76e6b650b3b2b7b99e7073408dc58141");
         if (!r.ok) throw new Error("HTTP " + r.status);
         const list = await r.json();
-        if (Array.isArray(list) && list.length) VOICE_CALL_ICE_SERVERS = VOICE_CALL_ICE_SERVERS.concat(list);
+        if (Array.isArray(list) && list.length) {
+            // Chrome spowalnia zbieranie kandydatów przy 5+ adresach STUN/TURN — zostawiamy 4: STUN, TURN :80, TURN :443, TURNS :443/tcp
+            let stunTaken = false;
+            const keep = u => {
+                if (/^stun:/.test(u)) { if (stunTaken) return false; stunTaken = true; return true; }
+                if (/^turns:/.test(u)) return true;
+                if (/^turn:.*:(80|443)$/.test(u)) return true;
+                return false;
+            };
+            const trimmed = list.map(sv => {
+                const us = (Array.isArray(sv.urls) ? sv.urls : [sv.urls]).filter(keep);
+                return us.length ? Object.assign({}, sv, { urls: us.length === 1 ? us[0] : us }) : null;
+            }).filter(Boolean);
+            VOICE_CALL_ICE_SERVERS = trimmed.length ? trimmed : list;
+        }
         console.log("[TURN] pobrano serwery:", VOICE_CALL_ICE_SERVERS);
     } catch (e) { console.warn("[TURN] Nie udało się pobrać serwerów TURN:", e); }
 })();
@@ -11728,17 +11742,27 @@ vcHideIncomingOverlay = function () {
     /* ---------- sygnalizacja i połączenia (mesh P2P przez Firebase) ---------- */
     function sendSignal(to, type, data) {
         if (!st.ch) return;
-        database.ref("voiceSignals/" + st.ch + "/" + to).push({ from: st.myId, type, data: JSON.stringify(data), ts: firebase.database.ServerValue.TIMESTAMP });
+        console.log("[VV] → wysyłam", type, "do", to);
+        database.ref("voiceSignals/" + st.ch + "/" + to).push({ from: st.myId, type, data: JSON.stringify(data), ts: firebase.database.ServerValue.TIMESTAMP })
+            .catch(e => console.error("[VV] BŁĄD wysyłki sygnału (reguły Firebase?):", e && (e.code || e.message) || e));
     }
     function getPeer(pid) {
         if (st.peers[pid]) return st.peers[pid];
-        const pc = new RTCPeerConnection({ iceServers: VOICE_CALL_ICE_SERVERS });
-        const peer = { pid, pc, pend: [], audio: null, vol: 1, rt: null };
+        const pc = new RTCPeerConnection({ iceServers: VOICE_CALL_ICE_SERVERS, iceTransportPolicy: st.relayOnly ? "relay" : "all" });
+        const peer = { pid, pc, pend: [], audio: null, vol: 1, rt: null, cands: {} };
         st.peers[pid] = peer;
         pc.oniceconnectionstatechange = () => console.log("[VV]", pid, "ice:", pc.iceConnectionState);
+        pc.onicecandidateerror = e => console.warn("[VV] BŁĄD ICE:", e.errorCode, e.errorText, "serwer:", e.url);
+        setTimeout(() => {
+            if (st.peers[pid] === peer && pc.connectionState !== "connected") {
+                console.warn("[VV] po 12 s nadal brak połączenia z", pid, "— automatyczny raport:");
+                window.vvDebug();
+            }
+        }, 12000);
         if (st.stream) st.stream.getTracks().forEach(t => pc.addTrack(t, st.stream));
-        pc.onicecandidate = e => { if (e.candidate) sendSignal(pid, "cand", e.candidate.toJSON()); };
+        pc.onicecandidate = e => { if (e.candidate) { console.log("[VV] kandydat lokalny:", e.candidate.type, e.candidate.protocol); peer.cands[e.candidate.type] = (peer.cands[e.candidate.type] || 0) + 1; sendSignal(pid, "cand", e.candidate.toJSON()); } else console.log("[VV] zbieranie kandydatów zakończone"); };
         pc.ontrack = e => {
+            console.log("[VV] ODEBRANO ŚCIEŻKĘ AUDIO od", pid, e.track && e.track.kind, e.streams && e.streams.length);
             if (!peer.audio) {
                 const a = document.createElement("audio");
                 a.autoplay = true; a.playsInline = true; a.muted = st.deaf; a.volume = peer.vol;
@@ -11770,6 +11794,7 @@ vcHideIncomingOverlay = function () {
     async function onSignal(snap) {
         const m = snap.val(); snap.ref.remove().catch(() => {});
         if (!m || !st.ch || !m.from || m.from === st.myId) return;
+        console.log("[VV] ← odebrano", m.type, "od", m.from);
         let data; try { data = JSON.parse(m.data); } catch (e) { return; }
         const peer = getPeer(m.from);
         try {
@@ -11892,6 +11917,35 @@ vcHideIncomingOverlay = function () {
     window.vvToggleMic = function () { if (!st.ch) return; if (st.deaf) { setDeaf(false); return; } setMute(!st.muted); };
     window.vvToggleDeaf = function () { if (!st.ch) return; setDeaf(!st.deaf); };
     window.vvLeave = function () { leave(); };
+    window.vvRelayOnly = function (v) { st.relayOnly = (v !== false); console.log("[VV] tryb tylko-relay (TURN):", st.relayOnly, "— wyjdź z kanału i dołącz ponownie"); };
+    window.vvDebug = async function () {
+        console.log("=== vvDebug ===  kanał:", st.ch, "| tylko-relay:", !!st.relayOnly, "| serwery:", JSON.stringify(VOICE_CALL_ICE_SERVERS.map(x => x.urls)));
+        if (st.stream) st.stream.getAudioTracks().forEach(t => console.log("[mikrofon]", t.label, "enabled:", t.enabled, "readyState:", t.readyState, "muted:", t.muted));
+        else console.log("[mikrofon] brak strumienia");
+        for (const id of Object.keys(st.peers)) {
+            const p = st.peers[id], pc = p.pc;
+            console.log("[peer " + id + "] connection:", pc.connectionState, "| ice:", pc.iceConnectionState, "| signaling:", pc.signalingState, "| zebrane kandydaty lokalne:", JSON.stringify(p.cands));
+            if (!p.cands.relay) console.warn("   ⚠ brak kandydata typu relay — TURN nieosiągalny z tej sieci lub błędne dane TURN");
+            if (p.audio) console.log("   <audio> paused:", p.audio.paused, "muted:", p.audio.muted, "volume:", p.audio.volume, "readyState:", p.audio.readyState);
+            else console.log("   brak elementu <audio> (nie odebrano ścieżki)");
+            try {
+                const stats = await pc.getStats(), m = {};
+                stats.forEach(r => { m[r.id] = r; });
+                stats.forEach(r => {
+                    if (r.type === "transport" && r.selectedCandidatePairId && m[r.selectedCandidatePairId]) {
+                        const cp = m[r.selectedCandidatePairId], lc = m[cp.localCandidateId] || {}, rc = m[cp.remoteCandidateId] || {};
+                        console.log("   wybrana para: lokalny", lc.candidateType, "↔ zdalny", rc.candidateType, "| bajty wysł./odebr.:", cp.bytesSent, "/", cp.bytesReceived);
+                    }
+                    if (r.type === "inbound-rtp" && r.kind === "audio") console.log("   OTRZYMANE audio: bajty", r.bytesReceived, "pakiety", r.packetsReceived);
+                    if (r.type === "outbound-rtp" && r.kind === "audio") console.log("   WYSŁANE audio: bajty", r.bytesSent, "pakiety", r.packetsSent);
+                });
+            } catch (e) { console.log("   getStats błąd", e); }
+        }
+        console.log("=== koniec vvDebug ===");
+    };
+    document.addEventListener("click", () => {
+        try { ensureCtx(); Object.values(st.peers).forEach(p => { if (p.audio && p.audio.paused && p.audio.srcObject) p.audio.play().catch(() => {}); }); } catch (e) {}
+    });
 
     /* ---------- interfejs ---------- */
     function hue(str) { let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360; return h; }
