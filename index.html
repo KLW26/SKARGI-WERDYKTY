@@ -9442,22 +9442,20 @@ async function sendPlayerChatMessage() {
 // połączenia (restrykcyjne NAT, CGNAT operatora), dodaj tu własny serwer TURN
 // (np. z coturn, albo usługi typu Twilio Network Traversal / Metered.ca):
 // { urls: "turn:TWOJ_SERWER:3478", username: "...", credential: "..." }
-const VOICE_CALL_ICE_SERVERS = [
+let VOICE_CALL_ICE_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    // Serwer TURN (przekaźnik audio) — bez niego rozmowa może "łączyć się" (SDP/oferta-odpowiedź
-    // przechodzi przez Firebase), ale głos nie popłynie w ŻADNĄ stronę, jeśli jedna ze stron
-    // siedzi za restrykcyjnym NAT/CGNAT lub firewallem blokującym bezpośrednie P2P.
-    // To jest darmowy, publiczny serwer testowy OpenRelay (metered.ca, ok. 20GB/mc za darmo).
-    // Jeśli w konsoli przeglądarki iceConnectionState nadal będzie "failed" mimo tego serwera,
-    // trzeba założyć własne darmowe konto na https://www.metered.ca/tools/openrelay/ (lub dashboard.metered.ca)
-    // i podmienić username/credential poniżej na własne, bo publiczne dane bywają zapchane.
-    { urls: "stun:stun.relay.metered.ca:80" },
-    { urls: "turn:global.relay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:global.relay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:global.relay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+    { urls: "stun:stun1.l.google.com:19302" }
 ];
+// Serwery TURN pobierane z Metered (aplikacja: sedziowie). Bez TURN głos nie popłynie przy restrykcyjnym NAT/CGNAT.
+(async () => {
+    try {
+        const r = await fetch("https://sedziowie.metered.live/api/v1/turn/credentials?apiKey=66cf76e6b650b3b2b7b99e7073408dc58141");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const list = await r.json();
+        if (Array.isArray(list) && list.length) VOICE_CALL_ICE_SERVERS = VOICE_CALL_ICE_SERVERS.concat(list);
+        console.log("[TURN] pobrano serwery:", VOICE_CALL_ICE_SERVERS);
+    } catch (e) { console.warn("[TURN] Nie udało się pobrać serwerów TURN:", e); }
+})();
 
 let vcPeerConnection = null;
 let vcLocalStream = null;
@@ -11737,6 +11735,7 @@ vcHideIncomingOverlay = function () {
         const pc = new RTCPeerConnection({ iceServers: VOICE_CALL_ICE_SERVERS });
         const peer = { pid, pc, pend: [], audio: null, vol: 1, rt: null };
         st.peers[pid] = peer;
+        pc.oniceconnectionstatechange = () => console.log("[VV]", pid, "ice:", pc.iceConnectionState);
         if (st.stream) st.stream.getTracks().forEach(t => pc.addTrack(t, st.stream));
         pc.onicecandidate = e => { if (e.candidate) sendSignal(pid, "cand", e.candidate.toJSON()); };
         pc.ontrack = e => {
