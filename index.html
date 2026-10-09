@@ -3721,9 +3721,9 @@
                 <button type="button" id="btnPickNone" onclick="pickGuiltyParty('none')" data-key="btnPickNone" style="flex:1; font-size:11px; padding:5px 8px; background: var(--bg-input); border:1px solid var(--border); border-radius:3px; color: var(--text-dim); cursor:pointer;">🤝 Nikt nie winny</button>
               </div>
               <small id="pickGuiltyNote" style="display:block; margin-top:4px; font-size:11px; color: var(--text-dim);"></small>
-            </div>            </div>
+            </div>
           </div>
-  
+
           <div class="field" id="verdictTemplateBox" style="background:var(--bg-deep);border:1px dashed var(--border);padding:10px 12px;border-radius:4px;">
             <label>📋 Szablon werdyktu</label>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -4006,6 +4006,7 @@
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                     <button id="restoreAllLogsBtn" type="button" class="btn-view" style="padding:6px 14px; font-size:11px; display:none; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" onclick="restoreAllFromLogs()">↺ PRZYWRÓĆ WSZYSTKO</button>
                     <button id="clearAllLogsBtn" type="button" class="btn-danger" style="padding:6px 14px; font-size:11px; display:none;" onclick="clearAllLogs()">🗑 WYCZYŚĆ WSZYSTKIE LOGI</button>
+                    <button id="toggleDeletedLogsBtn" type="button" class="btn-secondary" style="padding:6px 14px; font-size:11px; display:none;" onclick="toggleDeletedLogsPanel()">🗄 Usunięte logi (0)</button>
                 </div>
             </div>
             <div class="admin-controls">
@@ -4020,6 +4021,8 @@
                     <option value="RESTORE">Przywracanie danych</option>
                     <option value="AUTH">Logowania (AUTH)</option>
                     <option value="VOICE">Rozmowy głosowe</option>
+                    <option value="CHAT">Wiadomości czatu</option>
+                    <option value="SYSTEM">Ustawienia systemu</option>
                 </select>
             </div>
             <div class="table-wrapper">
@@ -4038,6 +4041,29 @@
                         </tbody>
                 </table>
             </div>
+
+            <div id="deletedLogsSection" style="display:none; margin-top:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div class="section-title" style="margin-bottom:0;">🗄 Archiwum usuniętych logów</div>
+                    <button type="button" class="btn-danger" style="padding:6px 14px; font-size:11px;" onclick="permanentlyClearDeletedLogs()">✕ OPRÓŻNIJ ARCHIWUM TRWALE</button>
+                </div>
+                <p style="font-size:11px; color:var(--text-dim); margin:8px 0 0;">Usunięte wpisy dziennika trafiają tutaj. Z każdego wpisu, który zapisał stan sprzed akcji, wciąż można przywrócić dane.</p>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 16%;">Data i godzina</th>
+                                <th style="width: 16%;">Steward (Operator)</th>
+                                <th style="width: 12%;">Kategoria</th>
+                                <th style="width: 11%;">Powiązane ID</th>
+                                <th style="width: 30%;">Szczegóły operacji</th>
+                                <th style="width: 15%;">Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deletedLogsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
   </div>
@@ -4046,6 +4072,8 @@
 let loggedInSteward = null;
 let globalStewards = [];
 let globalLogs = [];
+let globalDeletedLogs = [];       // archiwum usuniętych wpisów dziennika (deleted_action_logs)
+let showDeletedLogsPanel = false; // czy panel archiwum jest rozwinięty
 
 const firebaseConfig = {
     databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/"
@@ -6913,9 +6941,9 @@ function renderAdmin() {
                     <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
                     ${r.decisionData ? `
                         <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+                            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:6px;">
                                 <strong style="color:#fff;">⚖️ Werdykt:</strong>
-                                <div style="display:flex; gap:4px;">
+                                <div style="display:flex; flex-wrap:wrap; gap:4px; max-width:100%;">
                                     <button style="background:#1565c0; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="resendVerdict('${r.id}')">🔁 Wyślij ponownie</button>
                                     <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${r.id}', this)">🖼 PNG</button>
                                     <button style="background:#374151; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openCaseVerdictPreview('${r.id}')">👁 Podgląd</button>
@@ -6977,9 +7005,9 @@ function renderAdmin() {
                 const dv = relatedCaseForAppeal.decisionData;
                 appVerdictHtml = `
                     <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+                        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:6px;">
                             <strong style="color:#fff;">⚖️ Werdykt apelacji:</strong>
-                            <div style="display:flex; gap:4px;">
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; max-width:100%;">
                                 <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${a.caseId}', this)">🖼 PNG</button>
                                 <button style="background:#374151; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openCaseVerdictPreview('${a.caseId}')">👁 Podgląd</button>
                                 ${isHeadStewardOrRoot ? `<button style="background:#6d28d9; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openAppealVerdictEditModal('${a.caseId}', '${a.appealId}')">✎ Edytuj werdykt</button>` : ''}
@@ -12070,5 +12098,940 @@ vcHideIncomingOverlay = function () {
 })();
 
 </script>
+<style>
+/* ============================================================
+   === ROZBUDOWA 125 — style nowych funkcji ===
+   ============================================================ */
+/* Baner ogłoszeń */
+.ann-banner{display:none;align-items:flex-start;gap:12px;padding:12px 32px;border-bottom:1px solid var(--border);font-size:13px;line-height:1.5;color:var(--text);position:relative;z-index:2;}
+.ann-banner.show{display:flex;}
+.ann-banner.lvl-info{background:rgba(59,130,246,0.10);border-left:4px solid #3b82f6;}
+.ann-banner.lvl-warn{background:rgba(251,191,36,0.12);border-left:4px solid #f59e0b;}
+.ann-banner.lvl-crit{background:rgba(225,6,0,0.14);border-left:4px solid var(--red);}
+.ann-banner .ann-icon{font-size:18px;line-height:1.2;flex:none;}
+.ann-banner .ann-body{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;}
+.ann-banner .ann-body a{color:#60a5fa;}
+.ann-banner .ann-meta{display:block;font-size:10px;color:var(--text-dim);margin-top:2px;letter-spacing:.5px;}
+.ann-banner button.ann-close{background:transparent;background-image:none;box-shadow:none;clip-path:none;border:1px solid var(--border);color:var(--text-dim);padding:2px 9px;margin:0;font-size:12px;letter-spacing:0;flex:none;}
+.ann-banner button.ann-close:hover{border-color:var(--red);color:var(--text);transform:none;}
+
+/* Licznik okna zgłoszeń */
+.rw-countdown{display:block;margin-top:6px;font-size:11px;letter-spacing:.3px;color:var(--text-dim);}
+.rw-countdown.open{color:var(--green-text);}
+.rw-countdown.soon{color:var(--amber-text);font-weight:700;}
+
+/* Odznaki nieprzeczytanych wiadomości */
+.unread-pill{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;vertical-align:middle;letter-spacing:0;}
+.unread-pill.hidden{display:none;}
+.menu .unread-pill{align-self:center;margin-left:-14px;margin-right:6px;}
+.chip-unread{color:#fff;background:#b91c1c;border-color:#b91c1c;cursor:pointer;}
+.chip-votes{color:var(--purple-text);border-color:var(--purple-text);}
+.chip-withdrawn{color:var(--text-dim);}
+
+/* Głosowanie sędziów */
+#verdictVotesBox{display:none;margin-bottom:16px;padding:12px 14px;border:1px solid rgba(168,85,247,0.35);border-radius:4px;background:var(--bg-deep);font-size:12px;line-height:1.55;}
+#verdictVotesBox .vote-row{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--border);}
+#verdictVotesBox .vote-row:last-of-type{border-bottom:none;}
+#verdictVotesBox .vote-who{font-weight:700;color:var(--text);min-width:110px;}
+#verdictVotesBox .vote-what{flex:1;color:var(--text-dim);}
+#verdictVotesBox .vote-mine{color:var(--purple-text);}
+#verdictVotesBox .vote-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+#verdictVotesBox .vote-actions button{padding:6px 12px;font-size:11px;margin:0;}
+.vote-bar{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:6px 0 8px;background:rgba(255,255,255,0.06);}
+.vote-bar span{display:block;height:100%;}
+
+/* Szybkie odpowiedzi na czacie stewarda */
+#stewardQuickReplies{margin-bottom:8px;}
+#stewardQuickReplies .case-chip.custom{border-style:dashed;}
+
+/* Biuletyn rundy */
+#bulletinModal .desc-box{width:720px;max-width:95vw;}
+#bulletinText{min-height:260px;font-family:'Share Tech Mono',monospace;font-size:12px;line-height:1.5;}
+.bulletin-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;}
+@media (max-width:640px){.bulletin-grid{grid-template-columns:1fr;}}
+
+/* Pola kar: handleDecisionChange() ustawia display:flex — układamy je pionowo jak resztę pól */
+#timePenaltyField, #pointsPenaltyField{flex-direction:column;}
+
+/* Przycisk wycofania zgłoszenia w historii kierowcy */
+.btn-withdraw{background:#374151;background-image:none;border:1px solid #64748b;color:var(--text);}
+#bulletinModal .bulletin-actions{display:flex;gap:8px;flex-wrap:wrap;}
+#bulletinModal .bulletin-actions button{flex:1 1 auto;margin:0;}
+</style>
+
+<!-- Modal: biuletyn sędziowski rundy -->
+<div id="bulletinModal" class="desc-modal">
+  <div class="desc-box">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 class="section-title" style="margin-bottom:0;">📰 Biuletyn sędziowski rundy</h2>
+    </div>
+    <p style="font-size:11px; color:var(--text-dim); margin:0;">Zestawienie wszystkich decyzji z wybranego toru i splitu — gotowe do wklejenia na Discorda albo wysłania jednym kliknięciem (bez pingowania kierowców).</p>
+    <div class="bulletin-grid">
+      <div><label for="bulletinTrack">Tor</label><select id="bulletinTrack" onchange="refreshBulletin()"></select></div>
+      <div><label for="bulletinSplit">Split</label><select id="bulletinSplit" onchange="refreshBulletin()"><option value="ALL">Oba splity</option><option value="Split 1">Split 1</option><option value="Split 2">Split 2</option></select></div>
+      <div><label for="bulletinFrom">Zgłoszenia od</label><input type="date" id="bulletinFrom" onchange="refreshBulletin()"></div>
+    </div>
+    <textarea id="bulletinText" spellcheck="false"></textarea>
+    <small id="bulletinInfo" style="color:var(--text-dim); font-size:11px;"></small>
+    <div class="bulletin-actions">
+      <button type="button" class="btn-secondary" onclick="copyBulletin()">📋 Kopiuj</button>
+      <button type="button" class="btn-secondary" onclick="downloadBulletin()">⬇ Pobierz .txt</button>
+      <button type="button" id="bulletinSendBtn" onclick="sendBulletinToDiscord()">📤 Wyślij na Discord</button>
+      <button type="button" class="btn-secondary" onclick="closeBulletin()">Zamknij</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   === ROZBUDOWA 125 ===
+   1. Archiwum usuniętych logów + „Przywróć wszystko” (wcześniej przyciski wywoływały
+      nieistniejące funkcje/zmienne i rzucały błąd).
+   2. Ogłoszenia dla wszystkich (baner na górze strony, z wygasaniem).
+   3. Licznik okna zgłoszeń (ile zostało do zamknięcia / otwarcia).
+   4. Wycofanie własnego, jeszcze nierozpatrzonego zgłoszenia przez kierowcę.
+   5. Nieprzeczytane wiadomości czatu (kierowca i stewardzi) + powiadomienie.
+   6. Szybkie odpowiedzi stewarda na czacie (gotowe + własne).
+   7. Głosowanie sędziów nad sprawą (panel kilku stewardów) + „Zastosuj większość”.
+   8. „Następna sprawa” — przejęcie najstarszej oczekującej sprawy z kolejki.
+   9. Biuletyn sędziowski rundy (kopiuj / pobierz / wyślij na Discord bez pingów).
+  10. Ochrona przed przypadkowym nadpisaniem wydanego werdyktu.
+  11. Skróty klawiszowe: Esc zamyka okna, „/” — szukaj, Alt+N — następna sprawa.
+   Wszystko zapisuje się w istniejących węzłach bazy (incidents, settings,
+   deleted_action_logs), więc nie wymaga zmian w regułach Firebase.
+   ============================================================ */
+(function () {
+"use strict";
+
+const L = (pl, en) => (typeof currentLang !== "undefined" && currentLang === "en") ? en : pl;
+const $ = id => document.getElementById(id);
+const isRoot = () => typeof isRootSteward === "function" && isRootSteward();
+const perms = () => (loggedInSteward && loggedInSteward.permissions) || {};
+const canReview = () => !!loggedInSteward && (isRoot() || !!perms().review_incidents);
+const canManageSys = () => !!loggedInSteward && (isRoot() || !!perms().manage_settings);
+const ts = v => Number(v) || 0;
+const plural = (n, one, few, many) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? few : many;
+const objWord = n => plural(n, "usunięty obiekt", "usunięte obiekty", "usuniętych obiektów");
+
+function fmtLeft(ms) {
+    ms = Math.max(0, ms);
+    const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+    if (d > 0) return `${d} d ${h} h`;
+    if (h > 0) return `${h} h ${mm} min`;
+    return `${mm} min`;
+}
+
+function wrap(name, after) {
+    const orig = window[name];
+    if (typeof orig !== "function") return;
+    window[name] = function () {
+        const r = orig.apply(this, arguments);
+        try { after.apply(this, arguments); } catch (e) { console.error("[125] " + name, e); }
+        return r;
+    };
+}
+
+/* ============================================================
+   1. ARCHIWUM USUNIĘTYCH LOGÓW + PRZYWRÓĆ WSZYSTKO
+   ============================================================ */
+let deletedLogsListening = false;
+function listenToDeletedLogs() {
+    if (deletedLogsListening) return;
+    deletedLogsListening = true;
+    database.ref("deleted_action_logs").on("value", snap => {
+        globalDeletedLogs = [];
+        snap.forEach(ch => { globalDeletedLogs.push({ id: ch.key, ...ch.val() }); });
+        globalDeletedLogs.sort((a, b) => ts(b.timestamp) - ts(a.timestamp));
+        refreshLogButtons();
+        if (showDeletedLogsPanel) renderDeletedLogsTable();
+    });
+}
+wrap("listenToUsersAndLogs", listenToDeletedLogs);
+
+function refreshLogButtons() {
+    const canManage = typeof canRestoreLogs === "function" && canRestoreLogs();
+    const tgl = $("toggleDeletedLogsBtn");
+    if (tgl) {
+        tgl.style.display = canManage ? "inline-flex" : "none";
+        tgl.textContent = showDeletedLogsPanel
+            ? L("▲ Ukryj usunięte logi", "▲ Hide deleted logs")
+            : `🗄 ${L("Usunięte logi", "Deleted logs")} (${globalDeletedLogs.length})`;
+    }
+    const all = $("restoreAllLogsBtn");
+    if (all) {
+        const restorable = getRestorableLogs().length + globalDeletedLogs.filter(l => l.restore && Array.isArray(l.restore.items) && l.restore.items.length).length;
+        all.style.display = (canManage && restorable > 0) ? "inline-flex" : "none";
+    }
+}
+wrap("renderLogsTable", refreshLogButtons);
+
+// Ścieżki, które „Przywróć wszystko” może odtworzyć: całe zgłoszenia, apelacje, szablony
+// werdyktów oraz usunięte werdykty. Konta stewardów CELOWO pominięte — automatyczne
+// przywracanie uprawnień usuniętego sędziego byłoby luką bezpieczeństwa.
+function restorablePathKind(parts) {
+    if (parts.length === 2 && ["incidents", "appeals", "verdictTemplates"].includes(parts[0])) return "object";
+    if (parts.length === 3 && parts[0] === "incidents" && parts[2] === "decisionData") return "verdict";
+    return null;
+}
+
+window.restoreAllFromLogs = async function () {
+    if (!canRestoreLogs()) return alert(L("Brak uprawnień do przywracania danych z logów.", "Not authorized to restore data from logs."));
+    const sources = [...globalLogs, ...globalDeletedLogs].filter(l => l.restore && Array.isArray(l.restore.items));
+    const best = {};
+    sources.forEach(l => l.restore.items.forEach(it => {
+        if (!it || !it.path || it.data === null || it.data === undefined) return;
+        const parts = String(it.path).split("/").filter(Boolean);
+        if (!restorablePathKind(parts)) return;
+        const key = parts.join("/");
+        if (!best[key] || ts(l.timestamp) > best[key].ts) best[key] = { ts: ts(l.timestamp), data: it.data, parts };
+    }));
+    const keys = Object.keys(best);
+    if (!keys.length) return alert(L("W logach nie ma danych, które dałoby się przywrócić.", "The logs contain no restorable data."));
+
+    const roots = [...new Set(keys.map(k => best[k].parts[0]))];
+    const rootVals = {};
+    await Promise.all(roots.map(async r => { rootVals[r] = (await database.ref(r).once("value")).val() || {}; }));
+    const exists = parts => {
+        let o = rootVals[parts[0]];
+        for (const k of parts.slice(1)) { if (!o || typeof o !== "object") return false; o = o[k]; }
+        return o !== undefined && o !== null;
+    };
+
+    const updates = {}, restored = [], undoItems = [];
+    keys.forEach(k => {
+        const { parts, data } = best[k];
+        if (exists(parts)) return;
+        if (parts.length > 2 && !exists(parts.slice(0, 2))) return; // nie twórz „kawałków” nieistniejących obiektów
+        updates[k] = data;
+        restored.push(k);
+        undoItems.push({ path: k, data: null });
+        const kind = restorablePathKind(parts);
+        if (kind === "verdict") {
+            updates[`incidents/${parts[1]}/status`] = "Werdykt wydany";
+            const inc = (globalIncidents || []).find(r => r.id === parts[1]);
+            undoItems.push({ path: `incidents/${parts[1]}/status`, data: inc ? (inc.status || null) : null });
+        }
+        // Ten sam obiekt leżący jeszcze w Koszu — usuwamy go stamtąd, żeby nie było duplikatu.
+        const trashType = kind === "verdict" ? "verdict" : ({ incidents: "incident", appeals: "appeal" })[parts[0]];
+        (globalTrash || []).filter(t => t.type === trashType && t.originalId === parts[1]).forEach(t => {
+            const { id: tid, ...rest } = t;
+            updates[`trash/${tid}`] = null;
+            undoItems.push({ path: `trash/${tid}`, data: cloneForRestore(rest) });
+        });
+    });
+
+    if (!restored.length) return alert(L("Wszystkie obiekty zapisane w logach już istnieją — nie ma czego przywracać.", "Everything saved in the logs already exists — nothing to restore."));
+    const preview = restored.slice(0, 12).map(p => "• " + p).join("\n") + (restored.length > 12 ? `\n… i ${restored.length - 12} więcej` : "");
+    if (!confirm(L(
+        `Przywrócić z dzienników ${restored.length} ${objWord(restored.length)}?\n\n${preview}\n\nIstniejące dane NIE zostaną nadpisane. Konta stewardów nie są przywracane automatycznie.`,
+        `Restore ${restored.length} deleted objects saved in the logs?\n\n${preview}\n\nExisting data will NOT be overwritten. Steward accounts are never restored automatically.`))) return;
+
+    try {
+        await database.ref().update(updates);
+        await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "RESTORE", `${restored.length} ${plural(restored.length, "obiekt", "obiekty", "obiektów")}`,
+            `Przywrócono zbiorczo z dzienników ${restored.length} ${objWord(restored.length)}: ${restored.slice(0, 30).join(", ")}${restored.length > 30 ? "…" : ""}.`,
+            { items: undoItems });
+        alert(L(`Przywrócono ${restored.length} ${plural(restored.length, "obiekt", "obiekty", "obiektów")}.`, `Restored ${restored.length} objects.`));
+    } catch (err) {
+        alert(L("Błąd przywracania: ", "Restore error: ") + err.message);
+    }
+};
+
+/* ============================================================
+   2. OGŁOSZENIA DLA WSZYSTKICH
+   ============================================================ */
+let currentAnnouncement = null;
+const ANN_DISMISS_KEY = "fiaAnnDismissed";
+const ANN_ICONS = { info: "ℹ️", warn: "⚠️", crit: "⛔" };
+
+const menuEl = document.querySelector(".card .menu");
+if (menuEl) menuEl.insertAdjacentHTML("beforebegin",
+    `<div id="announcementBanner" class="ann-banner" role="status"><span class="ann-icon"></span><div class="ann-body"></div><button type="button" class="ann-close" title="Ukryj to ogłoszenie">✕</button></div>`);
+const unlockBox = $("manualUnlockBox");
+if (unlockBox) unlockBox.insertAdjacentHTML("afterend", `
+  <div id="announcementAdminBox" class="stats-group-box" style="display:none; border-color: var(--gold-dim); margin-bottom: 14px;">
+    <div class="stats-group-title" style="color:var(--amber-text);">📢 Ogłoszenie dla wszystkich (baner na górze strony)</div>
+    <textarea id="annText" maxlength="600" placeholder="np. Okno zgłoszeń po GP Monzy zostaje wydłużone do środy 21:15." style="min-height:64px;"></textarea>
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; margin-top:10px;">
+      <div style="min-width:170px;"><label for="annLevel">Rodzaj</label>
+        <select id="annLevel"><option value="info">ℹ️ Informacja</option><option value="warn">⚠️ Ważne</option><option value="crit">⛔ Pilne (nie da się ukryć)</option></select></div>
+      <div style="min-width:200px;"><label for="annExpires">Wygasa (opcjonalnie)</label><input type="datetime-local" id="annExpires"></div>
+      <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="publishAnnouncement()">📢 OPUBLIKUJ</button>
+      <button type="button" class="btn-secondary" style="padding:8px 16px; font-size:11px;" onclick="clearAnnouncement()">✕ USUŃ OGŁOSZENIE</button>
+    </div>
+    <div id="annStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim);"></div>
+  </div>`);
+
+function linkify(escaped) {
+    return escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+function annActive(a) {
+    return !!(a && a.text && String(a.text).trim() && (!a.expiresAt || Date.now() < a.expiresAt));
+}
+function renderAnnouncementBanner() {
+    const el = $("announcementBanner");
+    if (!el) return;
+    const a = currentAnnouncement;
+    let dismissed = null;
+    try { dismissed = localStorage.getItem(ANN_DISMISS_KEY); } catch (e) {}
+    const lvl = ANN_ICONS[a && a.level] ? a.level : "info";
+    if (!annActive(a) || (lvl !== "crit" && dismissed === String(a.id))) { el.classList.remove("show"); return; }
+    el.className = "ann-banner show lvl-" + lvl;
+    el.querySelector(".ann-icon").textContent = ANN_ICONS[lvl];
+    el.querySelector(".ann-body").innerHTML = linkify(escapeHtml(a.text)) +
+        `<span class="ann-meta">${escapeHtml(a.author || "Sędziowie")} · ${formatTimestamp(a.ts)}${a.expiresAt ? " · " + L("ważne do", "valid until") + " " + formatTimestamp(a.expiresAt) : ""}</span>`;
+    const closeBtn = el.querySelector(".ann-close");
+    closeBtn.style.display = lvl === "crit" ? "none" : "";
+    closeBtn.onclick = () => { try { localStorage.setItem(ANN_DISMISS_KEY, String(a.id)); } catch (e) {} el.classList.remove("show"); };
+}
+function renderAnnouncementAdmin() {
+    const st = $("annStatus");
+    if (!st) return;
+    const a = currentAnnouncement;
+    if (annActive(a)) st.textContent = `🟢 Aktywne ogłoszenie (${escapeHtml(a.author || "?")}, ${formatTimestamp(a.ts)})${a.expiresAt ? " — wygasa " + formatTimestamp(a.expiresAt) : ""}.`;
+    else if (a && a.text) st.textContent = "⚪ Ostatnie ogłoszenie wygasło.";
+    else st.textContent = "Brak aktywnego ogłoszenia.";
+}
+window.publishAnnouncement = async function () {
+    if (!canManageSys()) return alert("Brak uprawnień (wymagany Główny Steward lub uprawnienie SYS).");
+    const text = ($("annText").value || "").trim();
+    if (!text) return alert("Wpisz treść ogłoszenia.");
+    const exp = $("annExpires").value ? new Date($("annExpires").value).getTime() : null;
+    if (exp && exp <= Date.now()) return alert("Data wygaśnięcia musi być w przyszłości.");
+    const prev = currentAnnouncement ? JSON.parse(JSON.stringify(currentAnnouncement)) : null;
+    const ann = { id: Date.now(), text, level: $("annLevel").value, expiresAt: exp, author: loggedInSteward.nick, ts: Date.now() };
+    await database.ref("settings/announcement").set(ann);
+    await logAction(loggedInSteward.nick, "SYSTEM", "OGŁOSZENIE", `Opublikowano ogłoszenie (${ann.level}): "${text.slice(0, 200)}"`, { items: [{ path: "settings/announcement", data: prev }] });
+    showToast("📢 Ogłoszenie opublikowane", "Baner jest widoczny dla wszystkich odwiedzających.");
+};
+window.clearAnnouncement = async function () {
+    if (!canManageSys()) return alert("Brak uprawnień.");
+    if (!currentAnnouncement) return;
+    if (!confirm("Usunąć aktualne ogłoszenie?")) return;
+    const prev = JSON.parse(JSON.stringify(currentAnnouncement));
+    await database.ref("settings/announcement").remove();
+    await logAction(loggedInSteward.nick, "SYSTEM", "OGŁOSZENIE", "Usunięto ogłoszenie.", { items: [{ path: "settings/announcement", data: prev }] });
+};
+database.ref("settings/announcement").on("value", s => {
+    currentAnnouncement = s.val();
+    renderAnnouncementBanner();
+    renderAnnouncementAdmin();
+    if (currentAnnouncement && $("annText") && document.activeElement !== $("annText") && !$("annText").value) {
+        $("annText").value = currentAnnouncement.text || "";
+        $("annLevel").value = currentAnnouncement.level || "info";
+    }
+});
+setInterval(() => { renderAnnouncementBanner(); renderAnnouncementAdmin(); }, 60000);
+
+/* ============================================================
+   3. LICZNIK OKNA ZGŁOSZEŃ
+   ============================================================ */
+const rwNotice = $("reportWindowNotice");
+if (rwNotice) rwNotice.insertAdjacentHTML("afterend", `<small id="reportWindowCountdown" class="rw-countdown"></small>`);
+function updateReportCountdown() {
+    const el = $("reportWindowCountdown"), splitEl = $("split");
+    if (!el || !splitEl) return;
+    const split = splitEl.value;
+    let text = "", cls = "rw-countdown";
+    if (manualUnlockSettings.enabled) {
+        if (isManualLockActive()) text = `⏳ ${L("Odblokowanie za", "Unlocks in")} ${fmtLeft(manualUnlockSettings.unlockAt - Date.now())}`;
+        else if (manualUnlockSettings.unlockAt) { text = `🟢 ${L("Zgłoszenia otwarte", "Reports open")}`; cls += " open"; }
+    } else if (REPORT_WINDOWS[split]) {
+        if (isReportWindowOpenForSplit(split)) {
+            const start = findLastReportWindowStart(split);
+            const left = start ? start.getTime() + REPORT_WINDOW_MS - Date.now() : 0;
+            text = `🟢 ${L(`Zgłoszenia dla ${split} przyjmowane jeszcze przez`, `Reports for ${split} accepted for another`)} ${fmtLeft(left)}`;
+            cls += left < 3 * 3600000 ? " soon" : " open";
+        } else {
+            const next = findNextReportWindowStart(split);
+            if (next) text = `⏳ ${L("Otwarcie za", "Opens in")} ${fmtLeft(next.getTime() - Date.now())}`;
+        }
+    }
+    el.className = cls;
+    el.textContent = text;
+    el.style.display = text ? "block" : "none";
+}
+wrap("updateReportWindowUI", updateReportCountdown);
+setInterval(updateReportCountdown, 30000);
+
+/* ============================================================
+   4. WYCOFANIE ZGŁOSZENIA PRZEZ KIEROWCĘ
+   ============================================================ */
+const WITHDRAWN = "Wycofane";
+const statusFilter = $("adminFilterStatus");
+if (statusFilter && ![...statusFilter.options].some(o => o.value === WITHDRAWN)) {
+    statusFilter.insertAdjacentHTML("beforeend", `<option value="${WITHDRAWN}">Wycofane</option>`);
+}
+function canWithdraw(r) {
+    return !!(r && discordDriverAuth && authorizedHistoryDiscordId &&
+        String(r.discordId) === String(authorizedHistoryDiscordId) &&
+        String(discordDriverAuth.id) === String(authorizedHistoryDiscordId) &&
+        r.status === "Oczekuje" && !r.decisionData);
+}
+window.withdrawReport = async function (id) {
+    const r = (globalIncidents || []).find(x => x.id === id);
+    if (!canWithdraw(r)) return alert(L("Tego zgłoszenia nie można już wycofać.", "This report can no longer be withdrawn."));
+    if (!confirm(L(`Wycofać zgłoszenie ${id}? Stewardzi nie będą go rozpatrywać. Tej operacji nie cofniesz samodzielnie.`,
+                   `Withdraw report ${id}? Stewards will not review it. You cannot undo this yourself.`))) return;
+    const reason = (prompt(L("Powód wycofania (opcjonalnie), np. „dogadaliśmy się”, „pomyłka”:", "Reason (optional):")) || "").trim().slice(0, 300);
+    const updates = {};
+    updates[`incidents/${id}/status`] = WITHDRAWN;
+    updates[`incidents/${id}/withdrawnAt`] = Date.now();
+    updates[`incidents/${id}/withdrawReason`] = reason || null;
+    try {
+        await database.ref().update(updates);
+        const who = r.nick || discordDriverAuth.globalName || discordDriverAuth.username;
+        await logAction(who, "REPORT", id, `Kierowca wycofał zgłoszenie.${reason ? " Powód: " + reason : ""}`, {
+            items: [{ path: `incidents/${id}/status`, data: r.status }, { path: `incidents/${id}/withdrawnAt`, data: null }, { path: `incidents/${id}/withdrawReason`, data: null }]
+        });
+        fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+            allowed_mentions: { parse: [] },
+            embeds: [{ title: "↩️ ZGŁOSZENIE WYCOFANE", color: 7105644, timestamp: new Date().toISOString(),
+                fields: [{ name: "🆔 ID", value: `**${id}**`, inline: true }, { name: "🏁 Split", value: r.split || "—", inline: true },
+                         { name: "👤 Kierowca", value: who || "—", inline: true }].concat(reason ? [{ name: "💬 Powód", value: reason, inline: false }] : []) }]
+        }) }).catch(() => {});
+        showToast(L("Zgłoszenie wycofane", "Report withdrawn"), id);
+    } catch (err) {
+        alert(L("Nie udało się wycofać zgłoszenia: ", "Could not withdraw the report: ") + err.message);
+    }
+};
+wrap("fetchAndRenderHistory", function () {
+    document.querySelectorAll("#historyList .history-item").forEach(item => {
+        const idSpan = item.querySelector("span");
+        const r = idSpan && (globalIncidents || []).find(x => x.id === idSpan.textContent.trim());
+        if (!r) return;
+        if (r.status === WITHDRAWN) {
+            item.querySelectorAll("span").forEach(s => { if (s.textContent === WITHDRAWN) s.style.background = "#6b7280"; });
+            if (r.withdrawReason) item.insertAdjacentHTML("beforeend", `<p style="margin-top:6px; font-size:11px; color:var(--text-dim);">↩️ ${L("Wycofano", "Withdrawn")}: ${escapeHtml(r.withdrawReason)}</p>`);
+        }
+        if (!canWithdraw(r)) return;
+        const actions = [...item.querySelectorAll('div[style*="justify-content:flex-end"]')].pop();
+        if (actions) actions.insertAdjacentHTML("afterbegin",
+            `<button type="button" class="btn-secondary btn-withdraw" style="padding:5px 12px; font-size:11px;" onclick="withdrawReport('${escapeHtml(r.id)}')">↩️ ${L("Wycofaj zgłoszenie", "Withdraw report")}</button>`);
+    });
+});
+const _badgeBase = window.getPlayerChatBadge;
+if (typeof _badgeBase === "function") window.getPlayerChatBadge = function (status) { return status === WITHDRAWN ? "#6b7280" : _badgeBase(status); };
+
+/* ============================================================
+   5. NIEPRZECZYTANE WIADOMOŚCI CZATU
+   ============================================================ */
+const SEEN_KEY = "fiaChatSeen_v1";
+let chatSeen = {};
+try { chatSeen = JSON.parse(localStorage.getItem(SEEN_KEY) || "{}") || {}; } catch (e) { chatSeen = {}; }
+if (!chatSeen.__init) chatSeen.__init = Date.now(); // starsze wiadomości nie są liczone jako nowe
+function saveSeen() { try { localStorage.setItem(SEEN_KEY, JSON.stringify(chatSeen)); } catch (e) {} }
+saveSeen();
+const msgFromSteward = m => m.role === "steward" || m.nick === "Steward" || m.nick === "Head Steward";
+const seenKey = (role, caseId) => role === "player" ? `p:${authorizedHistoryDiscordId || ""}:${caseId}` : `s:${caseId}`;
+
+// Jedno przejście po wszystkich wiadomościach → mapa caseId → liczba nieprzeczytanych.
+function unreadMap(role) {
+    const out = {};
+    if (!globalChatData) return out;
+    Object.values(globalChatData).forEach(m => {
+        if (!m || !m.caseId) return;
+        if (role === "player" ? !msgFromSteward(m) : msgFromSteward(m)) return;
+        if (role === "player" && !vcPlayerOwnsCase(m.caseId)) return;
+        const seen = chatSeen[seenKey(role, m.caseId)] || chatSeen.__init;
+        if (ts(m.timestamp) > seen) out[m.caseId] = (out[m.caseId] || 0) + 1;
+    });
+    return out;
+}
+function markSeen(role, caseId) {
+    if (!caseId) return;
+    let latest = Date.now();
+    if (globalChatData) Object.values(globalChatData).forEach(m => { if (m && m.caseId === caseId) latest = Math.max(latest, ts(m.timestamp)); });
+    const k = seenKey(role, caseId);
+    if ((chatSeen[k] || 0) >= latest) return;
+    chatSeen[k] = latest;
+    saveSeen();
+}
+const sectionActive = id => { const s = $(id); return !!(s && s.classList.contains("active")); };
+
+const navHistoryBtn = document.querySelector('.menu button[data-key="navHistory"]');
+if (navHistoryBtn) navHistoryBtn.insertAdjacentHTML("afterend", `<span id="playerUnreadPill" class="unread-pill hidden" title="Nieprzeczytane wiadomości od stewardów"></span>`);
+const openChatBtn = document.querySelector('button[data-key="btnOpenChat"]');
+if (openChatBtn) openChatBtn.insertAdjacentHTML("afterend", `<span id="stewardUnreadPill" class="unread-pill hidden" style="align-self:center;" title="Nieprzeczytane wiadomości od kierowców"></span>`);
+
+let lastPlayerTotal = null, lastStewardTotal = null;
+function setPill(el, n) { if (!el) return; el.textContent = n > 99 ? "99+" : String(n); el.classList.toggle("hidden", !n); }
+
+function decoratePlayerUnread() {
+    if (!authorizedHistoryDiscordId) { setPill($("playerUnreadPill"), 0); lastPlayerTotal = null; return; }
+    if (selectedPlayerCaseId && sectionActive("historySection")) markSeen("player", selectedPlayerCaseId);
+    const map = unreadMap("player");
+    document.querySelectorAll("#playerChatCaseList .player-chat-case-item").forEach(item => {
+        const idEl = item.querySelector(".pcci-id");
+        if (!idEl) return;
+        let pill = idEl.querySelector(".unread-pill");
+        if (!pill) { pill = document.createElement("span"); pill.className = "unread-pill"; idEl.appendChild(pill); }
+        setPill(pill, map[item.dataset.caseId] || 0);
+    });
+    const total = Object.values(map).reduce((a, b) => a + b, 0);
+    setPill($("playerUnreadPill"), total);
+    if (lastPlayerTotal !== null && total > lastPlayerTotal) {
+        const caseId = Object.keys(map).find(k => map[k]);
+        showToast(L("💬 Nowa wiadomość od stewarda", "💬 New message from a steward"), caseId ? L("Sprawa ", "Case ") + caseId : "");
+    }
+    // punkt odniesienia ustawiamy dopiero, gdy dane czatu i spraw są już wczytane —
+    // inaczej sam start strony wywoływałby powiadomienie
+    if (globalChatData && ((globalIncidents || []).length || (globalAppeals || []).length)) lastPlayerTotal = total;
+}
+
+function decorateStewardUnread() {
+    if (!isAdminAuthenticated) { setPill($("stewardUnreadPill"), 0); lastStewardTotal = null; return; }
+    const sel = $("chatCaseSelect");
+    if (sel && sel.value && sectionActive("chatSection")) markSeen("steward", sel.value);
+    const map = unreadMap("steward");
+    if (sel) [...sel.options].forEach(o => {
+        if (!o.value) return;
+        if (o.dataset.base === undefined) o.dataset.base = o.textContent;
+        const n = map[o.value] || 0;
+        o.textContent = o.dataset.base + (n ? `  • 💬 ${n} nowe` : "");
+    });
+    const known = new Set([...(globalIncidents || []).map(r => r.id), ...(globalAppeals || []).map(a => a.appealId)]);
+    const total = Object.keys(map).filter(k => known.has(k)).reduce((a, k) => a + map[k], 0);
+    setPill($("stewardUnreadPill"), total);
+    if (lastStewardTotal !== null && total > lastStewardTotal) {
+        const caseId = Object.keys(map).find(k => map[k] && known.has(k));
+        showToast("💬 Nowa wiadomość od kierowcy", caseId ? "Sprawa " + caseId : "");
+    }
+    if (globalChatData && known.size) lastStewardTotal = total;
+}
+wrap("renderPlayerChatBox", decoratePlayerUnread);
+wrap("updatePlayerChatCaseSelectOptions", decoratePlayerUnread);
+wrap("renderAdminChatBox", decorateStewardUnread);
+wrap("updateChatCaseSelect", decorateStewardUnread);
+wrap("showSection", function (id) {
+    if (id === "historySection") decoratePlayerUnread();
+    if (id === "chatSection") decorateStewardUnread();
+});
+window.openCaseChatFromAdmin = function (caseId) {
+    showSection("chatSection");
+    const sel = $("chatCaseSelect");
+    if (!sel) return;
+    sel.value = caseId;
+    handleStewardChatSelection(sel);
+};
+
+/* ============================================================
+   6. SZYBKIE ODPOWIEDZI STEWARDA NA CZACIE
+   ============================================================ */
+const QUICK_REPLIES = [
+    ["W analizie", "Dziękujemy za zgłoszenie — sprawa jest w trakcie analizy."],
+    ["Prośba o onboard", "Prosimy o nagranie z Twojej kamery (onboard) obejmujące to zdarzenie."],
+    ["Okrążenie i zakręt", "Podaj proszę numer okrążenia i zakręt, w którym doszło do zdarzenia."],
+    ["Twoja perspektywa", "Opisz proszę, jak wyglądała ta sytuacja z Twojej perspektywy."],
+    ["Po zamknięciu okna", "Werdykt zostanie opublikowany po zamknięciu okna zgłoszeń."],
+    ["Werdykt wydany", "Werdykt został wydany — szczegóły znajdziesz w historii zgłoszeń."]
+];
+const QR_KEY = "fiaQuickReplies";
+const loadCustomQR = () => { try { const a = JSON.parse(localStorage.getItem(QR_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+const chatRow = $("chatMsg") && $("chatMsg").closest(".row");
+if (chatRow) chatRow.insertAdjacentHTML("beforebegin", `<div id="stewardQuickReplies" class="quick-chips"></div>`);
+function renderQuickReplies() {
+    const box = $("stewardQuickReplies");
+    if (!box) return;
+    const custom = loadCustomQR();
+    box.innerHTML = QUICK_REPLIES.map((q, i) => `<button type="button" class="case-chip" title="${escapeHtml(q[1])}" data-qr="b${i}">${escapeHtml(q[0])}</button>`).join("") +
+        custom.map((t, i) => `<button type="button" class="case-chip custom" title="${escapeHtml(t)}\n(Shift+klik — usuń)" data-qr="c${i}">${escapeHtml(t.length > 24 ? t.slice(0, 23) + "…" : t)}</button>`).join("") +
+        `<button type="button" class="case-chip" data-qr="add" title="Zapisz tekst wpisany w polu wiadomości jako własną szybką odpowiedź (zapis w tej przeglądarce)">＋ Zapisz jako szybką</button>`;
+}
+if ($("stewardQuickReplies")) $("stewardQuickReplies").addEventListener("click", e => {
+    const b = e.target.closest("[data-qr]");
+    if (!b) return;
+    const input = $("chatMsg"), key = b.dataset.qr, custom = loadCustomQR();
+    if (key === "add") {
+        const t = (input.value || "").trim();
+        if (!t) return alert("Najpierw wpisz treść w polu wiadomości.");
+        if (!custom.includes(t)) { custom.push(t); try { localStorage.setItem(QR_KEY, JSON.stringify(custom.slice(-20))); } catch (err) {} }
+        renderQuickReplies();
+        return;
+    }
+    const text = key[0] === "b" ? QUICK_REPLIES[+key.slice(1)][1] : custom[+key.slice(1)];
+    if (key[0] === "c" && e.shiftKey) {
+        if (!confirm(`Usunąć szybką odpowiedź?\n\n${text}`)) return;
+        custom.splice(+key.slice(1), 1);
+        try { localStorage.setItem(QR_KEY, JSON.stringify(custom)); } catch (err) {}
+        renderQuickReplies();
+        return;
+    }
+    input.value = input.value.trim() ? input.value.trim() + " " + text : text;
+    input.focus();
+});
+renderQuickReplies();
+
+/* ============================================================
+   7. GŁOSOWANIE SĘDZIÓW
+   ============================================================ */
+const histBox = $("verdictHistoryBox");
+if (histBox) histBox.insertAdjacentHTML("afterend", `<div id="verdictVotesBox"></div>`);
+const VOTE_COLORS = ["#a855f7", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#64748b"];
+
+function voteScopeFromForm() {
+    const m = (($("caseId") || {}).value || "").match(/APP-\d+/i);
+    return m ? m[0].toUpperCase() : "main";
+}
+function myVoterKey() {
+    if (!loggedInSteward) return null;
+    const base = loggedInSteward.id === "external-judge" ? "ext_" + loggedInSteward.nick : String(loggedInSteward.id || loggedInSteward.nick);
+    return base.replace(/[.#$\[\]\/]/g, "_");
+}
+function votesFor(inc, scope) {
+    const all = (inc && inc.stewardVotes && inc.stewardVotes[scope]) || {};
+    return Object.entries(all).map(([k, v]) => ({ key: k, ...v })).sort((a, b) => ts(a.ts) - ts(b.ts));
+}
+const penaltyLabel = v => {
+    const parts = [];
+    if (v.timePenalty && !/^brak$/i.test(String(v.timePenalty).trim())) parts.push(v.timePenalty);
+    if (parsePenaltyPoints(v.pointsPenalty) > 0) parts.push(v.pointsPenalty);
+    return parts.join(" + ");
+};
+function majorityOf(votes) {
+    const byDecision = {};
+    votes.forEach(v => { (byDecision[v.decision] = byDecision[v.decision] || []).push(v); });
+    const ranked = Object.entries(byDecision).sort((a, b) => b[1].length - a[1].length);
+    if (!ranked.length) return null;
+    const tie = ranked.length > 1 && ranked[0][1].length === ranked[1][1].length;
+    const combos = {};
+    ranked[0][1].forEach(v => {
+        const k = JSON.stringify([v.timePenalty || "", v.pointsPenalty || ""]);
+        combos[k] = (combos[k] || 0) + 1;
+    });
+    const [time, points] = JSON.parse(Object.entries(combos).sort((a, b) => b[1] - a[1])[0][0]);
+    return { decision: ranked[0][0], count: ranked[0][1].length, total: votes.length, tie, time, points, ranked };
+}
+
+function renderVotesBox() {
+    const box = $("verdictVotesBox");
+    if (!box) return;
+    const inc = isAdminAuthenticated && typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
+    if (!inc) { box.style.display = "none"; return; }
+    const scope = voteScopeFromForm(), votes = votesFor(inc, scope), me = myVoterKey();
+    // Strona sprawy (zgłaszający/oskarżony będący stewardem) nie widzi przebiegu narady.
+    if (typeof conflictOf === "function" && conflictOf(inc)) {
+        box.innerHTML = `<strong style="color:var(--purple-text);">🗳 Głosy sędziów — ${escapeHtml(inc.id)}</strong>
+            <div style="margin-top:6px; color:var(--red-text);">Jesteś stroną tej sprawy — głosy i komentarze sędziów są dla Ciebie ukryte, nie możesz też głosować.</div>`;
+        box.style.display = "block";
+        return;
+    }
+    const maj = majorityOf(votes);
+    let html = `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <strong style="color:var(--purple-text);">🗳 Głosy sędziów — ${escapeHtml(scope === "main" ? inc.id : inc.id + " / " + scope)} (${votes.length})</strong>
+        ${maj ? `<span style="font-size:11px; color:${maj.tie ? "var(--amber-text)" : "var(--green-text)"};">${maj.tie ? "⚖️ Remis" : `✔ Większość: ${maj.count}/${maj.total}`}</span>` : ""}
+      </div>`;
+    if (maj) {
+        html += `<div class="vote-bar">${maj.ranked.map(([d, list], i) => `<span title="${escapeHtml(d)}: ${list.length}" style="width:${(list.length / maj.total) * 100}%; background:${VOTE_COLORS[i % VOTE_COLORS.length]};"></span>`).join("")}</div>`;
+        html += votes.map(v => `<div class="vote-row">
+            <span class="vote-who ${v.key === me ? "vote-mine" : ""}">${escapeHtml(v.nick || "?")}${v.key === me ? " (Ty)" : ""}</span>
+            <span class="vote-what"><strong style="color:var(--text);">${escapeHtml(v.decision || "")}</strong>${penaltyLabel(v) ? " · " + escapeHtml(penaltyLabel(v)) : ""}${v.comment ? `<br><em>"${escapeHtml(v.comment)}"</em>` : ""}</span>
+            <span style="font-size:10px; color:var(--text-muted); white-space:nowrap;">${formatTimestamp(v.ts)}</span></div>`).join("");
+    } else {
+        html += `<div style="color:var(--text-dim); margin-top:6px;">Nikt jeszcze nie zagłosował. Ustaw decyzję i kary w formularzu poniżej, a potem kliknij „Oddaj głos”.</div>`;
+    }
+    const mine = votes.find(v => v.key === me);
+    html += `<div class="vote-actions">`;
+    if (canReview()) html += `<button type="button" class="btn-secondary" onclick="castStewardVote()">🗳 ${mine ? "Zmień mój głos" : "Oddaj głos"} (wg formularza)</button>`;
+    if (mine) html += `<button type="button" class="btn-secondary" onclick="removeStewardVote()">✕ Wycofaj mój głos</button>`;
+    if (maj) html += `<button type="button" class="btn-secondary" onclick="applyVoteMajority()">⤵ Zastosuj ${maj.tie ? "najczęstszy" : "większość"} w formularzu</button>`;
+    html += `</div>`;
+    box.innerHTML = html;
+    box.style.display = "block";
+}
+window.castStewardVote = async function () {
+    const inc = verdictCaseFromForm();
+    if (!inc || !canReview()) return;
+    if (conflictOf(inc)) return alert("Konflikt interesów: jesteś stroną tej sprawy.");
+    const decision = $("decision").value;
+    if (!decision) return alert("Najpierw wybierz decyzję w formularzu werdyktu — głos zapisuje decyzję i kary z formularza.");
+    const scope = voteScopeFromForm(), key = myVoterKey();
+    const prev = votesFor(inc, scope).find(v => v.key === key) || null;
+    const comment = prompt("Krótkie uzasadnienie głosu (opcjonalnie):", prev ? (prev.comment || "") : "");
+    if (comment === null) return;
+    const showTime = $("timePenaltyField") && $("timePenaltyField").style.display !== "none" && $("penaltyFields").style.display !== "none";
+    const showPts = $("pointsPenaltyField") && $("pointsPenaltyField").style.display !== "none" && $("penaltyFields").style.display !== "none";
+    const vote = {
+        nick: loggedInSteward.nick, decision,
+        timePenalty: showTime ? ($("timePenalty").value.trim() || "brak") : "brak",
+        pointsPenalty: showPts ? ($("pointsPenalty").value.trim() || "0 pkt") : "0 pkt",
+        comment: comment.trim().slice(0, 300), ts: Date.now()
+    };
+    const path = `incidents/${inc.id}/stewardVotes/${scope}/${key}`;
+    if (prev) delete prev.key;
+    await database.ref(path).set(vote);
+    await logAction(loggedInSteward.nick, "VERDICT", inc.id, `Głos sędziowski${scope !== "main" ? " (" + scope + ")" : ""}: ${decision}${penaltyLabel(vote) ? " · " + penaltyLabel(vote) : ""}.`, { items: [{ path, data: prev }] });
+    showToast("🗳 Głos zapisany", `${inc.id}: ${decision}`);
+};
+window.removeStewardVote = async function () {
+    const inc = verdictCaseFromForm();
+    if (!inc) return;
+    const scope = voteScopeFromForm(), key = myVoterKey();
+    const prev = votesFor(inc, scope).find(v => v.key === key);
+    if (!prev || !confirm("Wycofać Twój głos w tej sprawie?")) return;
+    delete prev.key;
+    const path = `incidents/${inc.id}/stewardVotes/${scope}/${key}`;
+    await database.ref(path).remove();
+    await logAction(loggedInSteward.nick, "VERDICT", inc.id, "Wycofano głos sędziowski.", { items: [{ path, data: prev }] });
+};
+window.applyVoteMajority = function () {
+    const inc = verdictCaseFromForm();
+    if (!inc || conflictOf(inc)) return;
+    const maj = majorityOf(votesFor(inc, voteScopeFromForm()));
+    if (!maj) return;
+    const dec = $("decision");
+    if (![...dec.options].some(o => o.value === maj.decision)) return alert("Ta decyzja nie występuje na liście opcji formularza.");
+    dec.value = maj.decision;
+    handleDecisionChange();
+    $("timePenalty").value = maj.time === "brak" ? "" : maj.time;
+    $("pointsPenalty").value = maj.points === "0 pkt" ? "" : maj.points;
+    updateVerdictHistoryBox();
+    showToast("⤵ Formularz uzupełniony", `${maj.decision} (${maj.count}/${maj.total} głosów)`);
+};
+wrap("updateVerdictHistoryBox", renderVotesBox);
+if ($("caseId")) $("caseId").addEventListener("input", renderVotesBox);
+
+/* ============================================================
+   8. NASTĘPNA SPRAWA Z KOLEJKI   +   9. BIULETYN — przyciski
+   ============================================================ */
+const scrollBtn = $("btnScrollToVerdict");
+if (scrollBtn) scrollBtn.insertAdjacentHTML("beforebegin",
+    `<button id="btnNextCase" style="font-size:11px; padding:6px 14px; background:#0f766e; background-image:none; border:1px solid #14b8a6;" onclick="takeNextCase()" title="Przejmij najstarszą oczekującą sprawę z aktualnej zakładki splitu (Alt+N)">▶ NASTĘPNA SPRAWA</button>
+     <button id="btnBulletin" class="btn-secondary" style="font-size:11px; padding:6px 14px;" onclick="openBulletin()" title="Zestawienie decyzji z rundy do publikacji">📰 BIULETYN</button>`);
+
+window.takeNextCase = async function () {
+    if (!canReview()) return alert("Brak uprawnień do rozpatrywania zgłoszeń.");
+    const myId = loggedInSteward.id || loggedInSteward.nick;
+    const queue = (globalIncidents || [])
+        .filter(r => r.status === "Oczekuje"
+            && (adminSplitFilter === "ALL" || r.split === adminSplitFilter)
+            && !conflictOf(r)
+            && (!r.assignedTo || r.assignedTo.id === myId))
+        .sort((a, b) => (b.assignedTo ? 1 : 0) - (a.assignedTo ? 1 : 0) || incTs(a) - incTs(b));
+    const r = queue[0];
+    if (!r) return showToast("🎉 Kolejka pusta", `Brak oczekujących spraw${adminSplitFilter !== "ALL" ? " w " + adminSplitFilter : ""}, które możesz przejąć.`);
+    if (!r.assignedTo) {
+        const me = { id: myId, nick: loggedInSteward.nick, ts: Date.now() };
+        await database.ref(`incidents/${r.id}/assignedTo`).set(me);
+        await logAction(loggedInSteward.nick, "VERDICT", r.id, "Przejęto sprawę z kolejki („Następna sprawa”).", { items: [{ path: `incidents/${r.id}/assignedTo`, data: null }] });
+    }
+    showSection("adminSection");
+    transferToVerdictPanel(r.id, r.accusedDiscordId || "");
+    let msg = `${r.nick || "?"} vs ${r.accusedNick || "?"} · ${r.track || ""}${r.split ? " (" + r.split + ")" : ""}. W kolejce zostało: ${queue.length - 1}.`;
+    if (!stewardLockBypass && r.split && !isVerdictWindowOpen(r.split)) msg += ` Werdykty dla ${r.split} odblokują się ${formatTimestamp(getVerdictUnlockTime(r.split))}.`;
+    showToast(`▶ ${r.fiaId || r.id}`, msg);
+};
+
+/* ============================================================
+   9. BIULETYN SĘDZIOWSKI RUNDY
+   ============================================================ */
+const dcEsc = s => String(s == null ? "" : s).replace(/([*_~`|>\\])/g, "\\$1");
+const CLEARED = ["Brak naruszenia", "Anulowanie kary"];
+
+window.openBulletin = function () {
+    const tSel = $("bulletinTrack");
+    const decided = (globalIncidents || []).filter(r => r.decisionData).sort((a, b) => ts(b.decisionData.issuedAt) - ts(a.decisionData.issuedAt));
+    const used = new Set((globalIncidents || []).map(r => r.track).filter(Boolean));
+    tSel.innerHTML = tracks.filter(t => used.has(t)).concat(tracks.filter(t => !used.has(t)))
+        .map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}${used.has(t) ? "" : " (brak zgłoszeń)"}</option>`).join("");
+    if (decided[0]) { tSel.value = decided[0].track; $("bulletinSplit").value = decided[0].split || "ALL"; }
+    if (!$("bulletinFrom").value && seasonSettings && seasonSettings.start) $("bulletinFrom").value = new Date(seasonSettings.start).toISOString().slice(0, 10);
+    $("bulletinSendBtn").style.display = canManageSys() ? "" : "none";
+    refreshBulletin();
+    $("bulletinModal").style.display = "flex";
+};
+window.closeBulletin = () => { $("bulletinModal").style.display = "none"; };
+
+function buildBulletin(track, split, fromTs) {
+    const list = (globalIncidents || []).filter(r => r.track === track && (split === "ALL" || r.split === split) && incTs(r) >= fromTs)
+        .sort((a, b) => String(a.fiaId || a.id).localeCompare(String(b.fiaId || b.id), "pl", { numeric: true }));
+    const decided = list.filter(r => r.decisionData);
+    const penalized = decided.filter(r => !r.decisionData.noOneGuilty && !CLEARED.includes(r.decisionData.decision));
+    const cleared = decided.filter(r => !penalized.includes(r));
+    const open = list.filter(r => !r.decisionData && ["Oczekuje", "Przyjęte", "W apelacji"].includes(r.status));
+    const rejected = list.filter(r => !r.decisionData && r.status === "Odrzucone");
+    const withdrawn = list.filter(r => r.status === WITHDRAWN);
+    const appealed = id => (globalAppeals || []).some(a => a.caseId === id && a.status === "Zakończona");
+    const out = [];
+    out.push(`**📰 BIULETYN SĘDZIOWSKI — ${dcEsc(track)}${split !== "ALL" ? " · " + split : ""}**`);
+    out.push(`Stan na: ${formatTimestamp(Date.now())} · zgłoszeń: ${list.length} · decyzji: ${decided.length}`);
+    out.push("");
+    if (penalized.length) {
+        out.push("**⚖️ Kary**");
+        penalized.forEach(r => {
+            const d = r.decisionData;
+            const who = d.guiltyNick || r.accusedNick || "?";
+            const pen = penaltyLabel(d) || "—";
+            let season = "";
+            if (d.guiltyDiscordId) {
+                const h = computeDriverPenalties(String(d.guiltyDiscordId));
+                if (h && h.found && h.seasonPoints > 0) season = ` (sezon: ${h.seasonPoints}/${seasonSettings.threshold || 12} pkt)`;
+            }
+            out.push(`• **${dcEsc(r.fiaId || r.id)}** · ${dcEsc(r.sessionType || "")} · **${dcEsc(who)}** — ${dcEsc(d.decision)}: ${dcEsc(pen)}${season}${appealed(r.id) ? " · _po apelacji_" : ""}`);
+            if (d.verdictDetails) {
+                const reason = String(d.verdictDetails).split(/Werdykt sędziowski:|Uzasadnienie końcowe zespołu sędziowskiego:/).pop().trim().replace(/\s+/g, " ");
+                if (reason) out.push(`  ↳ ${dcEsc(reason.length > 160 ? reason.slice(0, 159) + "…" : reason)}`);
+            }
+        });
+        out.push("");
+    }
+    if (cleared.length) {
+        out.push("**✅ Bez kary**");
+        cleared.forEach(r => out.push(`• ${dcEsc(r.fiaId || r.id)} · ${dcEsc(r.nick || "?")} vs ${dcEsc(r.accusedNick || "?")} — ${dcEsc(r.decisionData.noOneGuilty ? "Nikt nie jest winny" : r.decisionData.decision)}`));
+        out.push("");
+    }
+    if (rejected.length) { out.push(`**❌ Odrzucone:** ${rejected.map(r => dcEsc(r.fiaId || r.id)).join(", ")}`); }
+    if (withdrawn.length) { out.push(`**↩️ Wycofane:** ${withdrawn.map(r => dcEsc(r.fiaId || r.id)).join(", ")}`); }
+    if (open.length) { out.push(`**⏳ W toku (${open.length}):** ${open.map(r => dcEsc(r.fiaId || r.id) + (r.status === "W apelacji" ? " (apelacja)" : "")).join(", ")}`); }
+    if (!list.length) out.push("_Brak zgłoszeń z tej rundy w wybranym okresie._");
+    return { text: out.join("\n").replace(/\n{3,}/g, "\n\n").trim(), count: list.length };
+}
+window.refreshBulletin = function () {
+    const from = $("bulletinFrom").value ? new Date($("bulletinFrom").value + "T00:00:00").getTime() : 0;
+    const res = buildBulletin($("bulletinTrack").value, $("bulletinSplit").value, from);
+    $("bulletinText").value = res.text;
+    $("bulletinInfo").textContent = `${res.count} zgłoszeń · ${res.text.length} znaków. Tekst możesz edytować przed wysłaniem.`;
+};
+window.copyBulletin = async function () {
+    const t = $("bulletinText").value;
+    try { await navigator.clipboard.writeText(t); }
+    catch (e) { $("bulletinText").select(); document.execCommand("copy"); }
+    showToast("📋 Skopiowano", "Biuletyn jest w schowku.");
+};
+window.downloadBulletin = function () {
+    const blob = new Blob([$("bulletinText").value], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `FIA_BIULETYN_${($("bulletinTrack").value || "runda").replace(/[^\p{L}\p{N}]+/gu, "_")}_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+function chunkText(text, max) {
+    const chunks = [];
+    let cur = "";
+    text.split("\n").forEach(line => {
+        while (line.length > max) { if (cur) { chunks.push(cur); cur = ""; } chunks.push(line.slice(0, max)); line = line.slice(max); }
+        if ((cur + "\n" + line).length > max) { chunks.push(cur); cur = line; }
+        else cur = cur ? cur + "\n" + line : line;
+    });
+    if (cur.trim()) chunks.push(cur);
+    return chunks;
+}
+window.sendBulletinToDiscord = async function () {
+    if (!canManageSys()) return alert("Wysyłanie biuletynu wymaga roli Głównego Stewarda lub uprawnienia SYS.");
+    const text = $("bulletinText").value.trim();
+    if (!text) return;
+    const chunks = chunkText(text, 1900);
+    if (!confirm(`Wysłać biuletyn na kanał werdyktów (${chunks.length} wiadomość/i)? Kierowcy NIE zostaną spingowani.`)) return;
+    const btn = $("bulletinSendBtn");
+    btn.disabled = true;
+    try {
+        for (const c of chunks) {
+            const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: c, allowed_mentions: { parse: [] } }) });
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            await new Promise(r => setTimeout(r, 600)); // limit Discorda
+        }
+        await logAction(loggedInSteward.nick, "SYSTEM", $("bulletinTrack").value, `Wysłano biuletyn sędziowski rundy (${$("bulletinSplit").value}) na Discord.`);
+        showToast("📤 Biuletyn wysłany", $("bulletinTrack").value);
+    } catch (err) {
+        alert("Nie udało się wysłać biuletynu: " + err.message);
+    } finally {
+        btn.disabled = false;
+    }
+};
+
+/* ============================================================
+   UPRAWNIENIA + DODATKI W TABELI ZGŁOSZEŃ
+   ============================================================ */
+wrap("applyStewardPermissions", function () {
+    const show = (id, cond, disp) => { const el = $(id); if (el) el.style.display = cond ? (disp || "") : "none"; };
+    show("btnNextCase", canReview());
+    show("btnBulletin", isAdminAuthenticated);
+    show("announcementAdminBox", canManageSys(), "block");
+    renderAnnouncementAdmin();
+    refreshLogButtons();
+    decorateStewardUnread();
+});
+
+wrap("renderAdmin", function () {
+    const unread = unreadMap("steward");
+    document.querySelectorAll("#adminTableBody .admin-row-cb").forEach(cb => {
+        const id = cb.dataset.id, tr = cb.closest("tr"), r = (globalIncidents || []).find(x => x.id === id);
+        if (!tr || !r) return;
+        const idCell = tr.children[1], statusCell = tr.children[tr.children.length - 1];
+        let chips = "";
+        const openForVotes = !r.decisionData || r.status === "W apelacji";
+        const nVotes = r.stewardVotes ? Object.values(r.stewardVotes).reduce((a, s) => a + Object.keys(s || {}).length, 0) : 0;
+        if (nVotes && openForVotes) chips += `<span class="case-chip chip-votes" title="Oddane głosy sędziów">🗳 ${nVotes}</span>`;
+        if (unread[id]) chips += `<span class="case-chip chip-unread" onclick="openCaseChatFromAdmin('${escapeHtml(id)}')" title="Nieprzeczytane wiadomości od kierowcy — kliknij, aby otworzyć czat">💬 ${unread[id]} nowe</span>`;
+        if (chips && idCell) idCell.insertAdjacentHTML("beforeend", `<div>${chips}</div>`);
+        if (r.status === WITHDRAWN && statusCell) {
+            const badge = statusCell.querySelector("span");
+            if (badge) badge.style.background = "#6b7280";
+            if (r.withdrawReason) statusCell.insertAdjacentHTML("beforeend", `<div class="case-chip chip-withdrawn" title="${escapeHtml(r.withdrawReason)}">↩️ ${escapeHtml(r.withdrawReason.length > 28 ? r.withdrawReason.slice(0, 27) + "…" : r.withdrawReason)}</div>`);
+        }
+    });
+    renderVotesBox();
+    decorateStewardUnread();
+});
+
+/* ============================================================
+   10. OCHRONA PRZED NADPISANIEM WERDYKTU
+   (nasłuch na window w fazie przechwytywania — odpala się przed
+    pozostałymi potwierdzeniami formularza werdyktu)
+   ============================================================ */
+window.addEventListener("submit", e => {
+    if (!e.target || e.target.id !== "responseForm") return;
+    const raw = ($("caseId").value || "");
+    if (/APP-\d+/i.test(raw)) return; // rozpatrzenie apelacji celowo zastępuje werdykt
+    const inc = typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
+    if (!inc) return;
+    let msg = null;
+    if (inc.status === WITHDRAWN) {
+        msg = `Kierowca wycofał zgłoszenie ${inc.id}${inc.withdrawReason ? ` (powód: ${inc.withdrawReason})` : ""}.\n\nMimo to wydać werdykt?`;
+    } else if (inc.decisionData) {
+        const d = inc.decisionData;
+        msg = `Sprawa ${inc.id} ma już wydany werdykt:\n„${d.decision}” (${d.timePenalty || "brak"} / ${d.pointsPenalty || "0 pkt"}), sędzia: ${d.judge || "?"}.\n\nNowa decyzja ZASTĄPI poprzednią (poprzednia zostanie zachowana w dzienniku akcji i da się ją przywrócić). Kontynuować?`;
+    }
+    if (msg && !confirm(msg)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+
+/* ============================================================
+   11. SKRÓTY KLAWISZOWE
+   ============================================================ */
+const MODAL_CLOSERS = {
+    descModal: "closeDescModal", appealEditModal: "closeAppealEditModal", appealVerdictEditModal: "closeAppealVerdictEditModal",
+    logVerdictPreviewModal: "closeLogVerdictPreview", reportPreviewModal: "closeReportPreview", bulletinModal: "closeBulletin",
+    adminLoginModal: "closeAdminLogin", externalJudgeModal: "closeExternalJudgeLogin"
+};
+const isTyping = el => el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+        const open = Object.keys(MODAL_CLOSERS).filter(id => $(id) && $(id).style.display === "flex");
+        if (open.length) {
+            const id = open[open.length - 1], fn = window[MODAL_CLOSERS[id]];
+            if (typeof fn === "function") fn(); else $(id).style.display = "none";
+            e.preventDefault();
+            return;
+        }
+        const dd = $("notifDropdown");
+        if (dd && dd.style.display === "flex") dd.style.display = "none";
+        return;
+    }
+    if (!isAdminAuthenticated || isTyping(document.activeElement) || e.ctrlKey || e.metaKey) return;
+    if (e.key === "/" && !e.altKey && sectionActive("adminSection")) {
+        e.preventDefault();
+        $("adminSearch").focus();
+        $("adminSearch").select();
+    } else if (e.altKey && (e.key === "n" || e.key === "N" || e.code === "KeyN")) {
+        e.preventDefault();
+        takeNextCase();
+    }
+});
+if ($("adminSearch")) $("adminSearch").placeholder += "  ( / )";
+
+})();
+</script>
+
 </body>
 </html>
