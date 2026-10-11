@@ -12538,7 +12538,7 @@ vcHideIncomingOverlay = function () {
    8. „Następna sprawa” — przejęcie najstarszej oczekującej sprawy z kolejki.
    9. Biuletyn sędziowski rundy (kopiuj / pobierz / wyślij na Discord bez pingów).
       Biuletyn NIE trafia na kanał werdyktów — kanał wybiera się w oknie biuletynu
-      (zapis: settings/bulletin/channel, domyślnie kanał decyzji).
+      (zapis: settings/bulletin/channel, domyślnie osobny kanał: t=bulletin → WEBHOOK_BULLETIN w Workerze).
   10. Ochrona przed przypadkowym nadpisaniem wydanego werdyktu.
   11. Skróty klawiszowe: Esc zamyka okna, „/” — szukaj, Alt+N — następna sprawa.
    Wszystko zapisuje się w istniejących węzłach bazy (incidents, settings,
@@ -13280,11 +13280,11 @@ function chunkText(text, max) {
 /* Kanał biuletynu — celowo BEZ kanału werdyktów (t=file), żeby biuletyn nie mieszał się z werdyktami.
    Worker trzyma webhooki; tu wybieramy tylko trasę (?t=...). */
 const BULLETIN_CHANNELS = {
-    decision: { label: "📢 Kanał decyzji", note: "Tam, gdzie trafiają przyjęte/odrzucone zgłoszenia i wyniki apelacji.", url: () => DECISION_WEBHOOK },
-    report:   { label: "🛡️ Kanał stewardów", note: "Wewnętrzny kanał z nowymi zgłoszeniami — np. do przejrzenia biuletynu przed publikacją.", url: () => NEW_REPORT_WEBHOOK },
-    bulletin: { label: "📰 Osobny kanał biuletynów", note: "Wymaga dodania w Workerze webhooka dla trasy t=bulletin (inaczej wysyłka zwróci błąd).", url: () => FIA_PROXY_BASE + "/notify?t=bulletin" }
+    bulletin: { label: "📰 Kanał biuletynów", note: "Osobny kanał — Worker wysyła tu przez sekret WEBHOOK_BULLETIN (nigdy na werdykty).", url: () => FIA_PROXY_BASE + "/notify?t=bulletin" },
+    decision: { label: "📢 Kanał decyzji", note: "Tam, gdzie trafiają przyjęte/odrzucone zgłoszenia i wyniki apelacji. Uwaga: bez sekretu WEBHOOK_DECISION Worker wyśle to na kanał werdyktów.", url: () => DECISION_WEBHOOK },
+    report:   { label: "🛡️ Kanał stewardów", note: "Wewnętrzny kanał z nowymi zgłoszeniami — np. do przejrzenia biuletynu przed publikacją.", url: () => NEW_REPORT_WEBHOOK }
 };
-const DEFAULT_BULLETIN_CHANNEL = "decision";
+const DEFAULT_BULLETIN_CHANNEL = "bulletin";
 let bulletinChannel = DEFAULT_BULLETIN_CHANNEL;
 
 function syncBulletinChannelUI() {
@@ -13336,7 +13336,7 @@ window.sendBulletinToDiscord = async function () {
         showToast("📤 Biuletyn wysłany", `${$("bulletinTrack").value} → ${ch.label}`);
     } catch (err) {
         alert("Nie udało się wysłać biuletynu: " + err.message +
-            (bulletinChannel === "bulletin" ? "\n\nSprawdź, czy Worker obsługuje trasę t=bulletin (osobny webhook), albo wybierz inny kanał." : ""));
+            (bulletinChannel === "bulletin" ? "\n\nSprawdź, czy wdrożono nową wersję Workera i czy ma sekret WEBHOOK_BULLETIN (webhook kanału biuletynów) — albo wybierz inny kanał." : ""));
     } finally {
         btn.disabled = false;
     }
