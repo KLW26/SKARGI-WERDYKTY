@@ -12502,11 +12502,16 @@ vcHideIncomingOverlay = function () {
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <h2 class="section-title" style="margin-bottom:0;">📰 Biuletyn sędziowski rundy</h2>
     </div>
-    <p style="font-size:11px; color:var(--text-dim); margin:0;">Zestawienie wszystkich decyzji z wybranego toru i splitu — gotowe do wklejenia na Discorda albo wysłania jednym kliknięciem (bez pingowania kierowców).</p>
+    <p style="font-size:11px; color:var(--text-dim); margin:0;">Zestawienie wszystkich decyzji z wybranego toru i splitu — gotowe do wklejenia na Discorda albo wysłania jednym kliknięciem na wybrany kanał (bez pingowania kierowców).</p>
     <div class="bulletin-grid">
       <div><label for="bulletinTrack">Tor</label><select id="bulletinTrack" onchange="refreshBulletin()"></select></div>
       <div><label for="bulletinSplit">Split</label><select id="bulletinSplit" onchange="refreshBulletin()"><option value="ALL">Oba splity</option><option value="Split 1">Split 1</option><option value="Split 2">Split 2</option></select></div>
       <div><label for="bulletinFrom">Zgłoszenia od</label><input type="date" id="bulletinFrom" onchange="refreshBulletin()"></div>
+    </div>
+    <div id="bulletinChannelRow">
+      <label for="bulletinChannel">Kanał Discord dla biuletynu</label>
+      <select id="bulletinChannel" onchange="saveBulletinChannel(this.value)"></select>
+      <small id="bulletinChannelNote" style="color:var(--text-dim); font-size:11px;"></small>
     </div>
     <textarea id="bulletinText" spellcheck="false"></textarea>
     <small id="bulletinInfo" style="color:var(--text-dim); font-size:11px;"></small>
@@ -12532,6 +12537,8 @@ vcHideIncomingOverlay = function () {
    7. Głosowanie sędziów nad sprawą (panel kilku stewardów) + „Zastosuj większość”.
    8. „Następna sprawa” — przejęcie najstarszej oczekującej sprawy z kolejki.
    9. Biuletyn sędziowski rundy (kopiuj / pobierz / wyślij na Discord bez pingów).
+      Biuletyn NIE trafia na kanał werdyktów — kanał wybiera się w oknie biuletynu
+      (zapis: settings/bulletin/channel, domyślnie kanał decyzji).
   10. Ochrona przed przypadkowym nadpisaniem wydanego werdyktu.
   11. Skróty klawiszowe: Esc zamyka okna, „/” — szukaj, Alt+N — następna sprawa.
    Wszystko zapisuje się w istniejących węzłach bazy (incidents, settings,
@@ -13188,6 +13195,8 @@ window.openBulletin = function () {
     if (decided[0]) { tSel.value = decided[0].track; $("bulletinSplit").value = decided[0].split || "ALL"; }
     if (!$("bulletinFrom").value && seasonSettings && seasonSettings.start) $("bulletinFrom").value = new Date(seasonSettings.start).toISOString().slice(0, 10);
     $("bulletinSendBtn").style.display = canManageSys() ? "" : "none";
+    $("bulletinChannelRow").style.display = canManageSys() ? "" : "none";
+    syncBulletinChannelUI();
     refreshBulletin();
     $("bulletinModal").style.display = "flex";
 };
@@ -13268,24 +13277,66 @@ function chunkText(text, max) {
     if (cur.trim()) chunks.push(cur);
     return chunks;
 }
+/* Kanał biuletynu — celowo BEZ kanału werdyktów (t=file), żeby biuletyn nie mieszał się z werdyktami.
+   Worker trzyma webhooki; tu wybieramy tylko trasę (?t=...). */
+const BULLETIN_CHANNELS = {
+    decision: { label: "📢 Kanał decyzji", note: "Tam, gdzie trafiają przyjęte/odrzucone zgłoszenia i wyniki apelacji.", url: () => DECISION_WEBHOOK },
+    report:   { label: "🛡️ Kanał stewardów", note: "Wewnętrzny kanał z nowymi zgłoszeniami — np. do przejrzenia biuletynu przed publikacją.", url: () => NEW_REPORT_WEBHOOK },
+    bulletin: { label: "📰 Osobny kanał biuletynów", note: "Wymaga dodania w Workerze webhooka dla trasy t=bulletin (inaczej wysyłka zwróci błąd).", url: () => FIA_PROXY_BASE + "/notify?t=bulletin" }
+};
+const DEFAULT_BULLETIN_CHANNEL = "decision";
+let bulletinChannel = DEFAULT_BULLETIN_CHANNEL;
+
+function syncBulletinChannelUI() {
+    const sel = $("bulletinChannel");
+    if (!sel) return;
+    if (!sel.options.length) sel.innerHTML = Object.entries(BULLETIN_CHANNELS).map(([k, c]) => `<option value="${k}">${c.label}</option>`).join("");
+    if (document.activeElement !== sel) sel.value = bulletinChannel;
+    $("bulletinChannelNote").textContent = BULLETIN_CHANNELS[bulletinChannel].note;
+    const btn = $("bulletinSendBtn");
+    if (btn) btn.title = "Wyślij na: " + BULLETIN_CHANNELS[bulletinChannel].label;
+}
+window.syncBulletinChannelUI = syncBulletinChannelUI;
+database.ref("settings/bulletin/channel").on("value", s => {
+    const v = s.val();
+    bulletinChannel = BULLETIN_CHANNELS[v] ? v : DEFAULT_BULLETIN_CHANNEL;
+    syncBulletinChannelUI();
+});
+window.saveBulletinChannel = async function (value) {
+    if (!canManageSys()) return alert("Zmiana kanału biuletynu wymaga roli Głównego Stewarda lub uprawnienia SYS.");
+    if (!BULLETIN_CHANNELS[value] || value === bulletinChannel) return;
+    const prev = bulletinChannel;
+    bulletinChannel = value; // od razu, nawet gdyby zapis w bazie się nie udał
+    syncBulletinChannelUI();
+    try {
+        await database.ref("settings/bulletin/channel").set(value);
+        await logAction(loggedInSteward.nick, "SYSTEM", "BIULETYN", `Zmieniono kanał biuletynu: ${BULLETIN_CHANNELS[prev].label} → ${BULLETIN_CHANNELS[value].label}.`, { items: [{ path: "settings/bulletin/channel", data: prev }] });
+        showToast("📰 Kanał biuletynu", BULLETIN_CHANNELS[value].label);
+    } catch (err) {
+        showToast("⚠️ Nie zapisano w bazie", "Kanał zmieniony tylko w tej sesji: " + err.message);
+    }
+};
+
 window.sendBulletinToDiscord = async function () {
     if (!canManageSys()) return alert("Wysyłanie biuletynu wymaga roli Głównego Stewarda lub uprawnienia SYS.");
     const text = $("bulletinText").value.trim();
     if (!text) return;
+    const ch = BULLETIN_CHANNELS[bulletinChannel] || BULLETIN_CHANNELS[DEFAULT_BULLETIN_CHANNEL];
     const chunks = chunkText(text, 1900);
-    if (!confirm(`Wysłać biuletyn na kanał werdyktów (${chunks.length} wiadomość/i)? Kierowcy NIE zostaną spingowani.`)) return;
+    if (!confirm(`Wysłać biuletyn na: ${ch.label} (${chunks.length} wiadomość/i)? Kierowcy NIE zostaną spingowani.`)) return;
     const btn = $("bulletinSendBtn");
     btn.disabled = true;
     try {
         for (const c of chunks) {
-            const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: c, allowed_mentions: { parse: [] } }) });
-            if (!res.ok) throw new Error("HTTP " + res.status);
+            const res = await fetch(ch.url(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: c, allowed_mentions: { parse: [] } }) });
+            if (!res.ok) throw new Error(await describeHttpError(res));
             await new Promise(r => setTimeout(r, 600)); // limit Discorda
         }
-        await logAction(loggedInSteward.nick, "SYSTEM", $("bulletinTrack").value, `Wysłano biuletyn sędziowski rundy (${$("bulletinSplit").value}) na Discord.`);
-        showToast("📤 Biuletyn wysłany", $("bulletinTrack").value);
+        await logAction(loggedInSteward.nick, "SYSTEM", $("bulletinTrack").value, `Wysłano biuletyn sędziowski rundy (${$("bulletinSplit").value}) na Discord — ${ch.label}.`);
+        showToast("📤 Biuletyn wysłany", `${$("bulletinTrack").value} → ${ch.label}`);
     } catch (err) {
-        alert("Nie udało się wysłać biuletynu: " + err.message);
+        alert("Nie udało się wysłać biuletynu: " + err.message +
+            (bulletinChannel === "bulletin" ? "\n\nSprawdź, czy Worker obsługuje trasę t=bulletin (osobny webhook), albo wybierz inny kanał." : ""));
     } finally {
         btn.disabled = false;
     }
