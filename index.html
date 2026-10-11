@@ -4357,7 +4357,32 @@ const DISCORD_OAUTH_SCOPE = "identify";
 
 // === Powiadomienia Discord przez Twój Worker (sekrety trzyma Worker, nie ta strona) ===
 // WKLEJ adres swojego Workera powiadomień (bez ukośnika na końcu):
-const FIA_PROXY_BASE = "fia-worker.andrzejkedzior170.workers.dev";
+// UWAGA: adres MUSI zaczynać się od "https://". Bez tego przeglądarka traktuje go jako ścieżkę
+// względną i wysyła żądanie na serwer, z którego wczytano tę stronę (zamiast do Workera) —
+// stąd brał się "Błąd." przy wysyłaniu werdyktu i brak powiadomień na Discordzie.
+const FIA_PROXY_BASE = (function (raw) {
+    raw = String(raw || "").trim().replace(/\/+$/, "");
+    return /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+})("https://fia-worker.andrzejkedzior170.workers.dev");
+
+// Discord odrzuca CAŁĄ wiadomość (HTTP 400), gdy wartość któregokolwiek pola embeda jest pusta
+// albo dłuższa niż 1024 znaki (np. kilka długich linków do dowodów albo obszerne uzasadnienie).
+function dcFieldValue(value, max) {
+    max = max || 1024;
+    const s = (value === null || value === undefined) ? "" : String(value);
+    if (!s.trim()) return "—";
+    if (s.length <= max) return s;
+    let cut = s.slice(0, max - 1);
+    const nl = cut.lastIndexOf("\n");
+    if (nl > max * 0.5) cut = cut.slice(0, nl); // nie ucinaj linku w połowie, jeśli się da
+    return cut + "…";
+}
+// Czytelny opis nieudanej odpowiedzi HTTP (status + treść od Workera/Discorda).
+async function describeHttpError(res) {
+    let body = "";
+    try { body = ((await res.text()) || "").trim().slice(0, 300); } catch (e) {}
+    return "HTTP " + res.status + (res.statusText ? " " + res.statusText : "") + (body ? " — " + body : "");
+}
 const NEW_REPORT_WEBHOOK = FIA_PROXY_BASE + "/notify?t=report";
 const DECISION_WEBHOOK   = FIA_PROXY_BASE + "/notify?t=decision";
 const DISCORD_WEBHOOK_URL = FIA_PROXY_BASE + "/notify?t=file";
@@ -7713,12 +7738,12 @@ async function resendVerdict(id) {
                 { name: t.fieldSplit, value: report.split ? report.split : "—", inline: true },
                 { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
                 { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
-                { name: t.fieldEvidence, value: mainEvidence, inline: false },
-                { name: t.fieldDecision, value: `**${d.decision}**`, inline: false },
-                { name: t.fieldTime, value: d.timePenalty || "brak", inline: true },
-                { name: t.fieldPoints, value: d.pointsPenalty || "0 pkt", inline: true },
-                { name: t.fieldDetails, value: `\`\`\`text\n${d.verdictDetails}\n\`\`\``, inline: false },
-                { name: t.fieldJudge, value: d.judge, inline: false }
+                { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false },
+                { name: t.fieldDecision, value: dcFieldValue(`**${d.decision}**`), inline: false },
+                { name: t.fieldTime, value: dcFieldValue(d.timePenalty || "brak"), inline: true },
+                { name: t.fieldPoints, value: dcFieldValue(d.pointsPenalty || "0 pkt"), inline: true },
+                { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(d.verdictDetails, 1000)}\n\`\`\``, inline: false },
+                { name: t.fieldJudge, value: dcFieldValue(d.judge), inline: false }
             ],
             timestamp: new Date().toISOString()
         };
@@ -7727,7 +7752,7 @@ async function resendVerdict(id) {
         const accusedPart = isNoOneGuilty ? `🤝 ${noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${guiltyDiscordId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
         const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw new Error(await describeHttpError(res));
 
         await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", id, `Ponownie wysłano powiadomienie o werdykcie na Discord.`);
         alert(currentLang === 'pl' ? "Werdykt został wysłany ponownie." : "Verdict has been resent.");
@@ -8262,13 +8287,13 @@ async function resendAppealVerdict(appealId) {
                         { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
                         { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${appeal.discordId}>)`, inline: false },
                         { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
-                        { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: appeal.rejectReason || (isPl ? "Brak podanego uzasadnienia." : "No reason provided."), inline: false }
+                        { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: dcFieldValue(appeal.rejectReason || (isPl ? "Brak podanego uzasadnienia." : "No reason provided.")), inline: false }
                     ], timestamp: new Date().toISOString()
                 };
             }
 
             const res = await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${appeal.discordId}>`, embeds: [embed] }) });
-            if (!res.ok) throw new Error();
+            if (!res.ok) throw new Error(await describeHttpError(res));
 
             await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "APPEAL", appealId, `Ponownie wysłano powiadomienie o decyzji apelacyjnej na Discord.`);
             alert(currentLang === 'pl' ? "Powiadomienie zostało wysłane ponownie." : "Notification has been resent.");
@@ -8519,6 +8544,9 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     e.preventDefault();
     const t = langData[currentLang];
     const statusEl = document.getElementById("status");
+    // Cała obsługa w try/catch — wcześniej błąd zapisu do bazy (np. brak uprawnień) zostawiał
+    // komunikat "Wysyłanie..." na zawsze, bez żadnej informacji, co poszło nie tak.
+    try { await (async () => {
     statusEl.textContent = t.statusSending; statusEl.className = "status-msg";
 
     const caseIdInput = document.getElementById("caseId").value.trim();
@@ -8654,12 +8682,12 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             { name: t.fieldSplit, value: (mainReport && mainReport.split) ? mainReport.split : "—", inline: true },
             { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
             { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
-            { name: t.fieldEvidence, value: mainEvidence, inline: false },
-            { name: t.fieldDecision, value: `**${decision}**`, inline: false },
-            { name: t.fieldTime, value: timePenalty, inline: true },
-            { name: t.fieldPoints, value: pointsPenalty, inline: true },
-            { name: t.fieldDetails, value: `\`\`\`text\n${verdictDetails}\n\`\`\``, inline: false },
-            { name: t.fieldJudge, value: judge, inline: false }
+            { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false },
+            { name: t.fieldDecision, value: dcFieldValue(`**${decision}**`), inline: false },
+            { name: t.fieldTime, value: dcFieldValue(timePenalty), inline: true },
+            { name: t.fieldPoints, value: dcFieldValue(pointsPenalty), inline: true },
+            { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(verdictDetails, 1000)}\n\`\`\``, inline: false },
+            { name: t.fieldJudge, value: dcFieldValue(judge), inline: false }
         ],
         timestamp: new Date().toISOString()
     };
@@ -8698,7 +8726,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             const pngEmbed = {
                 title: t.embedTitle, color: 3447003,
                 fields: [
-                    { name: t.fieldEvidence, value: mainEvidence, inline: false }
+                    { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false }
                 ],
                 image: { url: `attachment://${verdictPngFilename}` },
                 timestamp: new Date().toISOString()
@@ -8711,10 +8739,26 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
             res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         }
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw new Error(await describeHttpError(res));
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
         currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
-    } catch (err) { statusEl.textContent = t.statusErr; statusEl.className = "status-msg err"; }
+    } catch (err) {
+        console.error("Błąd wysyłania werdyktu na Discord:", err);
+        const why = (err && err.message) ? err.message : (currentLang === 'pl' ? "nieznany błąd" : "unknown error");
+        // Werdykt jest już zapisany w bazie (zapis dzieje się przed wysyłką) — da się go
+        // wysłać ponownie przyciskiem "🔁 Wyślij ponownie" w tabeli zgłoszeń.
+        statusEl.textContent = mainReport
+            ? (currentLang === 'pl'
+                ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${why}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
+                : `Verdict saved, but sending it to Discord failed (${why}). Use "🔁 Resend" in the reports table.`)
+            : `${t.statusErr} ${why}`;
+        statusEl.className = "status-msg err";
+    }
+    })(); } catch (err) {
+        console.error("Błąd wydawania werdyktu:", err);
+        statusEl.textContent = (currentLang === 'pl' ? "Błąd wydawania werdyktu: " : "Error issuing verdict: ") + ((err && err.message) || err);
+        statusEl.className = "status-msg err";
+    }
 });
 
 function handleDecisionChange() {
