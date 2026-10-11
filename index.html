@@ -2,6 +2,9 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
+  <!-- === FIA SECURITY LAYER: nagłówki bezpieczeństwa (działające jako <meta>) === -->
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; frame-ancestors 'none';">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Zgłoś Incydent – FIA System</title>
   <style id="embeddedFonts">
 /* Czcionki wbudowane w stronę (zamiast fonts.googleapis.com) — pakiety @fontsource 5.3.0.
@@ -2888,6 +2891,9 @@
 
 
 </script>
+  <!-- Firebase Authentication (potrzebne tylko do WARIANTU B reguł bazy — logowanie stewardów do zapisu).
+       UWAGA: to jedyny plik ładowany z CDN (reszta jest wbudowana). Wymaga internetu przy otwarciu strony. -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script>/* html2canvas 1.4.1 (MIT, Niklas von Hertzen) — wbudowane w stronę zamiast pobierania z CDN */
 /*!
  * html2canvas 1.4.1 <https://html2canvas.hertzen.com>
@@ -4158,6 +4164,90 @@
     </div>
   </div>
 
+
+<script>/* === FIA SECURITY LAYER — pomocnicze funkcje bezpieczeństwa (XSS, clickjacking, rate-limit, OAuth nonce) === */
+(function () {
+  "use strict";
+
+  // Anti-clickjacking: jeśli strona jest osadzona w ramce (iframe), spróbuj się z niej wydostać.
+  try {
+    if (window.top !== window.self) {
+      window.top.location.href = window.self.location.href;
+    }
+  } catch (e) { /* ramka z innej domeny blokuje dostęp — CSP frame-ancestors i tak ogranicza osadzanie */ }
+
+  // Escapowanie tekstu wstawianego do HTML (gdyby wersja z dalszej części pliku nie była jeszcze dostępna).
+  if (typeof window.escapeHtml !== "function") {
+    window.escapeHtml = function (str) {
+      return String(str == null ? "" : str).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    };
+  }
+
+  // Bezpieczny URL do atrybutów href/src — blokuje javascript:, vbscript:, data:text/html itp.
+  window.safeUrl = function (u) {
+    try {
+      if (u == null) return "";
+      var s = String(u).trim();
+      if (s === "") return "";
+      if (/^(#|\/|\.\/|\.\.\/|\?)/.test(s)) return s;               // relatywne / kotwice
+      var m = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/.exec(s);
+      if (!m) return s;                                              // brak schematu = relatywny
+      var scheme = m[1].toLowerCase();
+      if (scheme === "http" || scheme === "https" || scheme === "mailto" || scheme === "tel" || scheme === "blob") return s;
+      if (scheme === "data") return /^data:(image|video|audio)\//i.test(s) ? s : "";  // tylko media, nigdy data:text/html
+      return "";                                                     // wszystko inne (javascript: itd.) = zablokowane
+    } catch (e) { return ""; }
+  };
+
+  // Bezpieczna wartość wstawiana do inline-handlera typu onclick="fn('...')".
+  // Neutralizuje zarówno kontekst stringa JS (apostrof), jak i atrybutu HTML (cudzysłów, encje).
+  window.jsAttr = function (v) {
+    var s = (v == null) ? "" : String(v);
+    s = s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")
+         .replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+    s = s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return s;
+  };
+
+  // Prosty limiter prób (np. wpisywania hasła). Zwraca 0, gdy wolno; inaczej liczbę sekund do odczekania.
+  window.fiaRateLimit = function (key, max, windowMs) {
+    try {
+      var now = Date.now();
+      var arr = JSON.parse(sessionStorage.getItem("fiaRL_" + key) || "[]");
+      arr = arr.filter(function (t) { return now - t < windowMs; });
+      if (arr.length >= max) {
+        var wait = Math.ceil((windowMs - (now - arr[0])) / 1000);
+        return wait > 0 ? wait : 1;
+      }
+      arr.push(now);
+      sessionStorage.setItem("fiaRL_" + key, JSON.stringify(arr));
+      return 0;
+    } catch (e) { return 0; }
+  };
+
+  // Jednorazowy token (nonce) chroniący logowanie przez Discord przed atakami CSRF / podrzuceniem tokenu.
+  window.fiaMakeNonce = function () {
+    var a = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    var s = Array.prototype.map.call(a, function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+    try { sessionStorage.setItem("fiaOAuthNonce", s); } catch (e) {}
+    return s;
+  };
+  window.fiaCheckNonce = function (n) {
+    try {
+      var saved = sessionStorage.getItem("fiaOAuthNonce");
+      sessionStorage.removeItem("fiaOAuthNonce");
+      return !!saved && !!n && saved === n;
+    } catch (e) { return false; }
+  };
+
+  // Dekoder zaciemnionych (base64) adresów webhooków / kluczy. UWAGA: to tylko utrudnienie,
+  // NIE zabezpieczenie — każda wartość i tak jest dostępna w działającej stronie.
+  window.__fdec = function (s) { try { return atob(s); } catch (e) { return ""; } };
+})();
+</script>
 <script>
 let loggedInSteward = null;
 let globalStewards = [];
@@ -4172,6 +4262,71 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
+/* ============================================================================
+   WARIANT B (reguły bezpieczeństwa Firebase): logowanie stewardów do ZAPISU.
+   Domyślnie WYŁĄCZONE — strona działa dokładnie jak dotąd, nic nie pyta.
+   Aby włączyć pełną ochronę ról (po przeczytaniu INSTRUKCJA.md):
+     1) w konsoli Firebase: Authentication → Sign-in method → włącz Email/Password,
+        następnie Authentication → Users → dodaj konto(a) stewardów,
+     2) opublikuj reguly-B-z-logowaniem-stewardow.json,
+     3) zmień poniższą flagę na true.
+   Od tej chwili steward po wejściu do panelu zostanie poproszony o dane konta
+   Firebase (raz na urządzeniu — sesja jest zapamiętywana). Kierowcy nic nie podają.
+   ============================================================================ */
+const FIA_REQUIRE_FIREBASE_WRITE_AUTH = true;
+
+let fiaAuth = null;
+try {
+    if (typeof firebase !== "undefined" && typeof firebase.auth === "function") {
+        fiaAuth = firebase.auth();
+    }
+} catch (e) { console.warn("Firebase Auth SDK niezaładowany:", e); }
+
+// Logowanie stewarda do zapisu w bazie (konto z Firebase Authentication).
+window.fiaFirebaseLogin = async function () {
+    if (!fiaAuth) {
+        alert("Moduł logowania Firebase nie jest załadowany (sprawdź znacznik <script> firebase-auth-compat oraz połączenie z internetem).");
+        return false;
+    }
+    if (fiaAuth.currentUser) return true; // sesja już aktywna
+    const email = prompt("Logowanie do zapisu w bazie (konto Firebase stewarda)\n\nE-mail:");
+    if (!email) return false;
+    const pass = prompt("Hasło:");
+    if (!pass) return false;
+    try {
+        await fiaAuth.signInWithEmailAndPassword(email.trim(), pass);
+        if (typeof showToast === "function") showToast("Zalogowano do zapisu w bazie", "Reguły B aktywne");
+        return true;
+    } catch (e) {
+        alert("Logowanie do bazy nie powiodło się: " + e.message);
+        return false;
+    }
+};
+window.fiaFirebaseLogout = function () { try { if (fiaAuth) fiaAuth.signOut(); } catch (e) {} };
+if (fiaAuth) {
+    try { fiaAuth.onAuthStateChanged(function (u) {
+        console.log(u ? "Firebase: sesja zapisu aktywna" : "Firebase: brak sesji zapisu");
+    }); } catch (e) {}
+}
+
+// Do żądań kierowanych do Workera powiadomień dołączamy token stewarda z Firebase
+// (jeśli jest zalogowany). Worker dzięki temu wie, czy wolno wysłać powiadomienie o werdykcie.
+(function () {
+    const _origFetch = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+        try {
+            const url = (typeof input === "string") ? input : (input && input.url) || "";
+            if (typeof FIA_PROXY_BASE === "string" && url.indexOf(FIA_PROXY_BASE) === 0 && fiaAuth && fiaAuth.currentUser) {
+                const token = await fiaAuth.currentUser.getIdToken();
+                const headers = new Headers((init && init.headers) || {});
+                headers.set("Authorization", "Bearer " + token);
+                init = Object.assign({}, init, { headers });
+            }
+        } catch (e) { /* brak tokenu — Worker i tak zdecyduje po swojej stronie */ }
+        return _origFetch(input, init);
+    };
+})();
+
 const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev";
 
 // === LOGOWANIE KIEROWCÓW PRZEZ DISCORD (OAuth2) ===
@@ -4183,13 +4338,16 @@ const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev"
 const DISCORD_CLIENT_ID = "1511745302657241258";
 const DISCORD_OAUTH_SCOPE = "identify";
 
-const NEW_REPORT_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr"; 
-const DECISION_WEBHOOK = "https://discord.com/api/webhooks/1503796858810536000/rjcEiP9WCL53kao55fQDqbgMGbwYrIKWHwGj2BHGqKSbK_ndRnr16WRfFsV2hJ4ZBs0k"; 
-const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1503812754103075010/aiqlKugdCSW5aqE5RtDXr9O_RibZ3g7x4Cus20VEPrdJ9bOTRYdPfDc4RfQeTYnZ2x7Z";
+// === Powiadomienia Discord przez Twój Worker (sekrety trzyma Worker, nie ta strona) ===
+// WKLEJ adres swojego Workera powiadomień (bez ukośnika na końcu):
+const FIA_PROXY_BASE = "fia-worker.andrzejkedzior170.workers.dev";
+const NEW_REPORT_WEBHOOK = FIA_PROXY_BASE + "/notify?t=report";
+const DECISION_WEBHOOK   = FIA_PROXY_BASE + "/notify?t=decision";
+const DISCORD_WEBHOOK_URL = FIA_PROXY_BASE + "/notify?t=file";
 // Webhook wysyłający powiadomienie za każdym razem, gdy ktoś (steward lub kierowca) napisze
 // nową wiadomość na czacie sprawy. Wklej tu URL webhooka wybranego kanału Discord — jeśli
 // zostawisz puste, powiadomienia o czacie będą po prostu wyłączone (bez błędów w konsoli).
-const CHAT_MESSAGE_WEBHOOK = "https://discord.com/api/webhooks/1503798776215633970/FsjcOHEE2lOkM2L0R1aZeUGwDVr9TiaXJRDaOpP-f6IiRpeLE8JCNUU5NxvjmTwToRhr";
+const CHAT_MESSAGE_WEBHOOK = FIA_PROXY_BASE + "/notify?t=report";
 
 const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024;
 const MAX_EVIDENCE_FILES = 5;
@@ -4640,7 +4798,7 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
     const galleryParts = [];
 
     if (record.evidence) {
-        linkParts.push(`<a class="evidence-link" href="${record.evidence}" target="_blank" rel="noopener">${linkLabel || record.evidence}</a>`);
+        linkParts.push(`<a class="evidence-link" href="${escapeHtml(safeUrl(record.evidence))}" target="_blank" rel="noopener">${escapeHtml(linkLabel || record.evidence)}</a>`);
     }
 
     let files = [];
@@ -4661,27 +4819,27 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
                 : type.startsWith("video/")
                     ? `🎬 ${currentLang === 'pl' ? 'Zobacz wideo' : 'View video'}`
                     : `📄 ${currentLang === 'pl' ? 'Zobacz dowód' : 'View evidence'}: ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}`;
-            linkParts.push(`<button type="button" class="evidence-link evidence-fetch-btn" data-key="${f.key}" title="${caption}">${label}</button>`);
+            linkParts.push(`<button type="button" class="evidence-link evidence-fetch-btn" data-key="${escapeHtml(f.key)}" title="${escapeHtml(caption)}">${escapeHtml(label)}</button>`);
             return;
         }
 
         const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
-                <a href="${src}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
-                    <img src="${src}" alt="${caption}" class="evidence-thumb">
+                <a href="${escapeHtml(safeUrl(src))}" target="_blank" rel="noopener" title="${escapeHtml(caption)}" class="evidence-media-link">
+                    <img src="${escapeHtml(safeUrl(src))}" alt="${escapeHtml(caption)}" class="evidence-thumb">
                 </a>
             `);
         } else if (type.startsWith("video/")) {
             galleryParts.push(`
-                <div class="evidence-media-link" title="${caption}">
+                <div class="evidence-media-link" title="${escapeHtml(caption)}">
                     <video controls preload="metadata" class="evidence-video">
-                        <source src="${src}" type="${type}">
+                        <source src="${escapeHtml(safeUrl(src))}" type="${escapeHtml(type)}">
                     </video>
                 </div>
             `);
         } else {
-            linkParts.push(`<a class="evidence-link" href="${src}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
+            linkParts.push(`<a class="evidence-link" href="${escapeHtml(safeUrl(src))}" target="_blank" rel="noopener">📄 ${escapeHtml(caption)}${escapeHtml(sizeKb ? ` (${sizeKb} KB)` : "")}</a>`);
         }
     });
 
@@ -4709,27 +4867,27 @@ function renderChatFilesHtml(files) {
                 : type.startsWith("video/")
                     ? `🎬 ${currentLang === 'pl' ? 'Zobacz wideo' : 'View video'}`
                     : `📄 ${currentLang === 'pl' ? 'Zobacz dowód' : 'View evidence'}: ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}`;
-            linkParts.push(`<button type="button" class="evidence-link evidence-fetch-btn" data-key="${f.key}" title="${caption}">${label}</button>`);
+            linkParts.push(`<button type="button" class="evidence-link evidence-fetch-btn" data-key="${escapeHtml(f.key)}" title="${escapeHtml(caption)}">${escapeHtml(label)}</button>`);
             return;
         }
 
         const src = f.url || f.data;
         if (type.startsWith("image/")) {
             galleryParts.push(`
-                <a href="${src}" target="_blank" rel="noopener" title="${caption}" class="evidence-media-link">
-                    <img src="${src}" alt="${caption}" class="evidence-thumb chat-thumb">
+                <a href="${escapeHtml(safeUrl(src))}" target="_blank" rel="noopener" title="${escapeHtml(caption)}" class="evidence-media-link">
+                    <img src="${escapeHtml(safeUrl(src))}" alt="${escapeHtml(caption)}" class="evidence-thumb chat-thumb">
                 </a>
             `);
         } else if (type.startsWith("video/")) {
             galleryParts.push(`
-                <div class="evidence-media-link" title="${caption}">
+                <div class="evidence-media-link" title="${escapeHtml(caption)}">
                     <video controls preload="metadata" class="evidence-video chat-thumb">
-                        <source src="${src}" type="${type}">
+                        <source src="${escapeHtml(safeUrl(src))}" type="${escapeHtml(type)}">
                     </video>
                 </div>
             `);
         } else {
-            linkParts.push(`<a class="evidence-link" href="${src}" target="_blank" rel="noopener">📄 ${caption}${sizeKb ? ` (${sizeKb} KB)` : ""}</a>`);
+            linkParts.push(`<a class="evidence-link" href="${escapeHtml(safeUrl(src))}" target="_blank" rel="noopener">📄 ${escapeHtml(caption)}${escapeHtml(sizeKb ? ` (${sizeKb} KB)` : "")}</a>`);
         }
     });
 
@@ -5015,14 +5173,14 @@ function initFormDropdowns() {
     const sessionSelect = document.getElementById("sessionType");
 
     if (trackSelect) {
-        trackSelect.innerHTML = `<option value="">${langData[currentLang].optChooseTrack}</option>`;
+        trackSelect.innerHTML = `<option value="">${escapeHtml(langData[currentLang].optChooseTrack)}</option>`;
         tracks.forEach(t => {
             const opt = document.createElement("option"); opt.value = t; opt.textContent = t; trackSelect.appendChild(opt);
         });
     }
 
     if (categorySelect) {
-        categorySelect.innerHTML = `<option value="">${langData[currentLang].optChooseCat}</option>`;
+        categorySelect.innerHTML = `<option value="">${escapeHtml(langData[currentLang].optChooseCat)}</option>`;
         const structure = categoriesStructure[currentLang];
         for (const groupName in structure) {
             const optGroup = document.createElement("optgroup");
@@ -5484,12 +5642,15 @@ async function openUsersSection() {
         renderUsersAndLogs();
         return;
     }
+    if (!isAdminAuthenticated) { alert(currentLang === 'pl' ? "Najpierw zaloguj się do panelu." : "Log in to the panel first."); return; }
+    const _wU = fiaRateLimit("usersPass", 5, 60000);
+    if (_wU) { alert(currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wU + " s.") : ("Too many attempts. Wait " + _wU + " s.")); return; }
     const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Zarządzania Użytkownikami i Rolami:" : "Enter password for Users and Roles section:");
     if (pass === null) return;
     const passHash = await hashPassword(pass);
     if (passHash === ADMIN_USERS_PASS_HASH) {
         isUsersAuth = true;
-        sessionStorage.setItem("usersAuth", "1");
+        sessionStorage.setItem("usersAuth", ADMIN_USERS_PASS_HASH);
         showSection('usersSection');
         renderUsersAndLogs();
     } else {
@@ -5543,7 +5704,7 @@ function loginWithDiscord() {
         return;
     }
     const redirectUri = encodeURIComponent(getDiscordRedirectUri());
-    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}`;
+    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}&state=${encodeURIComponent("driver." + fiaMakeNonce())}`;
     window.location.href = url;
 }
 
@@ -5555,8 +5716,9 @@ function loginWithDiscordAdmin() {
         return;
     }
     const redirectUri = encodeURIComponent(getDiscordRedirectUri());
-    // state=admin_panel odróżnia ten login (do panelu stewarda) od zwykłego logowania kierowcy przy powrocie z Discorda
-    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}&state=admin_panel`;
+    // state=admin_panel.<nonce> odróżnia ten login (do panelu stewarda) od zwykłego logowania kierowcy,
+    // a losowy nonce chroni przed podrzuceniem tokenu (CSRF) przy powrocie z Discorda.
+    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}&state=${encodeURIComponent("admin_panel." + fiaMakeNonce())}`;
     window.location.href = url;
 }
 
@@ -5618,6 +5780,11 @@ async function submitExternalJudgeLogin() {
         return;
     }
 
+    const _wJ = fiaRateLimit("extJudgePass", 5, 60000);
+    if (_wJ) {
+        statusEl.textContent = (currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wJ + " s.") : ("Too many attempts. Wait " + _wJ + " s."));
+        return;
+    }
     const passHash = await hashPassword(password);
     if (passHash !== EXTERNAL_JUDGE_PASSWORD_HASH) {
         passInput.classList.add("input-error");
@@ -5661,6 +5828,17 @@ async function handleDiscordOAuthRedirect() {
         // Usuwamy token z paska adresu, żeby nie został np. w historii przeglądarki
         history.replaceState(null, "", window.location.pathname + window.location.search);
 
+        // Weryfikacja jednorazowego nonce stanu — odrzuca logowania, których nie zainicjowała ta karta
+        // (ochrona przed CSRF / podrzuceniem cudzego tokenu w adresie URL).
+        const _stateParts = (oauthState || "").split(".");
+        const oauthMode = _stateParts[0];
+        const _stateNonce = _stateParts.slice(1).join(".");
+        if (!fiaCheckNonce(_stateNonce)) {
+            console.error("Logowanie przez Discord odrzucone: nieprawidłowy lub brakujący token stanu (nonce).");
+            applyDriverAuthUI();
+            return;
+        }
+
         if (accessToken) {
             try {
                 const res = await fetch("https://discord.com/api/users/@me", {
@@ -5672,7 +5850,7 @@ async function handleDiscordOAuthRedirect() {
                         ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
                         : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.discriminator || "0") % 5n)}.png`;
 
-                    if (oauthState === "admin_panel") {
+                    if (oauthMode === "admin_panel") {
                         // Logowanie do panelu stewarda — tożsamość zweryfikowana przez Discord,
                         // dostęp przyznawany tylko jeśli to Discord ID jest zarejestrowane jako steward.
                         attemptDiscordAdminLogin(user.id);
@@ -5970,7 +6148,7 @@ function renderNotifBell() {
         return;
     }
     list.innerHTML = adminNotifCenter.slice(0, 25).map(n => `
-      <div class="notif-item ${n.read ? "" : "unread"}" onclick="openNotifItem('${n.id}')">
+      <div class="notif-item ${n.read ? "" : "unread"}" onclick="openNotifItem('${jsAttr(n.id)}')">
         <span class="notif-item-title">${escapeHtml(n.title)}</span>
         <span class="notif-item-body">${escapeHtml(n.body)}</span>
         <span class="notif-item-time">${formatNotifTime(n.ts)}</span>
@@ -6076,7 +6254,7 @@ function openReportPreview() {
         `<strong>Oskarżony:</strong> ${escapeHtml(accusedNick)} (<code>${escapeHtml(accusedDiscordId)}</code>)\n` +
         `<strong>Tor / Split / Sesja:</strong> ${escapeHtml(track)} / ${escapeHtml(split)} / ${escapeHtml(sessionType)}\n` +
         `<strong>Kategoria:</strong> ${escapeHtml(category)}\n` +
-        `<strong>Dowody:</strong> ${escapeHtml(evidence)}${fileCount ? ` + ${fileCount} plik(ów) załączonych` : ""}\n\n` +
+        `<strong>Dowody:</strong> ${escapeHtml(evidence)}${escapeHtml(fileCount ? ` + ${fileCount} plik(ów) załączonych` : "")}\n\n` +
         `<strong>Opis zdarzenia:</strong>\n${escapeHtml(details)}`;
 
     const modal = document.getElementById("reportPreviewModal");
@@ -6426,12 +6604,12 @@ function renderOriginalVerdictBox(decisionData, caseId) {
     const judgeLabel = currentLang === 'pl' ? 'Sędzia' : 'Judge';
     return `
         <div style="margin-top:8px; padding:8px; background:rgba(255,215,0,0.06); border-radius:6px; border-left:3px solid var(--gold); font-size:11px; color:#cbd5e1;">
-            <strong style="color:var(--gold);">🕘 ${label}:</strong>
+            <strong style="color:var(--gold);">🕘 ${escapeHtml(label)}:</strong>
             <div style="margin-top:4px;">
                 ${escapeHtml(orig.decision || "")}<br>
-                <strong>${penaltyLabel}:</strong> ${escapeHtml(orig.timePenalty || 'brak')} / ${escapeHtml(orig.pointsPenalty || '0 pkt')}<br>
+                <strong>${escapeHtml(penaltyLabel)}:</strong> ${escapeHtml(orig.timePenalty || 'brak')} / ${escapeHtml(orig.pointsPenalty || '0 pkt')}<br>
                 <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(orig.verdictDetails || "")}"</span><br>
-                <small style="color:#64748b;">${judgeLabel}: ${escapeHtml(orig.judge || "—")}${orig.issuedAt ? ' | ' + formatTimestamp(orig.issuedAt) : ''}</small>
+                <small style="color:#64748b;">${escapeHtml(judgeLabel)}: ${escapeHtml(orig.judge || "—")}${orig.issuedAt ? ' | ' + formatTimestamp(orig.issuedAt) : ''}</small>
             </div>
         </div>
     `;
@@ -6458,7 +6636,7 @@ function fetchAndRenderHistory(discordId) {
         const adminDeleteWrap = document.createElement("div");
         adminDeleteWrap.style.cssText = "margin-bottom:14px; text-align:right;";
         adminDeleteWrap.innerHTML = `
-            <button type="button" class="btn-danger" style="padding:6px 14px; font-size:11px;" onclick="adminDeleteAllHistory('${discordId}')">
+            <button type="button" class="btn-danger" style="padding:6px 14px; font-size:11px;" onclick="adminDeleteAllHistory('${jsAttr(discordId)}')">
                 🗑️ ${currentLang === 'pl' ? 'USUŃ CAŁĄ HISTORIĘ (ADMIN)' : 'DELETE ENTIRE HISTORY (ADMIN)'}
             </button>
         `;
@@ -6489,13 +6667,13 @@ function fetchAndRenderHistory(discordId) {
                 <div style="margin-top:10px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #3b82f6;">
                     <strong style="color:#fff; font-size:12px;">⚖️ ${currentLang === 'pl' ? 'Oficjalny Werdykt Sędziowski' : 'Official Stewards Verdict'}:</strong>
                     <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
-                        <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${r.decisionData.decision}<br>
-                        <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${r.decisionData.timePenalty || 'brak'}, Punkty: ${r.decisionData.pointsPenalty || '0'}<br>
-                        <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                        <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${escapeHtml(r.decisionData.decision)}<br>
+                        <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${escapeHtml(r.decisionData.timePenalty || 'brak')}, Punkty: ${escapeHtml(r.decisionData.pointsPenalty || '0')}<br>
+                        <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(r.decisionData.verdictDetails)}"</span><br>
                         ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
-                        <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                        <small style="color:#64748b;">Sędzia: ${escapeHtml(r.decisionData.judge)}</small>
                         <div style="margin-top:8px;">
-                            <button type="button" style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer;" onclick="renderVerdictToPng('${r.id}', this)">🖼 ${currentLang === 'pl' ? 'Pobierz jako PNG' : 'Download as PNG'}</button>
+                            <button type="button" style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer;" onclick="renderVerdictToPng('${jsAttr(r.id)}', this)">🖼 ${currentLang === 'pl' ? 'Pobierz jako PNG' : 'Download as PNG'}</button>
                         </div>
                         ${renderOriginalVerdictBox(r.decisionData, r.id)}
                     </div>
@@ -6505,24 +6683,24 @@ function fetchAndRenderHistory(discordId) {
 
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <span style="font-weight:bold; color:var(--text); font-size:14px;">${r.id}</span>
+                <span style="font-weight:bold; color:var(--text); font-size:14px;">${escapeHtml(r.id)}</span>
                 <div style="display:flex; gap:6px;">
-                    <span style="background:${roleBg}; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${roleLabel}</span>
-                    <span style="background:${statusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${r.status}</span>
+                    <span style="background:${escapeHtml(roleBg)}; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${escapeHtml(roleLabel)}</span>
+                    <span style="background:${escapeHtml(statusBadgeColor)}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${escapeHtml(r.status)}</span>
                 </div>
             </div>
             <p style="margin:2px 0 6px 0; font-size:11px; color:var(--text-dim);">🕒 ${currentLang === 'pl' ? 'Zgłoszono' : 'Reported'}: ${formatTimestamp(r.timestamp)}</p>
-            <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${r.track}${r.split ? ` | <strong>Split:</strong> ${r.split}` : ''} | <strong>Sesja:</strong> ${r.sessionType}</p>
-            <p style="margin:2px 0; font-size:12px;"><strong>Kategoria:</strong> ${r.category}</p>
-            <p style="margin:2px 0; font-size:12px;"><strong>Zgłaszający:</strong> ${r.nick} | <strong>Oskarżony:</strong> ${r.accusedNick}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Tor:</strong> ${escapeHtml(r.track)}${r.split ? ` | <strong>Split:</strong> ${escapeHtml(r.split)}` : ''} | <strong>Sesja:</strong> ${escapeHtml(r.sessionType)}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Kategoria:</strong> ${escapeHtml(r.category)}</p>
+            <p style="margin:2px 0; font-size:12px;"><strong>Zgłaszający:</strong> ${escapeHtml(r.nick)} | <strong>Oskarżony:</strong> ${escapeHtml(r.accusedNick)}</p>
             <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
-                <strong>Opis zdarzenia:</strong> ${r.details}
+                <strong>Opis zdarzenia:</strong> ${escapeHtml(r.details)}
             </div>
             ${(hasEvidence(r) && !r.decisionData) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
             ${decisionBlock}
             <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
-                ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleReport('${r.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
-                <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${r.id}')">💬 Czatuj o tej sprawie</button>
+                ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleReport('${jsAttr(r.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
+                <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${jsAttr(r.id)}')">💬 Czatuj o tej sprawie</button>
             </div>
         `;
         container.appendChild(div);
@@ -6556,10 +6734,10 @@ function fetchAndRenderHistory(discordId) {
                     <div style="margin-top:10px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #3b82f6;">
                         <strong style="color:#fff; font-size:12px;">⚖️ ${currentLang === 'pl' ? 'Werdykt po rozpatrzeniu apelacji' : 'Verdict after appeal review'}:</strong>
                         <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
-                            <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${dv.decision}<br>
-                            <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${dv.timePenalty || 'brak'}, Punkty: ${dv.pointsPenalty || '0'}<br>
-                            <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
-                            <small style="color:#64748b;">Sędzia: ${dv.judge}</small>
+                            <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${escapeHtml(dv.decision)}<br>
+                            <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${escapeHtml(dv.timePenalty || 'brak')}, Punkty: ${escapeHtml(dv.pointsPenalty || '0')}<br>
+                            <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(dv.verdictDetails)}"</span><br>
+                            <small style="color:#64748b;">Sędzia: ${escapeHtml(dv.judge)}</small>
                             ${renderOriginalVerdictBox(dv, a.caseId)}
                         </div>
                     </div>
@@ -6568,22 +6746,22 @@ function fetchAndRenderHistory(discordId) {
 
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <span style="font-weight:bold; color:var(--text); font-size:14px;">${a.appealId}</span>
+                    <span style="font-weight:bold; color:var(--text); font-size:14px;">${escapeHtml(a.appealId)}</span>
                     <div style="display:flex; gap:6px;">
-                        <span style="background:#4c1d95; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${currentLang === 'pl' ? 'Dot. sprawy' : 'Re. case'}: ${a.caseId}</span>
-                        <span style="background:${appStatusBadgeColor}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${a.status}</span>
+                        <span style="background:#4c1d95; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:bold;">${currentLang === 'pl' ? 'Dot. sprawy' : 'Re. case'}: ${escapeHtml(a.caseId)}</span>
+                        <span style="background:${escapeHtml(appStatusBadgeColor)}; color:#000; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:bold;">${escapeHtml(a.status)}</span>
                     </div>
                 </div>
                 <p style="margin:2px 0 6px 0; font-size:11px; color:var(--text-dim);">🕒 ${currentLang === 'pl' ? 'Złożono' : 'Submitted'}: ${formatTimestamp(a.timestamp)}</p>
-                <p style="margin:2px 0; font-size:12px;"><strong>${currentLang === 'pl' ? 'Apelujący' : 'Appellant'}:</strong> ${a.nick}</p>
+                <p style="margin:2px 0; font-size:12px;"><strong>${currentLang === 'pl' ? 'Apelujący' : 'Appellant'}:</strong> ${escapeHtml(a.nick)}</p>
                 <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
-                    <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${a.reason}
+                    <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${escapeHtml(a.reason)}
                 </div>
                 ${hasEvidence(a) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(a)}</p>` : ''}
                 ${userAppVerdictBlock}
                 <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
-                    ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${a.id}', '${discordId}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
-                    <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${a.appealId}')">💬 Czatuj o tej apelacji</button>
+                    ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${jsAttr(a.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
+                    <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${jsAttr(a.appealId)}')">💬 Czatuj o tej apelacji</button>
                 </div>
             `;
             container.appendChild(div);
@@ -6651,10 +6829,10 @@ function updatePlayerChatCaseSelectOptions(userDiscordId) {
 
         const badgeColor = getPlayerChatBadge(entry.status);
         item.innerHTML = `
-            <span class="pcci-id">${entry.label}</span>
+            <span class="pcci-id">${escapeHtml(entry.label)}</span>
             <span class="pcci-meta">
-                <span>${entry.meta}</span>
-                ${entry.status ? `<span class="pcci-badge" style="background:${badgeColor};">${entry.status}</span>` : ''}
+                <span>${escapeHtml(entry.meta)}</span>
+                ${entry.status ? `<span class="pcci-badge" style="background:${escapeHtml(badgeColor)};">${escapeHtml(entry.status)}</span>` : ''}
             </span>
         `;
         listEl.appendChild(item);
@@ -6852,11 +7030,11 @@ function renderAdminPagination(totalItems, totalPages) {
     let to = Math.min(totalPages, from + maxButtons - 1);
     from = Math.max(1, to - maxButtons + 1);
     for (let p = from; p <= to; p++) {
-        pageButtons += `<button class="btn-toggle-list" style="min-width:30px; ${p === adminCurrentPage ? 'background:var(--red); color:#fff; border-color:var(--red);' : ''}" onclick="goToAdminPage(${p})">${p}</button>`;
+        pageButtons += `<button class="btn-toggle-list" style="min-width:30px; ${p === adminCurrentPage ? 'background:var(--red); color:#fff; border-color:var(--red);' : ''}" onclick="goToAdminPage(${p})">${escapeHtml(p)}</button>`;
     }
 
     el.innerHTML = `
-      <span style="font-size:11px; color: var(--text-dim);">Pokazuje ${start}–${end} z ${totalItems}</span>
+      <span style="font-size:11px; color: var(--text-dim);">Pokazuje ${escapeHtml(start)}–${escapeHtml(end)} z ${escapeHtml(totalItems)}</span>
       <div style="display:flex; gap:4px; align-items:center;">
         <button class="btn-toggle-list" ${adminCurrentPage <= 1 ? "disabled" : ""} onclick="goToAdminPage(${adminCurrentPage - 1})">‹</button>
         ${pageButtons}
@@ -6999,59 +7177,59 @@ function renderAdmin() {
             let incActionsHtml = "";
             if (perms.review_incidents || isRoot) {
                 incActionsHtml += `
-                    <button class="btn-success" onclick="updateStatus('${r.id}', 'Przyjęte')">${t.btnAccept}</button>
-                    <button class="btn-danger" onclick="updateStatus('${r.id}', 'Odrzucone')">${t.btnReject}</button>
-                    <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${r.id}', '${r.accusedDiscordId}')">Werdykt ⚖️</button>
+                    <button class="btn-success" onclick="updateStatus('${jsAttr(r.id)}', 'Przyjęte')">${escapeHtml(t.btnAccept)}</button>
+                    <button class="btn-danger" onclick="updateStatus('${jsAttr(r.id)}', 'Odrzucone')">${escapeHtml(t.btnReject)}</button>
+                    <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${jsAttr(r.id)}', '${jsAttr(r.accusedDiscordId)}')">Werdykt ⚖️</button>
                 `;
             }
             if (perms.access_trash || isRoot) {
-                incActionsHtml += `<button style="background:#4b5563;" onclick="deleteReport('${r.id}')">${t.btnDelete}</button>`;
+                incActionsHtml += `<button style="background:#4b5563;" onclick="deleteReport('${jsAttr(r.id)}')">${escapeHtml(t.btnDelete)}</button>`;
             }
             if ((perms.review_incidents || isRoot) && loggedInSteward) {
                 const mineA = r.assignedTo && r.assignedTo.id === loggedInSteward.id;
                 incActionsHtml += mineA
-                    ? `<button style="background:#374151;" onclick="claimCase('${r.id}', true)">Zwolnij</button>`
-                    : `<button style="background:#0f766e;" onclick="claimCase('${r.id}')">Przejmij</button>`;
+                    ? `<button style="background:#374151;" onclick="claimCase('${jsAttr(r.id)}', true)">Zwolnij</button>`
+                    : `<button style="background:#0f766e;" onclick="claimCase('${jsAttr(r.id)}')">Przejmij</button>`;
             }
             if (!incActionsHtml) incActionsHtml = `<span style="font-size:10px; color:var(--text-dim); text-align:center;">Brak uprawnień</span>`;
 
             tr.innerHTML = `
-                <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${r.id}" onclick="updateBulkActionsBar()"></td>
+                <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${escapeHtml(r.id)}" onclick="updateBulkActionsBar()"></td>
                 <td>
-                    <strong style="color:var(--text);">${r.id}</strong>${caseBadgesHtml(r)}
-                    ${(loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${r.id}')">✎</button>`}
+                    <strong style="color:var(--text);">${escapeHtml(r.id)}</strong>${caseBadgesHtml(r)}
+                    ${(loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${jsAttr(r.id)}')">✎</button>`}
                 </td>
                 <td style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${formatTimestamp(r.timestamp)}</td>
-                <td><strong>${r.nick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.discordId}</span></td>
-                <td><span style="color:#3b82f6; font-weight:600;">${r.track}</span>${r.split ? ` <span style="color:var(--gold); font-weight:600; font-size:11px;">(${r.split})</span>` : ''}<br><span style="color:var(--text-dim); font-size:11px;">${r.category}</span></td>
-                <td>${r.session || r.sessionType || ""}</td>
-                <td><strong>${r.accusedNick}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${r.accusedDiscordId}</span></td>
+                <td><strong>${escapeHtml(r.nick)}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${escapeHtml(r.discordId)}</span></td>
+                <td><span style="color:#3b82f6; font-weight:600;">${escapeHtml(r.track)}</span>${r.split ? ` <span style="color:var(--gold); font-weight:600; font-size:11px;">(${escapeHtml(r.split)})</span>` : ''}<br><span style="color:var(--text-dim); font-size:11px;">${escapeHtml(r.category)}</span></td>
+                <td>${escapeHtml(r.session || r.sessionType || "")}</td>
+                <td><strong>${escapeHtml(r.accusedNick)}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${escapeHtml(r.accusedDiscordId)}</span></td>
                 <td>
-                    <div class="cell-wrap">${r.details}</div>
-                    <button class="btn-view" onclick="openDescModal('${r.id}')">Zobacz / Notatki 📑</button>
+                    <div class="cell-wrap">${escapeHtml(r.details)}</div>
+                    <button class="btn-view" onclick="openDescModal('${jsAttr(r.id)}')">Zobacz / Notatki 📑</button>
                     ${r.decisionData ? `
                         <div style="margin-top:8px; padding:8px; background:#1e293b; border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:#cbd5e1;">
                             <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:6px;">
                                 <strong style="color:#fff;">⚖️ Werdykt:</strong>
                                 <div style="display:flex; flex-wrap:wrap; gap:4px; max-width:100%;">
-                                    <button style="background:#1565c0; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="resendVerdict('${r.id}')">🔁 Wyślij ponownie</button>
-                                    <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${r.id}', this)">🖼 PNG</button>
-                                    <button style="background:#374151; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openCaseVerdictPreview('${r.id}')">👁 Podgląd</button>
-                                    ${ (isRoot || perms.delete_verdicts) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${r.id}')">✕ Usuń werdykt</button>` : ''}
+                                    <button style="background:#1565c0; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="resendVerdict('${jsAttr(r.id)}')">🔁 Wyślij ponownie</button>
+                                    <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${jsAttr(r.id)}', this)">🖼 PNG</button>
+                                    <button style="background:#374151; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openCaseVerdictPreview('${jsAttr(r.id)}')">👁 Podgląd</button>
+                                    ${ (isRoot || perms.delete_verdicts) ? `<button style="background:#4b5563; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="deleteVerdict('${jsAttr(r.id)}')">✕ Usuń werdykt</button>` : ''}
                                 </div>
                             </div>
-                            ${r.decisionData.decision}<br>
-                            <strong>Kara:</strong> ${r.decisionData.timePenalty || 'brak'} / ${r.decisionData.pointsPenalty || '0'} pkt<br>
-                            <span style="font-style:italic; color:#94a3b8;">"${r.decisionData.verdictDetails}"</span><br>
+                            ${escapeHtml(r.decisionData.decision)}<br>
+                            <strong>Kara:</strong> ${escapeHtml(r.decisionData.timePenalty || 'brak')} / ${escapeHtml(r.decisionData.pointsPenalty || '0')} pkt<br>
+                            <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(r.decisionData.verdictDetails)}"</span><br>
                             ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
-                            <small style="color:#64748b;">Sędzia: ${r.decisionData.judge}</small>
+                            <small style="color:#64748b;">Sędzia: ${escapeHtml(r.decisionData.judge)}</small>
                             ${renderOriginalVerdictBox(r.decisionData, r.id)}
                         </div>
                     ` : ''}
                 </td>
                 <td>${renderEvidenceHtml(r, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
-                    <span style="background:${badgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${trStatusText}</span>${assignChipHtml(r)}
+                    <span style="background:${escapeHtml(badgeBg)}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${escapeHtml(trStatusText)}</span>${assignChipHtml(r)}
                     <div class="action-btns">
                         ${incActionsHtml}
                     </div>
@@ -7098,15 +7276,15 @@ function renderAdmin() {
                         <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:6px;">
                             <strong style="color:#fff;">⚖️ Werdykt apelacji:</strong>
                             <div style="display:flex; flex-wrap:wrap; gap:4px; max-width:100%;">
-                                <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${a.caseId}', this)">🖼 PNG</button>
-                                <button style="background:#374151; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openCaseVerdictPreview('${a.caseId}')">👁 Podgląd</button>
-                                ${isHeadStewardOrRoot ? `<button style="background:#6d28d9; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openAppealVerdictEditModal('${a.caseId}', '${a.appealId}')">✎ Edytuj werdykt</button>` : ''}
+                                <button style="background:#065f46; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="renderVerdictToPng('${jsAttr(a.caseId)}', this)">🖼 PNG</button>
+                                <button style="background:#374151; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openCaseVerdictPreview('${jsAttr(a.caseId)}')">👁 Podgląd</button>
+                                ${isHeadStewardOrRoot ? `<button style="background:#6d28d9; color:#fff; border:none; border-radius:4px; padding:2px 6px; font-size:10px; cursor:pointer; white-space:nowrap;" onclick="openAppealVerdictEditModal('${jsAttr(a.caseId)}', '${jsAttr(a.appealId)}')">✎ Edytuj werdykt</button>` : ''}
                             </div>
                         </div>
-                        ${dv.decision}<br>
-                        <strong>Kara:</strong> ${dv.timePenalty || 'brak'} / ${dv.pointsPenalty || '0'} pkt<br>
-                        <span style="font-style:italic; color:#94a3b8;">"${dv.verdictDetails}"</span><br>
-                        <small style="color:#64748b;">Sędzia: ${dv.judge}</small>
+                        ${escapeHtml(dv.decision)}<br>
+                        <strong>Kara:</strong> ${escapeHtml(dv.timePenalty || 'brak')} / ${escapeHtml(dv.pointsPenalty || '0')} pkt<br>
+                        <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(dv.verdictDetails)}"</span><br>
+                        <small style="color:#64748b;">Sędzia: ${escapeHtml(dv.judge)}</small>
                         ${renderOriginalVerdictBox(dv, a.caseId)}
                     </div>
                 `;
@@ -7115,29 +7293,29 @@ function renderAdmin() {
             let appActionsHtml = "";
             if (perms.review_appeals || isRoot) {
                 appActionsHtml += `
-                    <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${a.caseId}', '${a.discordId}', '${a.appealId}')">Rozpatrz werdykt</button>
-                    <button class="btn-success" onclick="acceptAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Przyjmij</button>
-                    <button class="btn-danger" onclick="rejectAppeal('${a.appealId}', '${a.caseId}', '${a.discordId}')">Odrzuć</button>
-                    ${ a.status && a.status !== "Nowa" ? `<button style="background:#1565c0;" onclick="resendAppealVerdict('${a.appealId}')">🔁 Wyślij ponownie</button>` : '' }
+                    <button class="btn-verdict-transfer" onclick="transferAppealToVerdict('${jsAttr(a.caseId)}', '${jsAttr(a.discordId)}', '${jsAttr(a.appealId)}')">Rozpatrz werdykt</button>
+                    <button class="btn-success" onclick="acceptAppeal('${jsAttr(a.appealId)}', '${jsAttr(a.caseId)}', '${jsAttr(a.discordId)}')">Przyjmij</button>
+                    <button class="btn-danger" onclick="rejectAppeal('${jsAttr(a.appealId)}', '${jsAttr(a.caseId)}', '${jsAttr(a.discordId)}')">Odrzuć</button>
+                    ${ a.status && a.status !== "Nowa" ? `<button style="background:#1565c0;" onclick="resendAppealVerdict('${jsAttr(a.appealId)}')">🔁 Wyślij ponownie</button>` : '' }
                 `;
             }
             if (perms.edit_appeals || isRoot) {
-                appActionsHtml += `<button style="background:#6d28d9;" onclick="openAppealEditModal('${a.appealId}')">✎ Edytuj</button>`;
+                appActionsHtml += `<button style="background:#6d28d9;" onclick="openAppealEditModal('${jsAttr(a.appealId)}')">✎ Edytuj</button>`;
             }
             if (perms.access_trash || isRoot) {
-                appActionsHtml += `<button style="background:#4b5563;" onclick="deleteAppeal('${a.appealId}')">Usuń</button>`;
+                appActionsHtml += `<button style="background:#4b5563;" onclick="deleteAppeal('${jsAttr(a.appealId)}')">Usuń</button>`;
             }
             if (!appActionsHtml) appActionsHtml = `<span style="font-size:10px; color:var(--text-dim); text-align:center;">Brak uprawnień</span>`;
 
             trA.innerHTML = `
-                <td><strong>${a.appealId}</strong></td>
+                <td><strong>${escapeHtml(a.appealId)}</strong></td>
                 <td style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${formatTimestamp(a.timestamp)}</td>
-                <td><span style="color:var(--amber-text); font-weight:bold;">${a.caseId}</span></td>
-                <td><strong>${a.nick}</strong><br>ID: ${a.discordId}</td>
-                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${a.reason}</div>${appVerdictHtml}</td>
+                <td><span style="color:var(--amber-text); font-weight:bold;">${escapeHtml(a.caseId)}</span></td>
+                <td><strong>${escapeHtml(a.nick)}</strong><br>ID: ${escapeHtml(a.discordId)}</td>
+                <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${escapeHtml(a.reason)}</div>${appVerdictHtml}</td>
                 <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>Brak</span>`)}</td>
                 <td>
-                    <span style="background:${appBadgeBg}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${appStatusText}</span>
+                    <span style="background:${escapeHtml(appBadgeBg)}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${escapeHtml(appStatusText)}</span>
                     <div class="action-btns">
                         ${appActionsHtml}
                     </div>
@@ -7678,12 +7856,15 @@ async function openTrash() {
         renderTrash();
         return;
     }
+    if (!isAdminAuthenticated) { alert(currentLang === 'pl' ? "Najpierw zaloguj się do panelu." : "Log in to the panel first."); return; }
+    const _wT = fiaRateLimit("trashPass", 5, 60000);
+    if (_wT) { alert(currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wT + " s.") : ("Too many attempts. Wait " + _wT + " s.")); return; }
     const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Kosza:" : "Enter Trash access password:");
     if (pass === null) return;
     const passHash = await hashPassword(pass);
     if (passHash === TRASH_PASSWORD_HASH) {
         isTrashAuthenticated = true;
-        sessionStorage.setItem("trashAuth", "1");
+        sessionStorage.setItem("trashAuth", TRASH_PASSWORD_HASH);
         showSection('trashSection');
         renderTrash();
     } else {
@@ -8580,7 +8761,7 @@ function buildVerdictPngHtml(r) {
             <div><strong style="color:#e8eaf0;">Tor:</strong> ${escapeHtml(r.track || "—")}</div>
             <div><strong style="color:#e8eaf0;">Split:</strong> ${escapeHtml(r.split || "—")}</div>
             <div><strong style="color:#e8eaf0;">Sesja:</strong> ${escapeHtml(r.sessionType || "—")}</div>
-            <div><strong style="color:#e8eaf0;">Data zdarzenia:</strong> ${eventDate}</div>
+            <div><strong style="color:#e8eaf0;">Data zdarzenia:</strong> ${escapeHtml(eventDate)}</div>
           </div>
 
           <div style="display:flex; gap:16px; margin-bottom:24px;">
@@ -8589,8 +8770,8 @@ function buildVerdictPngHtml(r) {
               <div style="font-size:18px; font-weight:700; color:#e8eaf0;">${escapeHtml(r.nick || "—")}</div>
               <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(r.discordId || "—")}</div>
             </div>
-            <div style="flex:1; background:#0d1220; border:1px solid ${accusedBorder}; border-radius:6px; padding:14px 18px;">
-              <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">${accusedTag}</div>
+            <div style="flex:1; background:#0d1220; border:1px solid ${escapeHtml(accusedBorder)}; border-radius:6px; padding:14px 18px;">
+              <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">${escapeHtml(accusedTag)}</div>
               <div style="font-size:18px; font-weight:700; color:#e8eaf0;">${escapeHtml(r.accusedNick || "—")}</div>
               <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(r.accusedDiscordId || "—")}</div>
             </div>
@@ -8699,9 +8880,9 @@ function renderBarChart(containerId, data) {
     const max = Math.max(...data.map(d => d.count), 1);
     el.innerHTML = data.map(d => `
       <div class="stat-bar-col">
-        <div class="bar-count">${d.count}</div>
-        <div class="bar" data-val="${d.count}" style="height:${Math.max((d.count / max) * 100, 3)}%;"></div>
-        <div class="bar-label" title="${d.label}">${d.label}</div>
+        <div class="bar-count">${escapeHtml(d.count)}</div>
+        <div class="bar" data-val="${escapeHtml(d.count)}" style="height:${Math.max((d.count / max) * 100, 3)}%;"></div>
+        <div class="bar-label" title="${escapeHtml(d.label)}">${escapeHtml(d.label)}</div>
       </div>
     `).join("");
 }
@@ -8715,9 +8896,9 @@ function renderRankList(containerId, entries) {
     }
     el.innerHTML = entries.map(([name, count], i) => `
       <div class="stat-rank-item">
-        <span class="rank-pos">#${i + 1}</span>
-        <span class="rank-name" title="${name}">${name}</span>
-        <span class="rank-count">${count}</span>
+        <span class="rank-pos">#${escapeHtml(i + 1)}</span>
+        <span class="rank-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+        <span class="rank-count">${escapeHtml(count)}</span>
       </div>
     `).join("");
 }
@@ -8749,7 +8930,7 @@ function renderStats() {
         const pct = prevIncidents.length ? Math.round((diff / prevIncidents.length) * 100) : (incidents.length ? 100 : 0);
         const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "→";
         const color = diff > 0 ? "var(--red-text)" : diff < 0 ? "var(--green-text)" : "var(--text-dim)";
-        trendHtml = `<div class="stat-box"><span>Trend vs poprz. okres</span><strong style="font-size:15px; color:${color};">${arrow} ${diff >= 0 ? "+" : ""}${diff} (${pct >= 0 ? "+" : ""}${pct}%)</strong></div>`;
+        trendHtml = `<div class="stat-box"><span>Trend vs poprz. okres</span><strong style="font-size:15px; color:${escapeHtml(color)};">${escapeHtml(arrow)} ${diff >= 0 ? "+" : ""}${escapeHtml(diff)} (${pct >= 0 ? "+" : ""}${escapeHtml(pct)}%)</strong></div>`;
     }
 
     const guiltyIncidentsForAvg = incidents.filter(r => r.decisionData && !r.decisionData.noOneGuilty && r.decisionData.decision && r.decisionData.decision !== "Brak naruszenia");
@@ -8765,8 +8946,8 @@ function renderStats() {
               <div class="stat-box"><span>Zgłoszenia</span><strong>${incidents.length}</strong></div>
               <div class="stat-box"><span>Apelacje</span><strong>${appeals.length}</strong></div>
               <div class="stat-box"><span>Śr. czas rozpatrzenia</span><strong style="font-size:15px;">${formatDuration(avgResMs)}</strong></div>
-              <div class="stat-box"><span>Najaktywniejszy tor</span><strong style="font-size:13px;">${topTrackEntry ? `${topTrackEntry[0]} (${topTrackEntry[1]})` : "—"}</strong></div>
-              <div class="stat-box"><span>Śr. punkty karne / incydent</span><strong style="font-size:15px;">${avgPts} pkt</strong></div>
+              <div class="stat-box"><span>Najaktywniejszy tor</span><strong style="font-size:13px;">${escapeHtml(topTrackEntry ? `${topTrackEntry[0]} (${topTrackEntry[1]})` : "—")}</strong></div>
+              <div class="stat-box"><span>Śr. punkty karne / incydent</span><strong style="font-size:15px;">${escapeHtml(avgPts)} pkt</strong></div>
               ${trendHtml}
             </div>
           </div>`;
@@ -8885,12 +9066,12 @@ function renderLeaderboard() {
         else if (threshold && (r.seasonPoints / threshold) >= 0.7) { color = "#fbbf24"; label = "Blisko progu"; }
         const rankClass = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
         const queryVal = r.id || r.name;
-        return `<div class="leaderboard-row" onclick="jumpToDriverCard('${escapeHtml(String(queryVal)).replace(/'/g, "\\'")}')" title="Kliknij, aby zobaczyć kartę kierowcy">
-          <span class="leaderboard-rank ${rankClass}">${i + 1}</span>
+        return `<div class="leaderboard-row" onclick="jumpToDriverCard('${jsAttr(queryVal)}')" title="Kliknij, aby zobaczyć kartę kierowcy">
+          <span class="leaderboard-rank ${escapeHtml(rankClass)}">${escapeHtml(i + 1)}</span>
           <span class="leaderboard-name">${escapeHtml(r.name)}</span>
-          <span class="leaderboard-count">${r.count} kar</span>
-          <span class="leaderboard-points" style="color:${color};">${r.seasonPoints} pkt</span>
-          <span class="leaderboard-status" style="color:${color};">${label}</span>
+          <span class="leaderboard-count">${escapeHtml(r.count)} kar</span>
+          <span class="leaderboard-points" style="color:${escapeHtml(color)};">${escapeHtml(r.seasonPoints)} pkt</span>
+          <span class="leaderboard-status" style="color:${escapeHtml(color)};">${escapeHtml(label)}</span>
         </div>`;
     }).join("");
 }
@@ -8947,7 +9128,7 @@ function exportStatsPdf() {
         @media print { body { padding: 10px; } }
       </style></head><body>
       <h1>FIA System — Raport Statystyk</h1>
-      <div class="meta">Zakres: ${rangeLabel} &nbsp;·&nbsp; Wygenerowano: ${new Date().toLocaleString("pl-PL")}</div>
+      <div class="meta">Zakres: ${escapeHtml(rangeLabel)} &nbsp;·&nbsp; Wygenerowano: ${new Date().toLocaleString("pl-PL")}</div>
       <h2>Podsumowanie okresu</h2>
       ${grab("statsSummaryGrid")}
       <h2>Ranking kierowców — punkty karne w sezonie</h2>
@@ -9002,9 +9183,9 @@ function renderStatusPie(incidents) {
         const color = statusColors[status] || "#6b7280";
         const pct = ((count / total) * 100).toFixed(1);
         return `<div style="display:flex; align-items:center; gap:6px;">
-          <span style="width:10px; height:10px; border-radius:2px; background:${color}; flex-shrink:0;"></span>
-          <span style="color: var(--text);">${status}</span>
-          <span style="color: var(--text-dim);">${count} (${pct}%)</span>
+          <span style="width:10px; height:10px; border-radius:2px; background:${escapeHtml(color)}; flex-shrink:0;"></span>
+          <span style="color: var(--text);">${escapeHtml(status)}</span>
+          <span style="color: var(--text-dim);">${escapeHtml(count)} (${escapeHtml(pct)}%)</span>
         </div>`;
     }).join("");
 }
@@ -9125,17 +9306,17 @@ function searchDriverCard(forcedQuery) {
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
         <div>
           <div style="font-size:16px; font-weight:700; color: var(--text);">${escapeHtml(data.displayName)}</div>
-          <div style="font-size:11px; color: var(--text-dim);">${data.displayId ? "Discord ID: " + escapeHtml(data.displayId) : ""} · ${data.totalIncidents} zgłoszeń łącznie</div>
+          <div style="font-size:11px; color: var(--text-dim);">${data.displayId ? "Discord ID: " + escapeHtml(data.displayId) : ""} · ${escapeHtml(data.totalIncidents)} zgłoszeń łącznie</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:22px; font-weight:800; color:${statusColor};">${data.seasonPoints} / ${threshold} pkt</div>
-          <div style="font-size:11px; color:${statusColor};">${statusText}</div>
+          <div style="font-size:22px; font-weight:800; color:${escapeHtml(statusColor)};">${escapeHtml(data.seasonPoints)} / ${escapeHtml(threshold)} pkt</div>
+          <div style="font-size:11px; color:${escapeHtml(statusColor)};">${escapeHtml(statusText)}</div>
         </div>
       </div>
       <div style="width:100%; height:10px; border-radius:5px; background: rgba(255,255,255,0.08); overflow:hidden; margin-bottom:14px;">
-        <div style="height:100%; width:${(ratio * 100).toFixed(0)}%; background:${statusColor}; transition: width 0.3s;"></div>
+        <div style="height:100%; width:${(ratio * 100).toFixed(0)}%; background:${escapeHtml(statusColor)}; transition: width 0.3s;"></div>
       </div>
-      <div style="font-size:11px; color: var(--text-dim); margin-bottom:6px;">Historia kar (łącznie ${data.totalPoints} pkt od początku prowadzenia bazy):</div>
+      <div style="font-size:11px; color: var(--text-dim); margin-bottom:6px;">Historia kar (łącznie ${escapeHtml(data.totalPoints)} pkt od początku prowadzenia bazy):</div>
       ${incidentRows}
     `;
 }
@@ -9275,12 +9456,12 @@ function renderTrash() {
             : `${Object.keys(item.data || {}).length} wiadomości`;
         const dateStr = item.deletedAt ? new Date(item.deletedAt).toLocaleString() : "-";
         tr.innerHTML = `
-            <td>${typeLabel}</td>
-            <td>${desc}</td>
-            <td>${dateStr}</td>
+            <td>${escapeHtml(typeLabel)}</td>
+            <td>${escapeHtml(desc)}</td>
+            <td>${escapeHtml(dateStr)}</td>
             <td style="white-space:nowrap;">
-                <button class="btn-success" style="padding:4px 10px; font-size:11px; margin-right:6px;" onclick="restoreTrashItem('${item.id}')">↺ Przywróć</button>
-                <button class="btn-danger" style="padding:4px 10px; font-size:11px;" onclick="permanentlyDeleteTrashItem('${item.id}')">✕ Usuń trwale</button>
+                <button class="btn-success" style="padding:4px 10px; font-size:11px; margin-right:6px;" onclick="restoreTrashItem('${jsAttr(item.id)}')">↺ Przywróć</button>
+                <button class="btn-danger" style="padding:4px 10px; font-size:11px;" onclick="permanentlyDeleteTrashItem('${jsAttr(item.id)}')">✕ Usuń trwale</button>
             </td>`;
         tbody.appendChild(tr);
     });
@@ -9567,7 +9748,7 @@ let VOICE_CALL_ICE_SERVERS = [
 // Serwery TURN pobierane z Metered (aplikacja: sedziowie). Bez TURN głos nie popłynie przy restrykcyjnym NAT/CGNAT.
 (async () => {
     try {
-        const r = await fetch("https://sedziowie.metered.live/api/v1/turn/credentials?apiKey=66cf76e6b650b3b2b7b99e7073408dc58141");
+        const r = await fetch(FIA_PROXY_BASE + "/turn");
         if (!r.ok) throw new Error("HTTP " + r.status);
         const list = await r.json();
         if (Array.isArray(list) && list.length) {
@@ -10097,6 +10278,11 @@ function tryAutoLogin() {
 
 function finalizeAutoLogin() {
     isAdminAuthenticated = true;
+    // WARIANT B: poproś o logowanie do zapisu w bazie (działa tylko po włączeniu flagi powyżej).
+    if (typeof FIA_REQUIRE_FIREBASE_WRITE_AUTH !== "undefined" && FIA_REQUIRE_FIREBASE_WRITE_AUTH
+        && typeof window.fiaFirebaseLogin === "function") {
+        window.fiaFirebaseLogin();
+    }
     document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
     applyStewardPermissions();
     updateLoggedInAsLabel();
@@ -10433,14 +10619,14 @@ function renderStewardsTable() {
         if (!permsHtml) permsHtml = `<span style="color:var(--text-muted); font-size:11px;">Brak</span>`;
 
         tr.innerHTML = `
-            <td><strong>${st.nick}</strong></td>
-            <td><code style="color:var(--gold);">${st.id}</code></td>
-            <td><span class="badge ${st.role === 'Główny Steward' ? 'badge-accepted' : 'badge-pending'}">${st.role}</span></td>
+            <td><strong>${escapeHtml(st.nick)}</strong></td>
+            <td><code style="color:var(--gold);">${escapeHtml(st.id)}</code></td>
+            <td><span class="badge ${st.role === 'Główny Steward' ? 'badge-accepted' : 'badge-pending'}">${escapeHtml(st.role)}</span></td>
             <td><div style="display:flex; flex-wrap:wrap; gap:2px;">${permsHtml}</div></td>
             <td>
                 <div class="action-btns" style="flex-direction:row; gap:6px; margin:0;">
-                    <button class="btn-view" style="padding:3px 8px; margin:0;" onclick="editSteward('${st.id}')">Edytuj</button>
-                    <button class="btn-danger" style="padding:3px 8px; margin:0; font-size:10px;" onclick="deleteSteward('${st.id}', '${st.nick}')">✕</button>
+                    <button class="btn-view" style="padding:3px 8px; margin:0;" onclick="editSteward('${jsAttr(st.id)}')">Edytuj</button>
+                    <button class="btn-danger" style="padding:3px 8px; margin:0; font-size:10px;" onclick="deleteSteward('${jsAttr(st.id)}', '${jsAttr(st.nick)}')">✕</button>
                 </div>
             </td>
         `;
@@ -10469,7 +10655,7 @@ function renderVerdictReadOnlyBlock(d, heading) {
     if (!d) return "";
     return `
         <div style="margin-bottom:10px; padding:10px; background:#1e293b; border-radius:8px; border-left:3px solid #3b82f6;">
-            <strong style="color:#fff; font-size:12px;">${heading}</strong>
+            <strong style="color:#fff; font-size:12px;">${escapeHtml(heading)}</strong>
             <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                 <strong>Decyzja:</strong> ${escapeHtml(d.decision || "—")}<br>
                 <strong>Kara:</strong> Czasowa: ${escapeHtml(d.timePenalty || 'brak')}, Punkty: ${escapeHtml(d.pointsPenalty || '0')}<br>
@@ -10591,23 +10777,23 @@ function renderLogsTable() {
         else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
         else if (log.category === "AUTH") catBadge = `<span class="badge" style="background:#a855f7; color:#fff; border-color:#7e22ce;">AUTH</span>`;
         else if (log.category === "VOICE") catBadge = `<span class="badge" style="background:#0f766e; color:#fff; border-color:#0f766e;">ROZMOWA</span>`;
-        else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
+        else catBadge = `<span class="badge btn-secondary">${escapeHtml(log.category)}</span>`;
 
         const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
         const restoreBtn = (hasRestore && canManageLogs)
-            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromLog('${jsAttr(log.id)}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
             : '';
         const verdictPreviewBtn = logHasVerdictPreview(log)
-            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px;" title="${currentLang === 'pl' ? 'Podgląd werdyktu' : 'Preview verdict'}" onclick="openLogVerdictPreview('${log.id}')">👁 ${currentLang === 'pl' ? 'Werdykt' : 'Verdict'}</button>`
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px;" title="${currentLang === 'pl' ? 'Podgląd werdyktu' : 'Preview verdict'}" onclick="openLogVerdictPreview('${jsAttr(log.id)}')">👁 ${currentLang === 'pl' ? 'Werdykt' : 'Verdict'}</button>`
             : '';
 
         tr.innerHTML = `
-            <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
-            <td><strong>${log.steward}</strong></td>
+            <td style="color:var(--text-dim); white-space:nowrap;">${escapeHtml(dateStr)}</td>
+            <td><strong>${escapeHtml(log.steward)}</strong></td>
             <td>${catBadge}</td>
-            <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
-            <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td style="white-space:nowrap;">${verdictPreviewBtn}${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${log.id}')">✕ Usuń</button>` : ''}</td>
+            <td><code style="color:var(--amber-text);">${escapeHtml(log.targetId)}</code></td>
+            <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${escapeHtml(log.details)}</div></td>
+            <td style="white-space:nowrap;">${verdictPreviewBtn}${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="deleteLogEntry('${jsAttr(log.id)}')">✕ Usuń</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -10711,20 +10897,20 @@ function renderDeletedLogsTable() {
         else if (log.category === "RESTORE") catBadge = `<span class="badge" style="background:#0ea5e9; color:#fff; border-color:#0284c7;">PRZYWRÓCONO</span>`;
         else if (log.category === "AUTH") catBadge = `<span class="badge" style="background:#a855f7; color:#fff; border-color:#7e22ce;">AUTH</span>`;
         else if (log.category === "VOICE") catBadge = `<span class="badge" style="background:#0f766e; color:#fff; border-color:#0f766e;">ROZMOWA</span>`;
-        else catBadge = `<span class="badge btn-secondary">${log.category}</span>`;
+        else catBadge = `<span class="badge btn-secondary">${escapeHtml(log.category)}</span>`;
 
         const hasRestore = log.restore && Array.isArray(log.restore.items) && log.restore.items.length > 0;
         const restoreBtn = (hasRestore && canManageLogs)
-            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromDeletedLog('${log.id}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
+            ? `<button class="btn-view" style="padding:3px 8px; font-size:10px; margin-right:4px; color:#0ea5e9; border-color:rgba(14,165,233,0.4);" title="${currentLang === 'pl' ? 'Przywróć stan sprzed tej akcji' : 'Restore state before this action'}" onclick="restoreFromDeletedLog('${jsAttr(log.id)}')">↺ ${currentLang === 'pl' ? 'Przywróć' : 'Restore'}</button>`
             : '';
 
         tr.innerHTML = `
-            <td style="color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
-            <td><strong>${log.steward}</strong></td>
+            <td style="color:var(--text-dim); white-space:nowrap;">${escapeHtml(dateStr)}</td>
+            <td><strong>${escapeHtml(log.steward)}</strong></td>
             <td>${catBadge}</td>
-            <td><code style="color:var(--amber-text);">${log.targetId}</code></td>
-            <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${log.details}</div></td>
-            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${log.id}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
+            <td><code style="color:var(--amber-text);">${escapeHtml(log.targetId)}</code></td>
+            <td><div class="cell-wrap" style="max-height:none; font-size:11px; line-height:1.3;">${escapeHtml(log.details)}</div></td>
+            <td style="white-space:nowrap;">${restoreBtn}${canManageLogs ? `<button class="btn-danger" style="padding:3px 8px; font-size:10px;" onclick="permanentlyDeleteDeletedLog('${jsAttr(log.id)}')">✕ ${currentLang === 'pl' ? 'Usuń na stałe' : 'Delete forever'}</button>` : ''}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -10806,10 +10992,10 @@ window.addEventListener("DOMContentLoaded", () => {
     restoreExternalJudgeSession();
     updateJudgeFieldFromSession();
 
-    if (sessionStorage.getItem("trashAuth") === "1") {
+    if (sessionStorage.getItem("trashAuth") === TRASH_PASSWORD_HASH) {
         isTrashAuthenticated = true;
     }
-    if (sessionStorage.getItem("usersAuth") === "1") {
+    if (sessionStorage.getItem("usersAuth") === ADMIN_USERS_PASS_HASH) {
         isUsersAuth = true;
     }
 
@@ -11350,7 +11536,7 @@ function caseBadgesHtml(r) {
         const hrs = Math.floor((Date.now() - incTs(r)) / 3600000);
         const txt = hrs < 48 ? hrs + "h" : Math.floor(hrs / 24) + "d " + (hrs % 24) + "h";
         const cls = hrs >= 96 ? "chip-age-late" : hrs >= 48 ? "chip-age-warn" : "chip-age-ok";
-        h += `<div><span class="case-chip ${cls}" title="Czas oczekiwania na rozpatrzenie">⏱ ${txt}</span></div>`;
+        h += `<div><span class="case-chip ${escapeHtml(cls)}" title="Czas oczekiwania na rozpatrzenie">⏱ ${escapeHtml(txt)}</span></div>`;
     }
     return h;
 }
@@ -11465,14 +11651,14 @@ function updateVerdictHistoryBox() {
     let html = "";
     const role = conflictOf(inc);
     if (role) {
-        html += `<div style="color:var(--red-text);font-weight:700;margin-bottom:8px;">⛔ Konflikt interesów: jesteś ${role} w tej sprawie. ${isRootSteward() ? "Wysłanie werdyktu wymaga dodatkowego potwierdzenia." : "Nie możesz wydać werdyktu — przekaż sprawę innemu sędziemu."}</div>`;
+        html += `<div style="color:var(--red-text);font-weight:700;margin-bottom:8px;">⛔ Konflikt interesów: jesteś ${escapeHtml(role)} w tej sprawie. ${isRootSteward() ? "Wysłanie werdyktu wymaga dodatkowego potwierdzenia." : "Nie możesz wydać werdyktu — przekaż sprawę innemu sędziemu."}</div>`;
     }
     if (/^\d+$/.test(target)) {
         const h = computeDriverPenalties(target);
         if (h && h.found) {
             const n = h.penaltyIncidents.length;
             const repeat = n >= 2 || h.seasonPoints > 0;
-            html += `<div style="font-weight:700;color:${repeat ? "var(--amber-text)" : "var(--text)"};">${repeat ? "⚠️ " : ""}Historia: ${escapeHtml(h.displayName)} — kar w historii: ${n}, punkty w sezonie: ${h.seasonPoints}, razem: ${h.totalPoints}</div>`;
+            html += `<div style="font-weight:700;color:${repeat ? "var(--amber-text)" : "var(--text)"};">${repeat ? "⚠️ " : ""}Historia: ${escapeHtml(h.displayName)} — kar w historii: ${escapeHtml(n)}, punkty w sezonie: ${escapeHtml(h.seasonPoints)}, razem: ${escapeHtml(h.totalPoints)}</div>`;
             h.penaltyIncidents.slice(0, 3).forEach(r => {
                 const d = r.decisionData;
                 html += `<div style="color:var(--text-dim);">• ${escapeHtml(r.fiaId || r.id)} · ${escapeHtml(d.decision || "")} · ${escapeHtml(d.timePenalty || "brak")} / ${escapeHtml(d.pointsPenalty || "0")} pkt · ${d.issuedAt ? formatTimestamp(d.issuedAt) : ""}</div>`;
@@ -11590,7 +11776,7 @@ updateVerdictHistoryBox = function () {
         const base = h && h.found ? h.seasonPoints : 0;
         const thr = seasonSettings.threshold || 12;
         const total = base + add;
-        extra += `<div style="margin-top:6px;font-weight:700;color:${total >= thr ? "var(--red-text)" : "var(--text)"};">${total >= thr ? "⛔ " : ""}Po tej karze: ${total} pkt w sezonie (próg: ${thr})${total >= thr ? " — PRÓG PRZEKROCZONY" : ""}</div>`;
+        extra += `<div style="margin-top:6px;font-weight:700;color:${total >= thr ? "var(--red-text)" : "var(--text)"};">${total >= thr ? "⛔ " : ""}Po tej karze: ${escapeHtml(total)} pkt w sezonie (próg: ${escapeHtml(thr)})${total >= thr ? " — PRÓG PRZEKROCZONY" : ""}</div>`;
     }
 
     // Powiązane sprawy — ten sam oskarżony, tor i split — dla spójności werdyktów.
@@ -11644,7 +11830,7 @@ renderAdmin = function () {
         const hrs = Math.floor((Date.now() - incTs(a)) / 3600000);
         const txt = hrs < 48 ? hrs + "h" : Math.floor(hrs / 24) + "d " + (hrs % 24) + "h";
         const cls = hrs >= 96 ? "chip-age-late" : hrs >= 48 ? "chip-age-warn" : "chip-age-ok";
-        td.insertAdjacentHTML("beforeend", `<div><span class="case-chip appeal-age ${cls}" title="Czas oczekiwania apelacji na rozpatrzenie">⏱ ${txt}</span></div>`);
+        td.insertAdjacentHTML("beforeend", `<div><span class="case-chip appeal-age ${escapeHtml(cls)}" title="Czas oczekiwania apelacji na rozpatrzenie">⏱ ${escapeHtml(txt)}</span></div>`);
     });
 };
 </script>
@@ -12103,7 +12289,7 @@ vcHideIncomingOverlay = function () {
             const members = Object.entries(presence[c.id] || {}).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
             total += members.length;
             const joined = st.ch === c.id;
-            html += `<div class="vv-ch${joined ? " active" : ""}"><div class="vv-ch-row"><span class="vv-ch-name">${c.icon} ${escapeHtml(c.name)}</span>` +
+            html += `<div class="vv-ch${joined ? " active" : ""}"><div class="vv-ch-row"><span class="vv-ch-name">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</span>` +
                 (joined ? `<button type="button" class="vv-btn vv-btn-leave" data-vv="leave">Wyjdź</button>`
                         : `<button type="button" class="vv-btn" data-vv="join" data-ch="${escapeHtml(c.id)}">${members.length >= VV_MAX ? "Pełny" : "Dołącz"}</button>`) + `</div>`;
             members.forEach(([mid, p]) => {
@@ -12550,7 +12736,7 @@ setInterval(updateReportCountdown, 30000);
 const WITHDRAWN = "Wycofane";
 const statusFilter = $("adminFilterStatus");
 if (statusFilter && ![...statusFilter.options].some(o => o.value === WITHDRAWN)) {
-    statusFilter.insertAdjacentHTML("beforeend", `<option value="${WITHDRAWN}">Wycofane</option>`);
+    statusFilter.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(WITHDRAWN)}">Wycofane</option>`);
 }
 function canWithdraw(r) {
     return !!(r && discordDriverAuth && authorizedHistoryDiscordId &&
@@ -12597,7 +12783,7 @@ wrap("fetchAndRenderHistory", function () {
         if (!canWithdraw(r)) return;
         const actions = [...item.querySelectorAll('div[style*="justify-content:flex-end"]')].pop();
         if (actions) actions.insertAdjacentHTML("afterbegin",
-            `<button type="button" class="btn-secondary btn-withdraw" style="padding:5px 12px; font-size:11px;" onclick="withdrawReport('${escapeHtml(r.id)}')">↩️ ${L("Wycofaj zgłoszenie", "Withdraw report")}</button>`);
+            `<button type="button" class="btn-secondary btn-withdraw" style="padding:5px 12px; font-size:11px;" onclick="withdrawReport('${jsAttr(r.id)}')">↩️ ${L("Wycofaj zgłoszenie", "Withdraw report")}</button>`);
     });
 });
 const _badgeBase = window.getPlayerChatBadge;
@@ -12724,8 +12910,8 @@ function renderQuickReplies() {
     const box = $("stewardQuickReplies");
     if (!box) return;
     const custom = loadCustomQR();
-    box.innerHTML = QUICK_REPLIES.map((q, i) => `<button type="button" class="case-chip" title="${escapeHtml(q[1])}" data-qr="b${i}">${escapeHtml(q[0])}</button>`).join("") +
-        custom.map((t, i) => `<button type="button" class="case-chip custom" title="${escapeHtml(t)}\n(Shift+klik — usuń)" data-qr="c${i}">${escapeHtml(t.length > 24 ? t.slice(0, 23) + "…" : t)}</button>`).join("") +
+    box.innerHTML = QUICK_REPLIES.map((q, i) => `<button type="button" class="case-chip" title="${escapeHtml(q[1])}" data-qr="b${escapeHtml(i)}">${escapeHtml(q[0])}</button>`).join("") +
+        custom.map((t, i) => `<button type="button" class="case-chip custom" title="${escapeHtml(t)}\n(Shift+klik — usuń)" data-qr="c${escapeHtml(i)}">${escapeHtml(t.length > 24 ? t.slice(0, 23) + "…" : t)}</button>`).join("") +
         `<button type="button" class="case-chip" data-qr="add" title="Zapisz tekst wpisany w polu wiadomości jako własną szybką odpowiedź (zapis w tej przeglądarce)">＋ Zapisz jako szybką</button>`;
 }
 if ($("stewardQuickReplies")) $("stewardQuickReplies").addEventListener("click", e => {
@@ -12812,10 +12998,10 @@ function renderVotesBox() {
     const quorum = Math.max(0, parseInt(rules.quorum, 10) || 0);
     const hidden = rules.mode === "blind" && !mine && !isRoot();
     const maj = hidden ? null : majorityOf(votes);
-    const quorumHtml = quorum ? ` <span style="font-size:11px; color:${votes.length >= quorum ? "var(--green-text)" : "var(--amber-text)"};">· kworum ${votes.length}/${quorum}${votes.length >= quorum ? " ✔" : ""}</span>` : "";
+    const quorumHtml = quorum ? ` <span style="font-size:11px; color:${votes.length >= quorum ? "var(--green-text)" : "var(--amber-text)"};">· kworum ${votes.length}/${escapeHtml(quorum)}${votes.length >= quorum ? " ✔" : ""}</span>` : "";
     let html = `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
         <strong style="color:var(--purple-text);">🗳 Głosy sędziów — ${escapeHtml(scope === "main" ? inc.id : inc.id + " / " + scope)} (${votes.length})${quorumHtml}</strong>
-        ${maj ? `<span style="font-size:11px; color:${maj.tie ? "var(--amber-text)" : "var(--green-text)"};">${maj.tie ? "⚖️ Remis" : `✔ Większość: ${maj.count}/${maj.total}`}</span>` : ""}
+        ${maj ? `<span style="font-size:11px; color:${maj.tie ? "var(--amber-text)" : "var(--green-text)"};">${escapeHtml(maj.tie ? "⚖️ Remis" : `✔ Większość: ${maj.count}/${maj.total}`)}</span>` : ""}
       </div>`;
     if (rules.mode === "blind" && !hidden && isRoot() && !mine && votes.length) {
         html += `<div style="font-size:11px; color:var(--text-dim); margin-top:4px;">🔒 Tryb tajny — jako Główny Steward widzisz głosy przed oddaniem własnego.</div>`;
@@ -12823,7 +13009,7 @@ function renderVotesBox() {
     if (hidden) {
         html += `<div style="color:var(--text-dim); margin-top:6px;">🔒 Głosowanie tajne: ${votes.length ? `oddano już ${votes.length} ${plural(votes.length, "głos", "głosy", "głosów")}, ale ` : ""}głosy i komentarze innych sędziów zobaczysz dopiero po oddaniu własnego.</div>`;
     } else if (maj) {
-        html += `<div class="vote-bar">${maj.ranked.map(([d, list], i) => `<span title="${escapeHtml(d)}: ${list.length}" style="width:${(list.length / maj.total) * 100}%; background:${VOTE_COLORS[i % VOTE_COLORS.length]};"></span>`).join("")}</div>`;
+        html += `<div class="vote-bar">${maj.ranked.map(([d, list], i) => `<span title="${escapeHtml(d)}: ${list.length}" style="width:${(list.length / maj.total) * 100}%; background:${escapeHtml(VOTE_COLORS[i % VOTE_COLORS.length])};"></span>`).join("")}</div>`;
         html += votes.map(v => `<div class="vote-row">
             <span class="vote-who ${v.key === me ? "vote-mine" : ""}">${escapeHtml(v.nick || "?")}${v.key === me ? " (Ty)" : ""}</span>
             <span class="vote-what"><strong style="color:var(--text);">${escapeHtml(v.decision || "")}</strong>${penaltyLabel(v) ? " · " + escapeHtml(penaltyLabel(v)) : ""}${v.comment ? `<br><em>"${escapeHtml(v.comment)}"</em>` : ""}</span>
@@ -13066,8 +13252,8 @@ wrap("renderAdmin", function () {
         let chips = "";
         const openForVotes = !r.decisionData || r.status === "W apelacji";
         const nVotes = r.stewardVotes ? Object.values(r.stewardVotes).reduce((a, s) => a + Object.keys(s || {}).length, 0) : 0;
-        if (nVotes && openForVotes) chips += `<span class="case-chip chip-votes" title="Oddane głosy sędziów">🗳 ${nVotes}</span>`;
-        if (unread[id]) chips += `<span class="case-chip chip-unread" onclick="openCaseChatFromAdmin('${escapeHtml(id)}')" title="Nieprzeczytane wiadomości od kierowcy — kliknij, aby otworzyć czat">💬 ${unread[id]} nowe</span>`;
+        if (nVotes && openForVotes) chips += `<span class="case-chip chip-votes" title="Oddane głosy sędziów">🗳 ${escapeHtml(nVotes)}</span>`;
+        if (unread[id]) chips += `<span class="case-chip chip-unread" onclick="openCaseChatFromAdmin('${jsAttr(id)}')" title="Nieprzeczytane wiadomości od kierowcy — kliknij, aby otworzyć czat">💬 ${escapeHtml(unread[id])} nowe</span>`;
         if (chips && idCell) idCell.insertAdjacentHTML("beforeend", `<div>${chips}</div>`);
         if (r.status === WITHDRAWN && statusCell) {
             const badge = statusCell.querySelector("span");
@@ -13321,7 +13507,7 @@ function renderPrecedents() {
     const [time, points] = JSON.parse(Object.entries(combos).sort((a, b) => b[1] - a[1])[0][0]);
     precedentSuggestion = { decision: top, time, points };
     const pen = penaltyLabel({ timePenalty: time, pointsPenalty: points });
-    html += `<div class="prec-dist">${ranked.map(([d, n]) => `<span><b>${n}×</b> ${escapeHtml(d)}</span>`).join("")}</div>`;
+    html += `<div class="prec-dist">${ranked.map(([d, n]) => `<span><b>${escapeHtml(n)}×</b> ${escapeHtml(d)}</span>`).join("")}</div>`;
     html += `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
         <span>Najczęściej: <strong style="color:var(--text);">${escapeHtml(top)}</strong>${pen ? " · " + escapeHtml(pen) : ""}</span>
         <button type="button" class="btn-secondary" onclick="applyPrecedent()" title="Wpisz najczęstszą decyzję i karę do formularza">⤵ Użyj w formularzu</button></div>`;
@@ -13331,7 +13517,7 @@ function renderPrecedents() {
         return `<div class="prec-row"><span class="prec-id">${escapeHtml(r.fiaId || r.id)}</span>
             <span class="prec-what">${escapeHtml(shortTrack(r.track))} · ${escapeHtml(who)} — <strong style="color:var(--text);">${escapeHtml(d.decision)}</strong>${p ? " · " + escapeHtml(p) : ""}</span>
             <span class="prec-date">${d.issuedAt ? formatTimestamp(d.issuedAt) : ""}</span>
-            <button type="button" class="btn-secondary" onclick="openCaseVerdictPreview('${escapeHtml(r.id)}')" title="Pełny werdykt">👁</button></div>`;
+            <button type="button" class="btn-secondary" onclick="openCaseVerdictPreview('${jsAttr(r.id)}')" title="Pełny werdykt">👁</button></div>`;
     }).join("");
     if (list.length > 5) html += `<div style="font-size:10px; color:var(--text-muted); margin-top:4px;">…i ${list.length - 5} starszych.</div>`;
     box.innerHTML = html;
@@ -13380,11 +13566,11 @@ function renderTimeline(id) {
     if (msgs.length) {
         const last = Math.max(...msgs.map(m => ts(m.timestamp)));
         const fromDriver = msgs.filter(m => m.role === "player").length;
-        ev.push({ t: last, c: TL_COLORS.CHAT, txt: `💬 Czat sprawy: ${msgs.length} ${plural(msgs.length, "wiadomość", "wiadomości", "wiadomości")} <em>(od kierowców: ${fromDriver}, ostatnia tutaj)</em>` });
+        ev.push({ t: last, c: TL_COLORS.CHAT, txt: `💬 Czat sprawy: ${msgs.length} ${plural(msgs.length, "wiadomość", "wiadomości", "wiadomości")} <em>(od kierowców: ${escapeHtml(fromDriver)}, ostatnia tutaj)</em>` });
     }
     ev.sort((a, b) => a.t - b.t);
     box.innerHTML = ev.length
-        ? ev.slice(-40).map(e => `<div class="tl-item" style="--tl:${e.c}"><span class="tl-time">${e.t ? formatTimestamp(e.t) : "—"}</span><span class="tl-text">${e.txt}</span></div>`).join("")
+        ? ev.slice(-40).map(e => `<div class="tl-item" style="--tl:${escapeHtml(e.c)}"><span class="tl-time">${e.t ? formatTimestamp(e.t) : "—"}</span><span class="tl-text">${e.txt}</span></div>`).join("")
         : `<div style="font-size:11px; color:var(--text-dim);">Brak zdarzeń.</div>`;
     box.scrollTop = box.scrollHeight;
 }
@@ -13406,7 +13592,7 @@ function stepperHtml(r) {
     const icon = (st, i) => st === "done" ? "✓" : st === "fail" ? "✕" : st === "off" ? "–" : String(i + 1);
     let html = `<div class="case-stepper">` + steps.map((p, i) =>
         (i ? `<span class="cs-line ${p.st === "done" || p.st === "current" || p.st === "fail" || p.st === "off" ? "done" : ""}"></span>` : "") +
-        `<span class="cs-step ${p.st}"><span class="cs-dot">${icon(p.st, i)}</span>${p.l}</span>`).join("") + `</div>`;
+        `<span class="cs-step ${escapeHtml(p.st)}"><span class="cs-dot">${icon(p.st, i)}</span>${escapeHtml(p.l)}</span>`).join("") + `</div>`;
     if (s === "Werdykt wydany" && r.decisionData && r.decisionData.issuedAt && isWithinAppealWindow(r.decisionData)) {
         const left = r.decisionData.issuedAt + APPEAL_WINDOW_MS - Date.now();
         if (left > 0) html += `<div class="cs-note">⏳ ${L("Apelację możesz złożyć jeszcze przez", "You can still appeal for")} ${F.fmtLeft(left)}.</div>`;
@@ -13519,7 +13705,7 @@ function renderQS() {
     qsSel = Math.min(qsSel, Math.max(0, qsItems.length - 1));
     qsResults.innerHTML = qsItems.length
         ? (q ? "" : `<div class="qs-hint" style="border-bottom:1px solid var(--border);">Otwarte sprawy i nowe apelacje — zacznij pisać, aby szukać we wszystkich</div>`) +
-          qsItems.map((it, i) => `<div class="qs-item ${i === qsSel ? "sel" : ""}" data-i="${i}">
+          qsItems.map((it, i) => `<div class="qs-item ${i === qsSel ? "sel" : ""}" data-i="${escapeHtml(i)}">
             <span class="qs-id">${it.kind === "appeal" ? "⚖️ " : ""}${escapeHtml(it.id)}</span>
             <span class="qs-desc">${escapeHtml(it.desc)}</span>
             <span class="qs-st" style="background:${getPlayerChatBadge(it.status)}">${escapeHtml(it.status || "")}</span></div>`).join("")
@@ -13595,7 +13781,7 @@ function renderMyStats() {
       <div class="admin-stats" style="flex-wrap:wrap;">
         <div class="stat-box"><span>Werdykty w sezonie</span><strong>${season.length}</strong></div>
         <div class="stat-box"><span>Werdykty łącznie</span><strong>${mine.length}</strong></div>
-        <div class="stat-box"><span>Oddane głosy</span><strong>${votes}</strong></div>
+        <div class="stat-box"><span>Oddane głosy</span><strong>${escapeHtml(votes)}</strong></div>
         <div class="stat-box" style="cursor:pointer;" title="Pokaż moje otwarte sprawy" onclick="showSection('adminSection'); document.getElementById('adminFilterAssign').value='mine'; renderAdmin();"><span>Moje otwarte sprawy</span><strong>${open.length}</strong></div>
         <div class="stat-box"><span>Śr. czas do werdyktu</span><strong style="font-size:15px;">${avg ? formatDuration(avg) : "—"}</strong></div>
         <div class="stat-box"><span>Ostatni werdykt</span><strong style="font-size:13px;">${last ? formatTimestamp(last) : "—"}</strong></div>
@@ -13781,7 +13967,7 @@ function refreshDatalist() {
     const sig = list.map(d => d.id + d.nick).join("|");
     if (sig === datalistSig) return;
     datalistSig = sig;
-    dl.innerHTML = list.map(d => `<option value="${escapeHtml(d.nick)}" label="…${escapeHtml(d.id.slice(-4))} · ${d.n} ${plural(d.n, "sprawa", "sprawy", "spraw")}"></option>`).join("");
+    dl.innerHTML = list.map(d => `<option value="${escapeHtml(d.nick)}" label="…${escapeHtml(d.id.slice(-4))} · ${escapeHtml(d.n)} ${plural(d.n, "sprawa", "sprawy", "spraw")}"></option>`).join("");
 }
 function setKnownNote(text, cls) {
     const n = $("accusedKnownNote");
@@ -13911,11 +14097,11 @@ wrap("fetchAndRenderHistory", function () {
         const actions = [...item.querySelectorAll('div[style*="justify-content:flex-end"]')].pop();
         if (mine) {
             const nFiles = asList(mine.evidenceFiles).length;
-            const ownHtml = `<div class="stmt-own">📝 ${L("Twoje oświadczenie", "Your statement")} (${formatTimestamp(mine.ts)})${nFiles ? ` · 📎 ${nFiles}` : ""}: <span style="color:var(--text);">${escapeHtml((mine.text || "").slice(0, 160))}${(mine.text || "").length > 160 ? "…" : ""}</span></div>`;
+            const ownHtml = `<div class="stmt-own">📝 ${L("Twoje oświadczenie", "Your statement")} (${formatTimestamp(mine.ts)})${escapeHtml(nFiles ? ` · 📎 ${nFiles}` : "")}: <span style="color:var(--text);">${escapeHtml((mine.text || "").slice(0, 160))}${(mine.text || "").length > 160 ? "…" : ""}</span></div>`;
             if (actions) actions.insertAdjacentHTML("beforebegin", ownHtml); else item.insertAdjacentHTML("beforeend", ownHtml);
         }
         if (canStatement(r) && actions) actions.insertAdjacentHTML("afterbegin",
-            `<button type="button" class="btn-secondary" style="padding:5px 12px; font-size:11px; color:var(--text);" onclick="openStatementModal('${escapeHtml(r.id)}')">📝 ${mine ? L("Zmień oświadczenie", "Edit statement") : L("Oświadczenie / dowody", "Statement / evidence")}</button>`);
+            `<button type="button" class="btn-secondary" style="padding:5px 12px; font-size:11px; color:var(--text);" onclick="openStatementModal('${jsAttr(r.id)}')">📝 ${mine ? L("Zmień oświadczenie", "Edit statement") : L("Oświadczenie / dowody", "Statement / evidence")}</button>`);
     });
 });
 
@@ -14010,10 +14196,10 @@ function renderCalendarAdmin() {
     box.innerHTML = calendarRounds.map((r, i) => {
         const cls = r === next ? "next" : (roundTs(r) <= todayStart() ? "past" : "");
         const cases = (globalIncidents || []).filter(x => x.track === r.track && incTs(x) >= roundTs(r) - 86400000 && incTs(x) < roundTs(r) + 8 * 86400000).length;
-        return `<div class="cal-row ${cls}"><span class="cal-date">${dayStr(roundTs(r))}</span><span style="color:var(--text-muted); min-width:26px;">#${i + 1}</span>
+        return `<div class="cal-row ${escapeHtml(cls)}"><span class="cal-date">${dayStr(roundTs(r))}</span><span style="color:var(--text-muted); min-width:26px;">#${escapeHtml(i + 1)}</span>
           <span class="cal-track">${escapeHtml(r.track)}${r.label ? ` <em style="color:var(--text-dim);">· ${escapeHtml(r.label)}</em>` : ""}${r === next ? " ⏭" : ""}</span>
-          <span style="font-size:11px; color:var(--text-dim);">${cases ? `${cases} ${plural(cases, "zgłoszenie", "zgłoszenia", "zgłoszeń")}` : ""}</span>
-          <button type="button" class="btn-secondary" onclick="removeCalendarRound('${escapeHtml(r.key)}')" title="Usuń rundę">✕</button></div>`;
+          <span style="font-size:11px; color:var(--text-dim);">${escapeHtml(cases ? `${cases} ${plural(cases, "zgłoszenie", "zgłoszenia", "zgłoszeń")}` : "")}</span>
+          <button type="button" class="btn-secondary" onclick="removeCalendarRound('${jsAttr(r.key)}')" title="Usuń rundę">✕</button></div>`;
     }).join("");
 }
 // Automatyczny wybór toru ostatniej rundy w pustym formularzu (do 7 dni po wyścigu).
@@ -14131,15 +14317,15 @@ window.renderDecisions = renderDecisions;
 function renderPublicPoints() {
     const thr = (seasonSettings && seasonSettings.threshold) || 12;
     const rows = computeLeaderboard(100).filter(r => r.seasonPoints > 0 || r.count > 0);
-    $("decPointsInfo").innerHTML = `Punkty karne w bieżącym sezonie${seasonSettings && seasonSettings.start ? ` (od ${dayStr(seasonSettings.start)})` : ""}. Po osiągnięciu <b style="color:var(--text);">${thr} pkt</b> kierowcę czeka zawieszenie.`;
+    $("decPointsInfo").innerHTML = `Punkty karne w bieżącym sezonie${seasonSettings && seasonSettings.start ? ` (od ${dayStr(seasonSettings.start)})` : ""}. Po osiągnięciu <b style="color:var(--text);">${escapeHtml(thr)} pkt</b> kierowcę czeka zawieszenie.`;
     $("decPoints").innerHTML = rows.length ? rows.map((r, i) => {
         const ratio = Math.min(1, r.seasonPoints / thr);
         const color = r.seasonPoints >= thr ? "#ef4444" : ratio >= 0.7 ? "#fbbf24" : "#10b981";
         const susp = suspensionState(r);
-        return `<div class="pts-row"><span class="pts-pos">${i + 1}</span>
-          <span class="pts-name">${escapeHtml(r.name)} <span style="color:var(--text-muted); font-weight:400; font-size:11px;">· ${r.count} ${plural(r.count, "kara", "kary", "kar")}</span>${susp === "due" ? ' <span class="dec-tag" style="background:#b91c1c;">🚫 ZAWIESZENIE</span>' : susp === "served" ? ' <span class="dec-tag" style="background:#374151;">zawieszenie odbyte</span>' : ""}</span>
-          <span class="pts-bar"><span style="width:${(ratio * 100).toFixed(0)}%; background:${color};"></span></span>
-          <span class="pts-val" style="color:${color};">${r.seasonPoints} pkt</span></div>`;
+        return `<div class="pts-row"><span class="pts-pos">${escapeHtml(i + 1)}</span>
+          <span class="pts-name">${escapeHtml(r.name)} <span style="color:var(--text-muted); font-weight:400; font-size:11px;">· ${escapeHtml(r.count)} ${plural(r.count, "kara", "kary", "kar")}</span>${susp === "due" ? ' <span class="dec-tag" style="background:#b91c1c;">🚫 ZAWIESZENIE</span>' : susp === "served" ? ' <span class="dec-tag" style="background:#374151;">zawieszenie odbyte</span>' : ""}</span>
+          <span class="pts-bar"><span style="width:${(ratio * 100).toFixed(0)}%; background:${escapeHtml(color)};"></span></span>
+          <span class="pts-val" style="color:${escapeHtml(color)};">${escapeHtml(r.seasonPoints)} pkt</span></div>`;
     }).join("") : `<div class="stat-empty-msg">Brak punktów karnych w tym sezonie.</div>`;
 }
 wrap("showSection", id => { if (id === "decisionsSection") renderDecisions(); });
@@ -14181,15 +14367,15 @@ function renderSuspensions() {
     if (!box) return;
     const thr = (seasonSettings && seasonSettings.threshold) || 12;
     const rows = computeLeaderboard(200).filter(r => r.seasonPoints >= thr);
-    if (!rows.length) { box.innerHTML = `<div class="stat-empty-msg">Nikt nie przekroczył progu ${thr} pkt w tym sezonie.</div>`; return; }
+    if (!rows.length) { box.innerHTML = `<div class="stat-empty-msg">Nikt nie przekroczył progu ${escapeHtml(thr)} pkt w tym sezonie.</div>`; return; }
     const can = canManageSys();
     box.innerHTML = rows.map(r => {
         const st = suspensionState(r), s = suspensions[suspKey(r)];
         return `<div class="susp-row"><span class="susp-name">${escapeHtml(r.name)} <span style="color:var(--text-muted); font-weight:400; font-size:11px;">${r.id ? "· …" + escapeHtml(String(r.id).slice(-4)) : ""}</span></span>
-          <span style="color:var(--red-text); font-weight:800;">${r.seasonPoints} pkt</span>
+          <span style="color:var(--red-text); font-weight:800;">${escapeHtml(r.seasonPoints)} pkt</span>
           ${st === "served"
-            ? `<span style="color:var(--text-dim); font-size:11px;">✓ Odbyte ${formatTimestamp(s.servedAt)}${s.round ? " (" + escapeHtml(s.round) + ")" : ""} · ${escapeHtml(s.by || "")}</span>${can ? `<button type="button" class="btn-secondary" onclick="markSuspension('${escapeHtml(suspKey(r))}', false)">↺ Cofnij</button>` : ""}`
-            : `<span style="color:var(--amber-text); font-size:11px; font-weight:700;">⏳ Do odbycia</span>${can ? `<button type="button" class="btn-success" onclick="markSuspension('${escapeHtml(suspKey(r))}', true)">✓ Odbył zawieszenie</button>` : ""}`}
+            ? `<span style="color:var(--text-dim); font-size:11px;">✓ Odbyte ${formatTimestamp(s.servedAt)}${s.round ? " (" + escapeHtml(s.round) + ")" : ""} · ${escapeHtml(s.by || "")}</span>${can ? `<button type="button" class="btn-secondary" onclick="markSuspension('${jsAttr(suspKey(r))}', false)">↺ Cofnij</button>` : ""}`
+            : `<span style="color:var(--amber-text); font-size:11px; font-weight:700;">⏳ Do odbycia</span>${can ? `<button type="button" class="btn-success" onclick="markSuspension('${jsAttr(suspKey(r))}', true)">✓ Odbył zawieszenie</button>` : ""}`}
         </div>`;
     }).join("");
 }
@@ -14228,7 +14414,7 @@ window.printCaseDossier = function (id) {
         asList(rec && rec.evidenceFiles).forEach(f => items.push(`📎 ${e(f.name || "plik")}${f.size ? ` (${Math.round(f.size / 1024)} KB)` : ""}${f.url && /^https?:/.test(f.url) ? ` — <a href="${e(f.url)}">link</a>` : ""}`));
         return items.length ? items.join("<br>") : "—";
     };
-    const verdictBlock = (d, title) => d ? `<h3>${title}</h3><table>
+    const verdictBlock = (d, title) => d ? `<h3>${escapeHtml(title)}</h3><table>
         <tr><th>Decyzja</th><td>${e(d.decision || "")}</td></tr>
         <tr><th>Kara</th><td>${e(d.timePenalty || "brak")} / ${e(d.pointsPenalty || "0 pkt")}</td></tr>
         <tr><th>Winny</th><td>${d.noOneGuilty ? "nikt nie jest winny" : e(d.guiltyNick || "—")}</td></tr>
@@ -14341,7 +14527,7 @@ wrap("renderAdmin", function () {
         const n = r && r.statements ? Object.keys(r.statements).length : 0;
         if (!n) return;
         const idCell = cb.closest("tr").children[1];
-        if (idCell) idCell.insertAdjacentHTML("beforeend", `<div><span class="case-chip" style="color:#f97316; border-color:#f97316;" title="Oświadczenia stron — zobacz w panelu werdyktu">📝 ${n}</span></div>`);
+        if (idCell) idCell.insertAdjacentHTML("beforeend", `<div><span class="case-chip" style="color:#f97316; border-color:#f97316;" title="Oświadczenia stron — zobacz w panelu werdyktu">📝 ${escapeHtml(n)}</span></div>`);
     });
     renderStatementsBox();
 });
