@@ -4678,28 +4678,21 @@ function getNextOpenText(split) {
     return nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
 }
 
-// Zwraca Date początku okna zgłoszeniowego danego splitu, które rozpoczęło się najpóźniej
-// w chwili `refTs` (ms) — przeszukuje 7 dni wstecz od tego momentu.
-function findReportWindowStartAtOrBefore(split, refTs) {
-    const cfg = REPORT_WINDOWS[split];
-    if (!cfg) return null;
-    const ref = new Date(refTs);
-    if (isNaN(ref.getTime())) return null;
-    for (let daysAgo = 0; daysAgo <= 7; daysAgo++) {
-        const candidate = new Date(ref);
-        candidate.setDate(candidate.getDate() - daysAgo);
-        candidate.setHours(cfg.hour, cfg.minute, 0, 0);
-        if (candidate.getDay() !== cfg.day) continue;
-        if (candidate.getTime() > ref.getTime()) continue;
-        return candidate;
-    }
-    return null;
-}
-
 // Zwraca Date najbliższego otwarcia okna dla danego splitu, które zaczyna się w przeszłości
 // lub teraz (przeszukuje ostatnie 7 dni wstecz, licząc od dziś).
 function findLastReportWindowStart(split) {
-    return findReportWindowStartAtOrBefore(split, Date.now());
+    const cfg = REPORT_WINDOWS[split];
+    if (!cfg) return null;
+    const now = new Date();
+    for (let daysAgo = 0; daysAgo <= 7; daysAgo++) {
+        const candidate = new Date(now);
+        candidate.setDate(candidate.getDate() - daysAgo);
+        candidate.setHours(cfg.hour, cfg.minute, 0, 0);
+        if (candidate.getDay() !== cfg.day) continue;
+        if (candidate.getTime() > now.getTime()) continue;
+        return candidate;
+    }
+    return null;
 }
 
 // Zwraca Date najbliższego przyszłego otwarcia okna dla danego splitu.
@@ -4718,37 +4711,22 @@ function findNextReportWindowStart(split) {
     return null;
 }
 
-// Znacznik czasu sprawy (ms) — liczba albo data w formacie tekstowym; null, gdy brak/niepoprawny.
-function caseTimestampMs(ts) {
-    if (ts === null || ts === undefined || ts === "") return null;
-    const n = Number(ts);
-    const ms = Number.isFinite(n) && n > 0 ? n : new Date(ts).getTime();
-    return Number.isFinite(ms) && ms > 0 ? ms : null;
-}
-
 // Zwraca znacznik czasu (ms) zamknięcia okna zgłoszeniowego dla danego splitu — czyli moment,
 // w którym wydawanie werdyktów dla spraw z tego splitu się odblokowuje (21:15 dnia następnego
 // po wyścigu, tj. dokładnie moment zamknięcia 24h okna na składanie zgłoszeń).
-// `caseTs` (opcjonalny) = moment złożenia sprawy. Blokada dotyczy RUNDY, z której pochodzi
-// sprawa — liczymy więc od okna, w którym sprawę złożono, a nie od bieżącego. Wcześniej sprawy
-// z poprzedniego tygodnia blokowały się ponownie na 24h, gdy tylko otwierało się nowe okno.
-function getVerdictUnlockTime(split, caseTs) {
+function getVerdictUnlockTime(split) {
     if (!REPORT_WINDOWS[split]) return null;
-    const ts = caseTimestampMs(caseTs);
-    const start = ts
-        ? findReportWindowStartAtOrBefore(split, Math.min(ts, Date.now()))
-        : findLastReportWindowStart(split);
-    if (!start) return null;
-    return start.getTime() + REPORT_WINDOW_MS;
+    const lastStart = findLastReportWindowStart(split);
+    if (!lastStart) return null;
+    return lastStart.getTime() + REPORT_WINDOW_MS;
 }
 
 // Blokada wydawania werdyktów: stewardowie mogą wydać werdykt dla sprawy z danego splitu
-// dopiero PO zamknięciu okna zgłoszeniowego tej rundy, w której sprawę złożono (żeby nie
-// orzekać, zanim wszystkie zgłoszenia z danej rundy zdążą wpłynąć). Nieznany/pusty split nie
-// jest blokowany. `caseTs` — patrz getVerdictUnlockTime.
-function isVerdictWindowOpen(split, caseTs) {
+// dopiero PO zamknięciu okna zgłoszeniowego dla tego splitu (żeby nie orzekać, zanim wszystkie
+// zgłoszenia z danej rundy zdążą wpłynąć). Nieznany/pusty split nie jest blokowany.
+function isVerdictWindowOpen(split) {
     if (!REPORT_WINDOWS[split]) return true;
-    const unlockAt = getVerdictUnlockTime(split, caseTs);
+    const unlockAt = getVerdictUnlockTime(split);
     if (!unlockAt) return true;
     return Date.now() >= unlockAt;
 }
@@ -7903,8 +7881,7 @@ async function rejectAppeal(appealId, caseId, discordId) {
             { name: "⚖️ ID Apelacji", value: `\`${appealId}\``, inline: true },
             { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${discordId}>)`, inline: false },
             { name: isPl ? "📢 Status Apelacji" : "📢 Appeal Status", value: `**${isPl ? "WERDYKT PODTRZYMANY" : "VERDICT MAINTAINED"}**`, inline: true },
-            // Pusta wartość pola = Discord odrzuca całą wiadomość (HTTP 400), stąd dcFieldValue.
-            { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: dcFieldValue(reason), inline: false }
+            { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
         ], timestamp: new Date().toISOString()
     };
     try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${discordId}>`, embeds: [embed] }) }); } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
@@ -8563,175 +8540,104 @@ function resetAppealIDCounter() {
     }
 }
 
-// Rozpoznaje sprawę (i ewentualnie apelację) wskazaną w polu "ID sprawy" formularza werdyktu.
-// Obsługuje "FIA-0001", "#fia-0001", "FIA-0001 (APP-0001)" i samo "APP-0001" — wielkość liter,
-// spacje i wiodący "#" nie mają znaczenia. Zwraca { incident, appeal } albo { error }.
-// Wszystkie zapisy używają PRAWDZIWYCH kluczy z bazy (incident.id / appeal.id). Wcześniej blokada
-// szukała sprawy "luźno", a zapis — dokładnie po wpisanym tekście, więc np. "fia-0001" przechodziło
-// blokadę, werdykt szedł na Discorda, ale w bazie nic się nie zapisywało.
-function resolveVerdictTarget(rawInput) {
-    const pl = currentLang === 'pl';
-    const norm = (x) => String(x == null ? "" : x).trim().replace(/^#/, "").toUpperCase();
-    const raw = String(rawInput || "").trim();
-    if (!raw) return { error: pl ? "Podaj ID sprawy. Werdykt nie został wydany." : "Enter the case ID. Verdict was not issued." };
-
-    const findIncident = (id) => {
-        const n = norm(id);
-        if (!n) return null;
-        return globalIncidents.find(r => norm(r.id) === n)
-            || globalIncidents.find(r => r.fiaId && norm(r.fiaId) === n)
-            || null;
-    };
-
-    const pairMatch = raw.match(/(FIA-\d+)\s*\(\s*(APP-\d+)\s*\)/i);
-    const appealIdRaw = pairMatch ? pairMatch[2] : ((raw.match(/APP-\d+/i) || [])[0] || null);
-    let appeal = null;
-    if (appealIdRaw) {
-        const n = norm(appealIdRaw);
-        appeal = globalAppeals.find(a => norm(a.appealId) === n) || globalAppeals.find(a => norm(a.id) === n) || null;
-        if (!appeal) {
-            return { error: pl
-                ? `Nie znaleziono apelacji "${appealIdRaw}" — sprawdź ID. Werdykt nie został wydany.`
-                : `No appeal found with ID "${appealIdRaw}" — check the ID. Verdict was not issued.` };
-        }
-    }
-
-    let incident = null;
-    if (pairMatch) incident = findIncident(pairMatch[1]);
-    else if (appeal) incident = findIncident(appeal.caseId);
-    else incident = findIncident(raw.split(/\s+/)[0]);
-
-    if (!incident) {
-        return { error: pl
-            ? `Nie znaleziono sprawy o ID "${raw}" — sprawdź poprawność ID. Werdykt nie został wydany.`
-            : `No case found with ID "${raw}" — check the ID. Verdict was not issued.` };
-    }
-    return { incident, appeal };
-}
-
-// Wszystko, co musi się zgadzać, zanim werdykt zostanie wysłany: wskazany winny (albo "Nikt nie
-// winny"), istniejąca sprawa/apelacja oraz blokada do zamknięcia okna zgłoszeń rundy, z której
-// pochodzi sprawa (Główny Steward / ROOT / uprawnienie "Nie blokuj niczego" ją omijają — patrz
-// stewardLockBypass). Zwraca { ok: true, incident, appeal, accusedId } albo { ok: false, message }.
-function validateVerdictSubmission() {
-    const pl = currentLang === 'pl';
-    const caseIdInput = (document.getElementById("caseId").value || "").trim();
-    const accusedId = (document.getElementById("accusedId").value || "").trim();
-
-    if (!verdictNoOneGuilty && !accusedId) {
-        return { ok: false, message: pl
-            ? "Podaj Discord ID winnego lub wybierz opcję \"Nikt nie winny\"."
-            : "Enter the guilty party's Discord ID, or choose \"Nobody guilty\"." };
-    }
-
-    const target = resolveVerdictTarget(caseIdInput);
-    if (target.error) return { ok: false, message: target.error };
-
-    const split = target.incident.split || null;
-    if (!stewardLockBypass && split && !isVerdictWindowOpen(split, target.incident.timestamp)) {
-        const unlockAt = getVerdictUnlockTime(split, target.incident.timestamp);
-        const unlockText = unlockAt ? formatTimestamp(unlockAt) : "-";
-        return { ok: false, message: pl
-            ? `Werdyktów dla spraw z ${split} nie można jeszcze wydawać. Okno zgłoszeniowe tej rundy zamyka się dopiero o ${unlockText} — do tego czasu wydawanie werdyktów jest zablokowane.`
-            : `Verdicts for ${split} cases cannot be issued yet. This round's report window doesn't close until ${unlockText} — verdicts are locked until then.` };
-    }
-
-    return { ok: true, incident: target.incident, appeal: target.appeal, accusedId };
-}
-
-// Po udanym wysłaniu: czyści podglądy i panele boczne powiązane z poprzednią sprawą, żeby nie
-// zostały na ekranie przy pustym formularzu (łatwo wtedy o werdykt w niewłaściwej sprawie).
-function resetVerdictPanelAfterSend() {
-    try {
-        updateJudgeFieldFromSession();
-        handleDecisionChange();
-        const desc = document.getElementById("verdictPreviewDesc");
-        if (desc) desc.textContent = "-";
-        const ev = document.getElementById("verdictPreviewEvidence");
-        if (ev) ev.textContent = "-";
-        const caseEl = document.getElementById("caseId");
-        if (caseEl) caseEl.dispatchEvent(new Event("input", { bubbles: true }));
-    } catch (err) {
-        console.error("Błąd czyszczenia panelu werdyktu:", err);
-    }
-}
-
-let verdictSubmitting = false;
-
-// Walidacja w fazie przechwytywania na window — rejestrowana jako PIERWSZA, więc odpala się przed
-// oknami potwierdzeń ("Wysłać werdykt?", kworum, nadpisanie werdyktu, konflikt interesów).
-// Wcześniej steward najpierw potwierdzał wysłanie, a dopiero potem dowiadywał się, że sprawy nie
-// ma albo że werdykty są zablokowane. Blokuje też ponowne wysłanie, gdy poprzednie jeszcze trwa.
-window.addEventListener("submit", (e) => {
-    if (!e.target || e.target.id !== "responseForm") return;
-    if (verdictSubmitting) { e.preventDefault(); e.stopImmediatePropagation(); return; }
-    const check = validateVerdictSubmission();
-    if (check.ok) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const statusEl = document.getElementById("status");
-    if (statusEl) { statusEl.textContent = check.message; statusEl.className = "status-msg err"; }
-    alert(check.message);
-}, true);
-
 document.getElementById("responseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (verdictSubmitting) return;
     const t = langData[currentLang];
-    const pl = currentLang === 'pl';
-    const formEl = e.currentTarget;
     const statusEl = document.getElementById("status");
-    const submitBtn = formEl.querySelector('button[type="submit"]');
-    // Przycisk jest wyłączony na czas całej operacji — generowanie obrazka i wysyłka trwają kilka
-    // sekund i ponowne kliknięcie publikowało ten sam werdykt na Discordzie drugi raz.
-    verdictSubmitting = true;
-    if (submitBtn) submitBtn.disabled = true;
-    let verdictSaved = false;
-    // Cała obsługa w try/catch — błąd zapisu do bazy (np. brak uprawnień) nie może zostawić
-    // komunikatu "Wysyłanie..." na zawsze, bez żadnej informacji, co poszło nie tak.
+    // Cała obsługa w try/catch — wcześniej błąd zapisu do bazy (np. brak uprawnień) zostawiał
+    // komunikat "Wysyłanie..." na zawsze, bez żadnej informacji, co poszło nie tak.
     try { await (async () => {
     statusEl.textContent = t.statusSending; statusEl.className = "status-msg";
 
-    // Te same sprawdzenia co przed oknami potwierdzeń — powtórzone tuż przed zapisem, bo dane
-    // w bazie mogły się w międzyczasie zmienić.
-    const check = validateVerdictSubmission();
-    if (!check.ok) {
-        statusEl.textContent = check.message; statusEl.className = "status-msg err";
-        alert(check.message);
+    const caseIdInput = document.getElementById("caseId").value.trim();
+    const accusedId = document.getElementById("accusedId").value.trim();
+
+    if (!verdictNoOneGuilty && !accusedId) {
+        statusEl.textContent = "";
+        alert(currentLang === 'pl' ? "Podaj Discord ID winnego lub wybierz opcję \"Nikt nie winny\"." : "Enter the guilty party's Discord ID, or choose \"Nobody guilty\".");
         return;
     }
-    const mainReport = check.incident;
-    const appealForVerdict = check.appeal;
-    const accusedId = check.accusedId;
-    const originalCaseId = mainReport.id;
-    const isAppealVerdict = !!appealForVerdict;
 
-    // Reguły bazy (wariant B) wymagają aktywnej sesji zapisu Firebase. Bez niej zapis kończył się
-    // błędem PERMISSION_DENIED — prosimy o zalogowanie, zanim cokolwiek zapiszemy lub wyślemy.
-    if (typeof FIA_REQUIRE_FIREBASE_WRITE_AUTH !== "undefined" && FIA_REQUIRE_FIREBASE_WRITE_AUTH
-        && fiaAuth && !fiaAuth.currentUser && typeof window.fiaFirebaseLogin === "function") {
-        const loggedIn = await window.fiaFirebaseLogin();
-        if (!loggedIn) {
-            statusEl.textContent = pl
-                ? "Werdykt nie został wydany — najpierw zaloguj się do zapisu w bazie (konto Firebase stewarda)."
-                : "Verdict was not issued — sign in for database write access (steward Firebase account) first.";
-            statusEl.className = "status-msg err";
-            return;
+    // Blokada wydawania werdyktu do czasu zamknięcia okna zgłoszeniowego (21:15 dnia następnego
+    // po wyścigu) dla splitu, do którego należy sprawa — stewardowie muszą poczekać, aż wszystkie
+    // zgłoszenia z danej rundy zdążą wpłynąć. Wykrywamy split, odnajdując sprawę po ID (obsługując
+    // też format "FIA-xxx (APP-xxx)" oraz samo "APP-xxx" dla apelacji), analogicznie jak niżej przy
+    // właściwym zapisie werdyktu — ale zanim wykonamy jakikolwiek zapis do bazy. Główny Steward /
+    // ROOT oraz stewardowie z uprawnieniem "Nie blokuj niczego" (no_lock_restrictions) omijają tę
+    // blokadę, tak samo jak pozostałe blokady strony (patrz stewardLockBypass).
+    // Normalizacja wpisanego ID sprawy (obcięcie spacji, wielkość liter, ew. wiodący "#") —
+    // bez tego literówka/inny zapis ID powodował, że sprawa "nie była znajdowana", przez co
+    // blokada niżej była CICHO pomijana i werdykt dało się wydać mimo zamkniętego okna.
+    const normalizeCaseId = (raw) => (raw || "").trim().replace(/^#/, "").toUpperCase();
+
+    let baseCaseIdForLock = caseIdInput;
+    const appealMatchForLock = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
+    if (appealMatchForLock) {
+        baseCaseIdForLock = appealMatchForLock[1];
+    } else {
+        const singleAppealMatchForLock = caseIdInput.match(/APP-\d+/i);
+        if (singleAppealMatchForLock) {
+            const linkedAppealForLock = globalAppeals.find(a => normalizeCaseId(a.appealId) === normalizeCaseId(singleAppealMatchForLock[0]));
+            if (linkedAppealForLock) baseCaseIdForLock = linkedAppealForLock.caseId;
         }
+    }
+    const caseForLock = globalIncidents.find(r => normalizeCaseId(r.id) === normalizeCaseId(baseCaseIdForLock));
+    const splitForLock = caseForLock ? caseForLock.split : null;
+
+    // Sprawa o podanym ID w ogóle nie została znaleziona — nie da się ustalić splitu, więc
+    // zamiast po cichu przepuścić werdykt (jak było dotychczas), blokujemy z jawnym komunikatem.
+    if (!stewardLockBypass && !caseForLock) {
+        statusEl.textContent = "";
+        alert(currentLang === 'pl'
+            ? `Nie znaleziono sprawy o ID "${caseIdInput}" — sprawdź poprawność ID. Werdykt nie został wydany.`
+            : `No case found with ID "${caseIdInput}" — check the ID. Verdict was not issued.`);
+        return;
+    }
+
+    if (!stewardLockBypass && splitForLock && !isVerdictWindowOpen(splitForLock)) {
+        statusEl.textContent = "";
+        const unlockAt = getVerdictUnlockTime(splitForLock);
+        const unlockText = unlockAt ? formatTimestamp(unlockAt) : "-";
+        alert(currentLang === 'pl'
+            ? `Werdyktów dla spraw z ${splitForLock} nie można jeszcze wydawać. Okno zgłoszeniowe zamyka się dopiero o ${unlockText} — do tego czasu wydawanie werdyktów jest zablokowane.`
+            : `Verdicts for ${splitForLock} cases cannot be issued yet. The report window doesn't close until ${unlockText} — verdicts are locked until then.`);
+        return;
     }
 
     const decision = document.getElementById("decision").value;
-    const timePenalty = document.getElementById("timePenalty").value.trim() || "brak";
-    const pointsPenalty = document.getElementById("pointsPenalty").value.trim() || "0 pkt";
+    const timePenalty = document.getElementById("timePenalty").value || "brak";
+    const pointsPenalty = document.getElementById("pointsPenalty").value || "0 pkt";
     const verdictDetails = document.getElementById("verdictDetails").value;
     // Podpis sędziego pobierany jest z zalogowanego konta (nie z ręcznie edytowalnego pola),
     // żeby uniemożliwić podpisanie werdyktu cudzym/nieprawdziwym nazwiskiem.
     const judge = (loggedInSteward && loggedInSteward.nick) ? loggedInSteward.nick : document.getElementById("judge").value;
 
-    const unknownLabel = pl ? "Nieznany" : "Unknown";
+    let originalCaseId = caseIdInput;
+    let isAppealVerdict = false;
+    const matchApp = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
+    if (matchApp) {
+        originalCaseId = matchApp[1];
+        const appId = matchApp[2];
+        await database.ref("appeals/" + appId + "/status").set("Zakończona");
+        isAppealVerdict = true;
+    } else {
+        const singleAppMatch = caseIdInput.match(/APP-\d+/i);
+        if (singleAppMatch) {
+            const foundAp = globalAppeals.find(a => a.appealId === singleAppMatch[0]);
+            if (foundAp) {
+                originalCaseId = foundAp.caseId;
+                await database.ref("appeals/" + foundAp.appealId + "/status").set("Zakończona");
+                isAppealVerdict = true;
+            }
+        }
+    }
+
+    const mainReport = globalIncidents.find(r => r.id === originalCaseId);
+    const unknownLabel = currentLang === 'pl' ? "Nieznany" : "Unknown";
     // Winnym w apelacji może zostać uznany zgłaszający, a nie tylko pierwotny oskarżony —
     // dopasowujemy nick do faktycznie wybranego Discord ID (accusedId), zamiast zakładać z góry.
     const winnerNick = verdictNoOneGuilty ? null : resolveGuiltyPartyNick(mainReport, accusedId, unknownLabel);
+    const restoreItemsVerdict = [];
     const decisionDataToSave = {
         decision: decision,
         timePenalty: timePenalty,
@@ -8747,45 +8653,35 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     // pierwotny werdykt (i jego ewentualną wcześniejszą historię apelacji) w polu
     // previousDecisionData, żeby po wydaniu werdyktu apelacji nadal było widać,
     // jaka była pierwsza decyzja stewardów, a nie tylko ta ostateczna.
-    if (isAppealVerdict && mainReport.decisionData) {
-        decisionDataToSave.previousDecisionData = cloneForRestore(mainReport.decisionData);
+    if (isAppealVerdict && mainReport && mainReport.decisionData) {
+        decisionDataToSave.previousDecisionData = mainReport.decisionData;
     }
-
-    // Jeden atomowy zapis wszystkich ścieżek — wcześniej były to osobne zapisy po kolei, więc błąd
-    // w połowie zostawiał np. apelację "Zakończoną" albo status "Werdykt wydany" bez samego werdyktu.
-    const updates = {};
-    const restoreItemsVerdict = [];
-    if (appealForVerdict) {
-        const appealKey = appealForVerdict.id || appealForVerdict.appealId;
-        updates[`appeals/${appealKey}/status`] = "Zakończona";
-        restoreItemsVerdict.push({ path: `appeals/${appealKey}/status`, data: appealForVerdict.status || null });
+    if (mainReport) {
+        restoreItemsVerdict.push(
+            { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
+            { path: `incidents/${originalCaseId}/notes`, data: mainReport.notes || null },
+            { path: `incidents/${originalCaseId}/decisionData`, data: cloneForRestore(mainReport.decisionData) }
+        );
+        await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
+        await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
+        await database.ref("incidents/" + originalCaseId + "/decisionData").set(decisionDataToSave);
     }
-    restoreItemsVerdict.push(
-        { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
-        { path: `incidents/${originalCaseId}/notes`, data: mainReport.notes || null },
-        { path: `incidents/${originalCaseId}/decisionData`, data: cloneForRestore(mainReport.decisionData) }
-    );
-    updates[`incidents/${originalCaseId}/status`] = "Werdykt wydany";
-    updates[`incidents/${originalCaseId}/notes`] = `[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`;
-    updates[`incidents/${originalCaseId}/decisionData`] = decisionDataToSave;
-    await database.ref().update(updates);
-    verdictSaved = true;
 
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
-    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt${isAppealVerdict ? ` (apelacja ${appealForVerdict.appealId || appealForVerdict.id})` : ""}: ${decision} (${timePenalty}, ${pointsPenalty}).`, { items: restoreItemsVerdict }, decisionDataToSave);
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
 
-    const reporterNick = mainReport.nick ? mainReport.nick : unknownLabel;
-    const reporterDiscordId = mainReport.discordId ? mainReport.discordId : null;
+    const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : unknownLabel;
+    const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
     const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick || unknownLabel} (<@${accusedId}>)`;
     const embed = {
         title: t.embedTitle, color: 3447003,
         fields: [
             { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
-            { name: t.fieldSplit, value: mainReport.split ? mainReport.split : "—", inline: true },
-            { name: `⚖️ ${t.fieldWinner}`, value: dcFieldValue(winnerFieldValue), inline: true },
-            { name: t.dcLabelReporter, value: dcFieldValue(reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick), inline: true },
+            { name: t.fieldSplit, value: (mainReport && mainReport.split) ? mainReport.split : "—", inline: true },
+            { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
+            { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
             { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false },
             { name: t.fieldDecision, value: dcFieldValue(`**${decision}**`), inline: false },
             { name: t.fieldTime, value: dcFieldValue(timePenalty), inline: true },
@@ -8801,27 +8697,26 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     // osobnym, klikalnym polem w embedzie, bo linku w obrazku kliknąć się nie da.
     let verdictPngBlob = null;
     let verdictPngFilename = null;
-    const pngHolder = document.getElementById("verdictPngTemplate");
     try {
-        if (typeof html2canvas !== "undefined" && pngHolder) {
+        if (typeof html2canvas !== "undefined") {
             const reportForPng = Object.assign({}, mainReport, {
                 id: originalCaseId,
-                fiaId: mainReport.fiaId || originalCaseId,
+                fiaId: (mainReport && mainReport.fiaId) || originalCaseId,
                 decisionData: decisionDataToSave
             });
+            const pngHolder = document.getElementById("verdictPngTemplate");
             pngHolder.innerHTML = buildVerdictPngHtml(reportForPng);
             const canvas = await html2canvas(pngHolder.firstElementChild, { backgroundColor: "#04050a", scale: 2, useCORS: true });
             verdictPngBlob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
             verdictPngFilename = `FIA_WERDYKT_${String(originalCaseId).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
+            pngHolder.innerHTML = "";
         }
     } catch (err) {
         console.error("Błąd generowania obrazu PNG werdyktu:", err);
-        verdictPngBlob = null;
-    } finally {
-        if (pngHolder) pngHolder.innerHTML = "";
     }
 
     try {
+        const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
         const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
         const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${accusedId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
@@ -8845,34 +8740,24 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         }
         if (!res.ok) throw new Error(await describeHttpError(res));
-        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok";
-        formEl.reset();
+        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
         currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
-        resetVerdictPanelAfterSend();
     } catch (err) {
         console.error("Błąd wysyłania werdyktu na Discord:", err);
-        const why = (err && err.message) ? err.message : (pl ? "nieznany błąd" : "unknown error");
+        const why = (err && err.message) ? err.message : (currentLang === 'pl' ? "nieznany błąd" : "unknown error");
         // Werdykt jest już zapisany w bazie (zapis dzieje się przed wysyłką) — da się go
         // wysłać ponownie przyciskiem "🔁 Wyślij ponownie" w tabeli zgłoszeń.
-        statusEl.textContent = pl
-            ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${why}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
-            : `Verdict saved, but sending it to Discord failed (${why}). Use "🔁 Resend" in the reports table.`;
+        statusEl.textContent = mainReport
+            ? (currentLang === 'pl'
+                ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${why}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
+                : `Verdict saved, but sending it to Discord failed (${why}). Use "🔁 Resend" in the reports table.`)
+            : `${t.statusErr} ${why}`;
         statusEl.className = "status-msg err";
     }
     })(); } catch (err) {
         console.error("Błąd wydawania werdyktu:", err);
-        const why = (err && err.message) || String(err);
-        statusEl.textContent = verdictSaved
-            ? (pl
-                ? `Werdykt zapisano w bazie, ale wystąpił błąd przed wysłaniem na Discord (${why}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
-                : `Verdict saved, but an error occurred before sending it to Discord (${why}). Use "🔁 Resend" in the reports table.`)
-            : (pl
-                ? `Błąd wydawania werdyktu: ${why} — werdykt NIE został zapisany ani wysłany.`
-                : `Error issuing verdict: ${why} — the verdict was NOT saved or sent.`);
+        statusEl.textContent = (currentLang === 'pl' ? "Błąd wydawania werdyktu: " : "Error issuing verdict: ") + ((err && err.message) || err);
         statusEl.className = "status-msg err";
-    } finally {
-        verdictSubmitting = false;
-        if (submitBtn) submitBtn.disabled = false;
     }
 });
 
@@ -8914,17 +8799,8 @@ function buildVerdictPngHtml(r) {
     const pointsStr = d.pointsPenalty && String(d.pointsPenalty).trim() ? d.pointsPenalty : "0 pkt";
     const issuedDate = d.issuedAt ? new Date(d.issuedAt).toLocaleString("pl-PL") : new Date().toLocaleString("pl-PL");
     const eventDate = r.timestamp ? new Date(r.timestamp).toLocaleDateString("pl-PL") : "—";
-    // Kto faktycznie został uznany winnym: zapisane guiltyDiscordId (nowe werdykty) albo — dla
-    // starszych werdyktów — oskarżony. Wcześniej karta ZAWSZE oznaczała oskarżonego jako winnego,
-    // także gdy steward wskazał zgłaszającego albo wydał decyzję "Brak naruszenia"/"Anulowanie kary".
-    const guiltyId = (d.noOneGuilty || isDismissed) ? null : String(d.guiltyDiscordId || r.accusedDiscordId || "");
-    const reporterGuilty = !!guiltyId && !!r.discordId && guiltyId === String(r.discordId) && guiltyId !== String(r.accusedDiscordId || "");
-    const accusedGuilty = !!guiltyId && !reporterGuilty && (!r.accusedDiscordId || guiltyId === String(r.accusedDiscordId));
-    const otherGuilty = !!guiltyId && !reporterGuilty && !accusedGuilty; // ID spoza stron sprawy (wpisane ręcznie)
-    const reporterBorder = reporterGuilty ? "#e10600" : "#1f2937";
-    const reporterTag = reporterGuilty ? "ZGŁASZAJĄCY — UZNANY WINNYM" : "ZGŁASZAJĄCY";
-    const accusedBorder = accusedGuilty ? "#e10600" : "#1f2937";
-    const accusedTag = accusedGuilty ? "OSKARŻONY — UZNANY WINNYM" : "OSKARŻONY";
+    const accusedBorder = d.noOneGuilty ? "#1f2937" : "#e10600";
+    const accusedTag = d.noOneGuilty ? "OSKARŻONY" : "OSKARŻONY — UZNANY WINNYM";
 
     return `
       <div style="width:900px; background:#04050a; color:#e8eaf0; font-family:'Barlow Condensed',Arial,sans-serif;">
@@ -8950,8 +8826,8 @@ function buildVerdictPngHtml(r) {
           </div>
 
           <div style="display:flex; gap:16px; margin-bottom:24px;">
-            <div style="flex:1; background:#0d1220; border:1px solid ${escapeHtml(reporterBorder)}; border-radius:6px; padding:14px 18px;">
-              <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">${escapeHtml(reporterTag)}</div>
+            <div style="flex:1; background:#0d1220; border:1px solid #1f2937; border-radius:6px; padding:14px 18px;">
+              <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">ZGŁASZAJĄCY</div>
               <div style="font-size:18px; font-weight:700; color:#e8eaf0;">${escapeHtml(r.nick || "—")}</div>
               <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(r.discordId || "—")}</div>
             </div>
@@ -8961,12 +8837,6 @@ function buildVerdictPngHtml(r) {
               <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(r.accusedDiscordId || "—")}</div>
             </div>
           </div>
-          ${otherGuilty ? `
-          <div style="background:#0d1220; border:1px solid #e10600; border-radius:6px; padding:14px 18px; margin:-8px 0 24px;">
-            <div style="font-size:10px; letter-spacing:2px; color:#6b7280; margin-bottom:4px;">UZNANY WINNYM</div>
-            <div style="font-size:18px; font-weight:700; color:#e8eaf0;">${escapeHtml(d.guiltyNick || "—")}</div>
-            <div style="font-size:11px; color:#6b7280;">ID: ${escapeHtml(guiltyId)}</div>
-          </div>` : ""}
 
           <div style="background:${isDismissed ? "#0d1220" : "linear-gradient(135deg,#3a0a0a,#1a0505)"}; border:1px solid ${isDismissed ? "#1f2937" : "#e10600"}; border-radius:8px; padding:20px 24px; margin-bottom:20px;">
             <div style="font-size:11px; letter-spacing:2px; color:${isDismissed ? "#6b7280" : "#ffd700"}; margin-bottom:6px;">DECYZJA</div>
@@ -11936,8 +11806,7 @@ function verdictCaseFromForm() {
     const norm = x => String(x || "").trim().replace(/^#/, "").toUpperCase();
     const app = raw.match(/APP-\d+/i);
     const base = norm(raw.split(/\s+/)[0]);
-    if (!base) return null; // puste pole nie może pasować do starych spraw bez fiaId
-    let inc = globalIncidents.find(r => norm(r.id) === base || (r.fiaId && norm(r.fiaId) === base));
+    let inc = globalIncidents.find(r => norm(r.id) === base || norm(r.fiaId) === base);
     if (!inc && app) {
         const ap = globalAppeals.find(a => norm(a.appealId) === norm(app[0]));
         if (ap) inc = globalIncidents.find(r => r.id === ap.caseId);
@@ -13307,7 +13176,7 @@ window.takeNextCase = async function () {
     showSection("adminSection");
     transferToVerdictPanel(r.id, r.accusedDiscordId || "");
     let msg = `${r.nick || "?"} vs ${r.accusedNick || "?"} · ${r.track || ""}${r.split ? " (" + r.split + ")" : ""}. W kolejce zostało: ${queue.length - 1}.`;
-    if (!stewardLockBypass && r.split && !isVerdictWindowOpen(r.split, r.timestamp)) msg += ` Werdykty dla ${r.split} odblokują się ${formatTimestamp(getVerdictUnlockTime(r.split, r.timestamp))}.`;
+    if (!stewardLockBypass && r.split && !isVerdictWindowOpen(r.split)) msg += ` Werdykty dla ${r.split} odblokują się ${formatTimestamp(getVerdictUnlockTime(r.split))}.`;
     showToast(`▶ ${r.fiaId || r.id}`, msg);
 };
 
@@ -14381,8 +14250,8 @@ function renderVerdictLockInfo() {
     const box = $("verdictLockInfo");
     if (!box) return;
     const inc = isAdminAuthenticated && typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
-    if (!inc || !inc.split || !REPORT_WINDOWS[inc.split] || isVerdictWindowOpen(inc.split, inc.timestamp)) { box.style.display = "none"; return; }
-    const at = getVerdictUnlockTime(inc.split, inc.timestamp);
+    if (!inc || !inc.split || !REPORT_WINDOWS[inc.split] || isVerdictWindowOpen(inc.split)) { box.style.display = "none"; return; }
+    const at = getVerdictUnlockTime(inc.split);
     box.innerHTML = `🔒 Werdykty dla <b>${escapeHtml(inc.split)}</b> odblokują się ${formatTimestamp(at)} (za ${F.fmtLeft(at - Date.now())}) — po zamknięciu okna zgłoszeń.` +
         (stewardLockBypass ? ` <span style="color:var(--green-text);">Masz uprawnienie do pominięcia tej blokady.</span>` : ` Możesz już głosować i przygotować uzasadnienie.`);
     box.style.display = "block";
