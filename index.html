@@ -4505,9 +4505,6 @@ function isLeagueOwner() {
     return !!loggedInSteward && isOwnerId(loggedInSteward.id);
 }
 
-// === Worker „fia-worker” — już tylko serwery TURN dla rozmów głosowych (/turn) ===
-const FIA_PROXY_BASE = "https://fia-worker.andrzejkedzior170.workers.dev";
-
 // Discord odrzuca CAŁĄ wiadomość (HTTP 400), gdy wartość któregokolwiek pola embeda jest pusta
 // albo dłuższa niż 1024 znaki (np. kilka długich linków do dowodów albo obszerne uzasadnienie).
 function dcFieldValue(value, max) {
@@ -10031,11 +10028,17 @@ let VOICE_CALL_ICE_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" }
 ];
-// Serwery TURN pobierane z Metered (aplikacja: sedziowie). Bez TURN głos nie popłynie przy restrykcyjnym NAT/CGNAT.
-(async () => {
-    try {
-        const r = await fetch(FIA_PROXY_BASE + "/turn");
-        if (!r.ok) throw new Error("HTTP " + r.status);
+// Serwery TURN (Metered, aplikacja: sedziowie) wydaje Worker „fia-guard” — tylko zalogowanym; klucz Metered jest w Workerze.
+// Bez TURN głos nie popłynie przy restrykcyjnym NAT/CGNAT. Gdy pobranie się nie uda, kolejna rozmowa spróbuje jeszcze raz.
+let vcTurnPromise = null;
+function loadTurnServers() {
+    if (vcTurnPromise) return vcTurnPromise;
+    vcTurnPromise = (async () => {
+        await authReady;
+        const user = fbAuth && fbAuth.currentUser;
+        if (!user) { vcTurnPromise = null; return; } // bez logowania nie ma rozmów — spróbujemy po zalogowaniu
+        const r = await fetch(GUARD_WORKER_URL + "/turn", { method: "POST", headers: { Authorization: "Bearer " + (await user.getIdToken()) } });
+        if (!r.ok) throw new Error(await describeHttpError(r));
         const list = await r.json();
         if (Array.isArray(list) && list.length) {
             // Chrome spowalnia zbieranie kandydatów przy 5+ adresach STUN/TURN — zostawiamy 4: STUN, TURN :80, TURN :443, TURNS :443/tcp
@@ -10052,9 +10055,18 @@ let VOICE_CALL_ICE_SERVERS = [
             }).filter(Boolean);
             VOICE_CALL_ICE_SERVERS = trimmed.length ? trimmed : list;
         }
-        console.log("[TURN] pobrano serwery:", VOICE_CALL_ICE_SERVERS);
-    } catch (e) { console.warn("[TURN] Nie udało się pobrać serwerów TURN:", e); }
-})();
+        console.log("[TURN] pobrano serwery:", VOICE_CALL_ICE_SERVERS.map(x => x.urls));
+    })().catch(e => {
+        console.warn("[TURN] Nie udało się pobrać serwerów TURN:", e && e.message || e);
+        vcTurnPromise = null;
+    });
+    return vcTurnPromise;
+}
+loadTurnServers();
+// Przed rozmową czekamy na TURN najwyżej kilka sekund — potem łączymy się tym, co jest.
+function vcEnsureTurn() {
+    return Promise.race([loadTurnServers(), new Promise(r => setTimeout(r, 4000))]);
+}
 
 let vcPeerConnection = null;
 let vcLocalStream = null;
@@ -10166,6 +10178,7 @@ async function vcStartCall(role) {
     vcRole = role;
     vcIsCaller = true;
 
+    await vcEnsureTurn();
     vcCreatePeerConnection(caseId);
     vcLocalStream.getTracks().forEach(track => vcPeerConnection.addTrack(track, vcLocalStream));
 
@@ -10290,6 +10303,7 @@ async function vcAcceptCall() {
     vcRole = pending.myRole;
     vcIsCaller = false;
 
+    await vcEnsureTurn();
     vcCreatePeerConnection(caseId);
     vcLocalStream.getTracks().forEach(track => vcPeerConnection.addTrack(track, vcLocalStream));
 
