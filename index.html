@@ -5258,6 +5258,33 @@ function canOpenTrash() {
 
 let isAdminAuthenticated = false;
 let discordDriverAuth = null; // { id, username, globalName, avatarUrl } — kierowca zalogowany przez Discord
+
+// Domyślny awatar Discorda (konto bez własnego zdjęcia) — tak samo jak liczy go Discord:
+// nowe nazwy użytkownika → (id >> 22) % 6, stare konta z #1234 → discriminator % 5.
+function discordDefaultAvatar(id, discriminator) {
+    let n = 0;
+    try {
+        const disc = Number(discriminator || 0);
+        n = disc > 0 ? disc % 5 : Number((BigInt(String(id)) >> 22n) % 6n);
+    } catch (e) { n = 0; }
+    return `https://cdn.discordapp.com/embed/avatars/${n}.png`;
+}
+// Awatar z ostatniego logowania przez Discord (kierowca ALBO panel stewarda) — używa go m.in. zakładka „Na żywo”.
+function rememberDiscordAvatar(id, url) {
+    try { localStorage.setItem("discordAvatar", JSON.stringify({ id: String(id), url: String(url || "") })); } catch (e) {}
+}
+// Najlepszy znany awatar dla danego Discord ID: z logowania kierowcy, z logowania do panelu, a w ostateczności domyślny.
+function knownDiscordAvatar(id) {
+    id = String(id || "");
+    if (!/^\d{5,25}$/.test(id)) return "";
+    const real = u => /^https:\/\/cdn\.discordapp\.com\/avatars\//.test(String(u || ""));
+    if (discordDriverAuth && String(discordDriverAuth.id) === id && real(discordDriverAuth.avatarUrl)) return String(discordDriverAuth.avatarUrl);
+    try {
+        const s = JSON.parse(localStorage.getItem("discordAvatar") || "null");
+        if (s && String(s.id) === id && real(s.url)) return String(s.url);
+    } catch (e) {}
+    return discordDefaultAvatar(id);
+}
 let currentLang = 'pl';
 let currentlyEditedReportId = null;
 let isUsersAuth = false;
@@ -6415,7 +6442,9 @@ async function handleDiscordOAuthRedirect() {
                 const user = await signInWithDiscordAccessToken(accessToken);
                 const avatarUrl = user.avatar
                     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
-                    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.discriminator || "0") % 5n)}.png`;
+                    : discordDefaultAvatar(user.id, user.discriminator);
+                // Zapamiętujemy awatar przy każdym logowaniu (także do panelu stewarda) — dla zakładki „Na żywo”.
+                rememberDiscordAvatar(user.id, avatarUrl);
 
                 if (uidBefore !== String(user.id)) {
                     // Nowa sesja: dane strony były wczytane bez logowania (albo innym kontem) —
@@ -15456,18 +15485,22 @@ const kindLabel = k => { const d = KIND[k] || KIND.guest; return L(d[0], d[1]); 
 /* ============================================================
    1. KIM JESTEM I CO ROBIĘ (ta karta)
    ============================================================ */
+// Awatar z Discorda dla danego ID (zdjęcie z logowania albo domyślny awatar Discorda).
+function avatarFor(id) {
+    const u = String(g(() => knownDiscordAvatar(id)) || "");
+    return AVATAR_RE.test(u) ? u.slice(0, 200) : "";
+}
 function identity() {
     const st = g(() => (isAdminAuthenticated && loggedInSteward) ? loggedInSteward : null);
     if (st) {
         const ext = st.id === "external-judge";
         return { kind: ext ? "judge" : "steward", role: "steward", name: clip(st.nick || "Steward", 60),
-                 discordId: ext ? "" : clip(st.id, 30), rank: clip(st.role, 40), avatar: "" };
+                 discordId: ext ? "" : clip(st.id, 30), rank: clip(st.role, 40), avatar: ext ? "" : avatarFor(st.id) };
     }
     const d = g(() => discordDriverAuth);
     if (d && d.id) {
-        const av = String(d.avatarUrl || "");
         return { kind: "driver", role: "player", name: clip(d.globalName || d.username || "Kierowca", 60),
-                 discordId: clip(d.id, 30), rank: "", avatar: AVATAR_RE.test(av) ? av.slice(0, 200) : "" };
+                 discordId: clip(d.id, 30), rank: "", avatar: avatarFor(d.id) };
     }
     return { kind: "guest", role: "player", name: "Gość", discordId: "", rank: "", avatar: "" };
 }
@@ -15698,13 +15731,50 @@ const pkey = s => s.kind === "guest" ? "g:" + s.sid : (s.discordId ? "id:" + s.d
 const myKey = () => { const me = identity(); return me.kind === "guest" ? "g:" + SID : (me.discordId ? "id:" + me.discordId : me.kind + ":" + me.name.toLowerCase()); };
 const rankSession = (a, b) => (STATE_ORDER[a.state] - STATE_ORDER[b.state]) || ((WORK.has(b.act) ? 1 : 0) - (WORK.has(a.act) ? 1 : 0)) || (b.since - a.since);
 
+/* --- awatary: prawdziwe zdjęcie z dowolnej karty tej osoby → zapamiętane wcześniej → domyślny awatar Discorda --- */
+const REAL_AV_RE = /^https:\/\/cdn\.discordapp\.com\/avatars\//;
+const AV_CACHE_KEY = "lvAvatarCache", AV_CACHE_MAX = 300;
+const avCache = (() => {
+    const m = new Map();
+    try { const o = JSON.parse(localStorage.getItem(AV_CACHE_KEY) || "{}"); Object.keys(o).forEach(k => { if (/^\d{5,25}$/.test(k) && REAL_AV_RE.test(String(o[k]))) m.set(k, String(o[k]).slice(0, 200)); }); } catch (e) {}
+    return m;
+})();
+function rememberAvatar(id, url) {
+    if (!id || !REAL_AV_RE.test(url) || avCache.get(id) === url) return;
+    avCache.delete(id); avCache.set(id, url);
+    while (avCache.size > AV_CACHE_MAX) avCache.delete(avCache.keys().next().value);
+    try { localStorage.setItem(AV_CACHE_KEY, JSON.stringify(Object.fromEntries(avCache))); } catch (e) {}
+}
+function defaultAvatar(id) {
+    if (!/^\d{5,25}$/.test(String(id || ""))) return "";
+    const u = String(g(() => discordDefaultAvatar(id)) || "");
+    return AVATAR_RE.test(u) ? u : "";
+}
+// adresy, które się nie wczytały (zbiera je onerror w personHtml) — nie próbujemy ich przy każdym odświeżeniu
+const badAv = u => !!(window.lvBadAv && window.lvBadAv.has(u));
+function pickAvatar(ss) {
+    const id = (ss.find(s => s.discordId) || {}).discordId || "";
+    const real = ss.find(s => REAL_AV_RE.test(s.avatar) && !badAv(s.avatar));
+    if (real) { rememberAvatar(id, real.avatar); return real.avatar; }
+    if (id && avCache.has(id)) {
+        if (!badAv(avCache.get(id))) return avCache.get(id);
+        avCache.delete(id);
+        try { localStorage.setItem(AV_CACHE_KEY, JSON.stringify(Object.fromEntries(avCache))); } catch (e) {}
+    }
+    const any = ss.find(s => s.avatar && !badAv(s.avatar));
+    if (any) return any.avatar;
+    const d = defaultAvatar(id);
+    return badAv(d) ? "" : d;
+}
+
 function people(list) {
     const map = new Map();
     list.forEach(s => { const k = pkey(s); if (!map.has(k)) map.set(k, []); map.get(k).push(s); });
     return [...map.entries()].map(([key, ss]) => {
         ss.sort(rankSession);
         const kind = ss.map(s => s.kind).sort((a, b) => KIND_ORDER[a] - KIND_ORDER[b])[0];
-        return { key, kind, main: ss[0], sessions: ss, self: key === myKey() || ss.some(s => s.self) };
+        const avatar = kind === "guest" ? "" : pickAvatar(ss);
+        return { key, kind, avatar, main: ss[0], sessions: ss, self: key === myKey() || ss.some(s => s.self) };
     });
 }
 
@@ -15870,7 +15940,10 @@ function updateMenu() {
 function personHtml(p) {
     const s = p.main, nm = s.name;
     const initial = esc(nm.trim().charAt(0).toUpperCase() || "?");
-    const avatar = `<div class="lv-av" style="background:hsl(${hue(nm)},45%,36%)">${initial}${s.avatar ? `<img src="${esc(s.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}<i class="st-${esc(s.state)}" title="${esc(stateLabel(s.state))}"></i></div>`;
+    // Zdjęcie nie wczyta się (np. ktoś zmienił awatar na Discordzie) → domyślny awatar Discorda, a gdy i to zawiedzie — litera pod spodem.
+    const av = p.avatar || "", fb = badAv(defaultAvatar(s.discordId)) ? "" : defaultAvatar(s.discordId);
+    const img = av ? `<img src="${esc(av)}" alt="" loading="lazy" referrerpolicy="no-referrer"${fb && fb !== av ? ` data-fb="${esc(fb)}"` : ""} onerror="(window.lvBadAv=window.lvBadAv||new Set()).add(this.getAttribute('src'));if(this.dataset.fb){this.src=this.dataset.fb;this.removeAttribute('data-fb')}else{this.remove()}">` : "";
+    const avatar = `<div class="lv-av" style="background:hsl(${hue(nm)},45%,36%)">${initial}${img}<i class="st-${esc(s.state)}" title="${esc(stateLabel(s.state))}"></i></div>`;
     const rank = s.rank && p.kind === "steward" && s.rank.toLowerCase() !== "steward" ? " · " + s.rank : "";
     const meta = [];
     if (s.state === "idle") meta.push(`<span class="lv-warn">💤 ${esc(L("bezczynny (brak ruchu > 3 min)", "idle (no activity > 3 min)"))}</span>`);
