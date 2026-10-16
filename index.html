@@ -4021,11 +4021,6 @@
                         <input type="text" id="stewardDiscord" required placeholder="np. 294330293281161634">
                     </div>
                     <div class="field">
-                        <label for="stewardPassword">Hasło logowania do panelu</label>
-                        <input type="text" id="stewardPassword" placeholder="Ustaw hasło dla tego stewarda...">
-                        <small style="color: var(--text-dim); font-size: 11px;">Tym Discord ID + hasłem steward zaloguje się w oknie logowania. Przy edycji zostaw puste, aby nie zmieniać obecnego hasła.</small>
-                    </div>
-                    <div class="field">
                         <label for="stewardRole">Oficjalna Rola FIA</label>
                         <select id="stewardRole" onchange="autoAssignPermissions()">
                             <option value="Główny Steward">Główny Steward (Lead Steward)</option>
@@ -4260,110 +4255,258 @@ let globalDeletedLogs = [];       // archiwum usuniętych wpisów dziennika (del
 let showDeletedLogsPanel = false; // czy panel archiwum jest rozwinięty
 
 const firebaseConfig = {
-    // apiKey jest WYMAGANY do logowania stewardów (Firebase Authentication). Bez niego firebase.auth()
-    // zgłasza błąd auth/invalid-api-key i logowanie do zapisu w bazie nie działa.
-    // Skąd wziąć: konsola Firebase → ⚙ Ustawienia projektu → Ogólne → Twoje aplikacje → aplikacja Web
-    // → „Konfiguracja SDK” → skopiuj wartość apiKey (zaczyna się od "AIza...") i wklej poniżej.
-    // (Klucz API Firebase dla aplikacji web nie jest tajny — dostęp chronią reguły bazy i logowanie.)
+    // apiKey: Firebase Console → ⚙ Ustawienia projektu → Ogólne → „Klucz interfejsu Web API”.
+    // Ten klucz jest z założenia publiczny (identyfikuje projekt) — dane chronią reguły bazy.
     apiKey: "AIzaSyCGZKgUJ5uRVbpY8hSFYivWen7UlPqwYjA",
+    authDomain: "fia-system.firebaseapp.com",
+    projectId: "fia-system",
     databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/"
 };
 
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-/* ============================================================================
-   WARIANT B (reguły bezpieczeństwa Firebase): logowanie stewardów do ZAPISU.
-   Domyślnie WYŁĄCZONE — strona działa dokładnie jak dotąd, nic nie pyta.
-   Aby włączyć pełną ochronę ról (po przeczytaniu INSTRUKCJA.md):
-     0) wklej apiKey do firebaseConfig (wyżej) — bez niego logowanie nie zadziała,
-    1) w konsoli Firebase: Authentication → Sign-in method → włącz Email/Password,
-        następnie Authentication → Users → dodaj konto(a) stewardów,
-     2) opublikuj reguly-B-z-logowaniem-stewardow.json,
-     3) zmień poniższą flagę na true.
-   Od tej chwili steward po wejściu do panelu zostanie poproszony o dane konta
-   Firebase (raz na urządzeniu — sesja jest zapamiętywana). Kierowcy nic nie podają.
-   ============================================================================ */
-const FIA_REQUIRE_FIREBASE_WRITE_AUTH = true;
+// ============================================================
+// === ZABEZPIECZENIA: Worker „fia-guard” + logowanie do Firebase ===
+// ============================================================
+// Worker (Cloudflare) sprawdza logowanie Discordem i hasło sędziego spoza ligi, wydaje token
+// logowania do Firebase i jako JEDYNY zna adresy webhooków Discorda. Strona nie zawiera już
+// żadnych sekretów — a reguły bazy wpuszczają do zapisu tylko zalogowanych (patrz database.rules.json).
+// Adres Workera: Cloudflare → Workers & Pages → fia-guard → adres *.workers.dev
+const GUARD_WORKER_URL = "https://fia-guard.andrzejkedzior170.workers.dev";
 
-let fiaAuth = null;
-let fiaAuthError = "";
-try {
-    if (typeof firebase === "undefined" || typeof firebase.auth !== "function") {
-        fiaAuthError = "biblioteka firebase-auth-compat nie została załadowana.";
-    } else if (typeof firebaseConfig === "undefined" || !firebaseConfig.apiKey) {
-        fiaAuthError = "brak apiKey w firebaseConfig. Wklej go z konsoli Firebase (⚙ Ustawienia projektu → Ogólne → Twoje aplikacje → Konfiguracja SDK).";
-    } else {
-        fiaAuth = firebase.auth();
-    }
-} catch (e) { fiaAuthError = (e && e.message) || String(e); }
-if (fiaAuthError) console.warn("Firebase Auth niedostępne: " + fiaAuthError);
+const FIREBASE_AUTH_CONFIGURED = !!firebaseConfig.apiKey && !/^WKLEJ/i.test(firebaseConfig.apiKey);
+const fbAuth = FIREBASE_AUTH_CONFIGURED ? firebase.auth() : null;
+if (!fbAuth) console.error("[bezpieczeństwo] Brak apiKey w firebaseConfig — logowanie nie zadziała, dopóki go nie uzupełnisz.");
+let fbClaims = {};
+let sessionExpiredNotice = false;
+// Sesja jest ważna, dopóki trwa potwierdzenie członkostwa w serwerze Discord ligi (memberUntil,
+// wydane przez Workera przy logowaniu) albo sesja sędziego spoza ligi (judgeUntil).
+// Starsze lub przeterminowane sesje trzeba odnowić logowaniem — wtedy członkostwo jest sprawdzane od nowa.
+function sessionIsFresh(claims) {
+    if (!claims) return false;
+    if (claims.judge === true) return Number(claims.judgeUntil) > Date.now();
+    return Number(claims.memberUntil) > Date.now();
+}
+const authReady = new Promise(resolve => {
+    if (!fbAuth) { resolve(); return; }
+    let first = true;
+    fbAuth.onAuthStateChanged(async user => {
+        let claims = {};
+        if (user) { try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {} }
+        if (user && !sessionIsFresh(claims)) {
+            // Stara albo przeterminowana sesja — wylogowujemy; kolejne wywołanie (już bez użytkownika) dokończy start.
+            sessionExpiredNotice = true;
+            try { localStorage.removeItem("driverDiscordAuth"); } catch (e) {}
+            fbAuth.signOut().catch(() => {});
+            return;
+        }
+        fbClaims = claims;
+        if (first) { first = false; resolve(); return; }
+        try { onFirebaseUserChanged(user); } catch (e) { console.error(e); }
+    });
+});
 
-// Logowanie stewarda do zapisu w bazie (konto z Firebase Authentication).
-window.fiaFirebaseLogin = async function () {
-    if (!fiaAuth) {
-        alert("Moduł logowania Firebase nie jest dostępny.\n\nPowód: " + (fiaAuthError || "nieznany (sprawdź konsolę przeglądarki)."));
-        return false;
-    }
-    if (fiaAuth.currentUser) return true; // sesja już aktywna
-    const email = prompt("Logowanie do zapisu w bazie (konto Firebase stewarda)\n\nE-mail:");
-    if (!email) return false;
-    const pass = prompt("Hasło:");
-    if (!pass) return false;
-    try {
-        await fiaAuth.signInWithEmailAndPassword(email.trim(), pass);
-        if (typeof showToast === "function") showToast("Zalogowano do zapisu w bazie", "Reguły B aktywne");
-        return true;
-    } catch (e) {
-        alert("Logowanie do bazy nie powiodło się: " + e.message);
-        return false;
-    }
-};
-window.fiaFirebaseLogout = function () { try { if (fiaAuth) fiaAuth.signOut(); } catch (e) {} };
-if (fiaAuth) {
-    try { fiaAuth.onAuthStateChanged(function (u) {
-        console.log(u ? "Firebase: sesja zapisu aktywna" : "Firebase: brak sesji zapisu");
-    }); } catch (e) {}
+function currentUid() {
+    return fbAuth && fbAuth.currentUser ? fbAuth.currentUser.uid : null;
 }
 
-// Do żądań kierowanych do Workera powiadomień dołączamy token stewarda z Firebase
-// (jeśli jest zalogowany). Worker dzięki temu wie, czy wolno wysłać powiadomienie o werdykcie.
-(function () {
-    const _origFetch = window.fetch.bind(window);
-    window.fetch = async function (input, init) {
-        try {
-            const url = (typeof input === "string") ? input : (input && input.url) || "";
-            if (typeof FIA_PROXY_BASE === "string" && url.indexOf(FIA_PROXY_BASE) === 0 && fiaAuth && fiaAuth.currentUser) {
-                const token = await fiaAuth.currentUser.getIdToken();
-                const headers = new Headers((init && init.headers) || {});
-                headers.set("Authorization", "Bearer " + token);
-                init = Object.assign({}, init, { headers });
-            }
-        } catch (e) { /* brak tokenu — Worker i tak zdecyduje po swojej stronie */ }
-        return _origFetch(input, init);
+function uiIsPl() {
+    try { return currentLang !== "en"; } catch (e) { return true; }
+}
+
+// Zmiana konta Firebase (logowanie innym kontem, sędzia, wylogowanie w innej karcie) —
+// zapamiętana sesja kierowcy jest ważna tylko dla tego samego konta Discord.
+function onFirebaseUserChanged(user) {
+    if (discordDriverAuth && (!user || user.uid !== String(discordDriverAuth.id))) {
+        discordDriverAuth = null;
+        try { localStorage.removeItem("driverDiscordAuth"); } catch (e) {}
+        if (typeof applyDriverAuthUI === "function") applyDriverAuthUI();
+    }
+    if (loginGateBusy) return; // logowanie/wylogowanie w tej karcie — samo przeładuje stronę
+    // Zalogowanie w innej karcie: dane wczytujemy od nowa już z sesją. Wylogowanie: ekran logowania.
+    if (user && document.documentElement.classList.contains("rz-gated")) { location.reload(); return; }
+    updateLoginGate();
+}
+
+// ============================================================
+// === EKRAN LOGOWANIA — dane ligi widzą tylko zalogowani ===
+// ============================================================
+// Reguły bazy wpuszczają do zgłoszeń, werdyktów, apelacji i czatu tylko zalogowanych, więc
+// niezalogowany odwiedzający widzi wyłącznie ten ekran. Po zalogowaniu i wylogowaniu strona się
+// przeładowuje, żeby wszystkie dane wczytały się już z (albo bez) sesji.
+let loginGateBusy = false;   // trwa logowanie / wylogowanie w tej karcie
+let authResolved = false;    // wiadomo już, czy jest zapamiętana sesja
+authReady.then(() => {
+    authResolved = true;
+    updateLoginGate();
+    // Gdy sesja wygaśnie przy otwartej stronie — przeładowanie pokaże ekran logowania.
+    const until = fbClaims.judge === true ? Number(fbClaims.judgeUntil) : Number(fbClaims.memberUntil);
+    if (fbAuth && fbAuth.currentUser && until > Date.now()) {
+        setTimeout(() => location.reload(), Math.min(until - Date.now() + 1000, 2147483000));
+    }
+});
+document.addEventListener("DOMContentLoaded", () => updateLoginGate());
+
+function updateLoginGate(busyText) {
+    const gate = document.getElementById("rzLoginGate");
+    if (!gate) return;
+    const pl = uiIsPl();
+    const user = fbAuth && fbAuth.currentUser;
+    const state = !fbAuth ? "config" : (busyText || loginGateBusy || !authResolved) ? "busy" : user ? "ok" : "login";
+    gate.dataset.state = state;
+    gate.style.display = state === "ok" ? "none" : "flex";
+    document.documentElement.classList.toggle("rz-gated", state !== "ok");
+
+    const driverBtn = document.getElementById("rzGateDriverBtn");
+    if (driverBtn && !driverBtn.querySelector("svg")) {
+        const icon = document.querySelector("#adminLoginModal .discord-login-btn svg");
+        if (icon) driverBtn.insertBefore(icon.cloneNode(true), driverBtn.firstChild);
+    }
+    const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+    set("rzGateDriverLabel", pl ? "Zaloguj przez Discord" : "Log in with Discord");
+    set("rzGateStewardBtn", pl ? "Panel stewarda (Discord)" : "Steward panel (Discord)");
+    set("rzGateJudgeBtn", pl ? "Sędzia spoza ligi (hasło)" : "External judge (password)");
+    set("rzGateText",
+        state === "config" ? (pl ? "Logowanie nie jest jeszcze skonfigurowane — w kodzie strony brakuje klucza Web API Firebase (apiKey). Administratorze: INSTRUKCJA.md, krok 4."
+                                 : "Login is not configured yet — the Firebase Web API key (apiKey) is missing in the page code.")
+      : state === "busy" ? (busyText || (pl ? "Sprawdzanie logowania…" : "Checking your login…"))
+      : sessionExpiredNotice
+        ? (pl ? "Twoja sesja wygasła — zaloguj się ponownie. Przy każdym logowaniu Discord potwierdza, że nadal jesteś na serwerze ligi."
+              : "Your session has expired — log in again. Each login re-checks that you are still on the league's Discord server.")
+        : (pl ? "Strona jest tylko dla członków serwera Discord ligi. Zaloguj się kontem Discord, które jest na serwerze."
+              : "This site is for members of the league's Discord server only. Log in with the Discord account that is on the server."));
+}
+
+// Czytelne komunikaty dla kodów błędów zwracanych przez Workera.
+function guardErrorText(code, status) {
+    const T = {
+        rate_limited: ["Za dużo wiadomości w krótkim czasie — odczekaj chwilę.", "Too many messages in a short time — wait a moment."],
+        too_many_requests: ["Za dużo prób — odczekaj minutę.", "Too many attempts — wait a minute."],
+        duplicate_message: ["Ta sama wiadomość została przed chwilą wysłana.", "The same message was just sent."],
+        banned: ["Twoje konto ma blokadę — skontaktuj się ze stewardami.", "Your account is blocked — contact the stewards."],
+        login_required: ["Zaloguj się, aby wysłać powiadomienie.", "Log in to send a notification."],
+        token_expired: ["Sesja wygasła — zaloguj się ponownie.", "Session expired — log in again."],
+        token_invalid: ["Sesja jest nieprawidłowa — zaloguj się ponownie.", "Invalid session — log in again."],
+        token_wrong_project: ["Sesja z innego projektu Firebase — zaloguj się ponownie.", "Session from another Firebase project — log in again."],
+        staff_only: ["Ten kanał jest tylko dla stewardów.", "This channel is for stewards only."],
+        channel_not_configured: ["Ten kanał Discorda nie jest ustawiony w Workerze (brak sekretu z webhookiem).", "This Discord channel is not configured in the Worker."],
+        webhook_invalid: ["Webhook kanału nie istnieje — sprawdź sekret w Workerze.", "The channel webhook does not exist — check the Worker secret."],
+        discord_error: ["Discord odrzucił wiadomość.", "Discord rejected the message."],
+        discord_token_invalid: ["Discord nie potwierdził logowania — spróbuj jeszcze raz.", "Discord did not confirm the login — try again."],
+        discord_token_wrong_app: ["Token Discorda pochodzi z innej aplikacji.", "The Discord token belongs to another app."],
+        not_guild_member: ["To konto Discord nie jest na serwerze Discord ligi. Dołącz do serwera i zaloguj się ponownie.", "This Discord account is not on the league's Discord server. Join the server and log in again."],
+        guild_membership_pending: ["Na serwerze Discord ligi nie zaakceptowano jeszcze regulaminu. Zaakceptuj go i zaloguj się ponownie.", "You have not accepted the league server's rules on Discord yet. Accept them and log in again."],
+        discord_guild_scope_missing: ["Discord nie pozwolił sprawdzić członkostwa na serwerze — zaloguj się ponownie i zaakceptuj uprawnienia.", "Discord did not allow checking your server membership — log in again and accept the permissions."],
+        guild_not_configured: ["Worker nie ma ustawionego ID serwera Discord (REQUIRED_GUILD_ID).", "The Worker has no Discord server ID set (REQUIRED_GUILD_ID)."],
+        discord_rate_limited: ["Discord chwilowo ogranicza zapytania — spróbuj za minutę.", "Discord is rate-limiting requests — try again in a minute."],
+        session_expired: ["Sesja wygasła — zaloguj się ponownie.", "Session expired — log in again."],
+        invalid_password: ["Nieprawidłowe hasło.", "Invalid password."],
+        judge_login_disabled: ["Logowanie sędziów spoza ligi jest wyłączone (brak hasła w Workerze).", "External judge login is disabled."],
+        origin_not_allowed: ["Adres tej strony nie jest dopisany w ALLOWED_ORIGINS Workera.", "This site's address is not in the Worker's ALLOWED_ORIGINS."],
+        service_account_missing: ["Worker nie ma klucza Firebase (sekret FIREBASE_SERVICE_ACCOUNT).", "The Worker has no Firebase key (FIREBASE_SERVICE_ACCOUNT)."],
     };
-})();
+    const t = T[code];
+    if (t) return uiIsPl() ? t[0] : t[1];
+    return (uiIsPl() ? "Błąd serwera zabezpieczeń" : "Security server error") + ` (${code || "HTTP " + status})`;
+}
+
+async function guardPost(path, body) {
+    let res;
+    try {
+        res = await fetch(GUARD_WORKER_URL + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } catch (e) {
+        throw new Error(uiIsPl() ? "Brak połączenia z serwerem logowania (Worker)." : "Cannot reach the login server (Worker).");
+    }
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) {
+        const err = new Error(guardErrorText(data && data.error, res.status));
+        err.code = data && data.error;
+        err.status = res.status;
+        throw err;
+    }
+    return data || {};
+}
+
+// Token Discorda → Worker (sprawdza go u Discorda) → token Firebase → zalogowanie w Firebase.
+async function signInWithDiscordAccessToken(accessToken) {
+    if (!fbAuth) throw new Error(uiIsPl() ? "Logowanie nie jest skonfigurowane (brak apiKey w firebaseConfig)." : "Login is not configured (missing apiKey).");
+    const data = await guardPost("/auth/discord", { accessToken });
+    await fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    await fbAuth.signInWithCustomToken(data.firebaseToken);
+    return data.user;
+}
+
+// Losowy parametr „state” dla OAuth Discorda — chroni przed podrzuceniem cudzego logowania.
+function newOAuthState(mode) {
+    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
+    try { sessionStorage.setItem("discordOAuthNonce", nonce); } catch (e) {}
+    return mode + "." + nonce;
+}
+
+// Znacznik limitu (rate/<uid>/<rodzaj>) — reguły bazy wymagają go przed utworzeniem zgłoszenia,
+// apelacji albo wiadomości czatu i nie pozwalają na kolejny zbyt szybko (ochrona przed zalewem bazy).
+async function stampRateLimit(kind, id) {
+    const uid = currentUid();
+    if (!uid) throw new Error(uiIsPl() ? "Sesja logowania wygasła — zaloguj się ponownie przez Discord." : "Your session has expired — log in again with Discord.");
+    try {
+        await database.ref(`rate/${uid}/${kind}`).set({ at: firebase.database.ServerValue.TIMESTAMP, id: String(id) });
+    } catch (err) {
+        const wait = kind === "chat" ? (uiIsPl() ? "kilka sekund" : "a few seconds") : (uiIsPl() ? "minutę" : "a minute");
+        throw new Error(uiIsPl() ? `Za szybko — odczekaj ${wait} przed kolejną wysyłką.` : `Too fast — wait ${wait} before sending again.`);
+    }
+}
+
+function friendlyWriteError(err, prefix) {
+    const code = String((err && (err.code || err.message)) || "").toUpperCase();
+    let msg = err && err.message ? err.message : String(err);
+    if (code.includes("PERMISSION_DENIED")) {
+        msg = uiIsPl()
+            ? "baza odmówiła zapisu (sesja wygasła, konto zablokowane albo brak uprawnień). Zaloguj się ponownie przez Discord."
+            : "the database refused the write (session expired, account blocked or no permission). Log in again with Discord.";
+    }
+    return prefix + ": " + msg;
+}
+
+// Bezpieczny adres linku (dowody, pliki) — blokuje javascript: i inne schematy, którymi
+// spreparowane zgłoszenie mogłoby uruchomić kod w przeglądarce stewarda.
+function safeHref(url) {
+    const s = String(url == null ? "" : url).trim();
+    if (/^(https?:|blob:)/i.test(s)) return s;
+    if (/^data:(image\/(png|jpe?g|gif|webp)|video\/|audio\/|application\/pdf)/i.test(s)) return s;
+    if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(s)) return "https://" + s;
+    return "#";
+}
+
+// Zgodność z modułem 128 (podgląd na żywo), który korzysta z fiaAuth.
+const fiaAuth = fbAuth;
 
 const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev";
 
-// === LOGOWANIE KIEROWCÓW PRZEZ DISCORD (OAuth2) ===
-// 1. Utwórz aplikację na https://discord.com/developers/applications
-// 2. W zakładce OAuth2 dodaj Redirect URL DOKŁADNIE równy adresowi, pod którym
-//    hostujesz tę stronę (np. https://twojadomena.pl/index.html). OAuth Discorda
-//    NIE zadziała, jeśli otwierasz plik lokalnie (file://) — strona musi być hostowana pod http(s).
-// 3. Wklej poniżej swoje Client ID (zakładka "OAuth2" -> "General" w Discord Developer Portal).
-const DISCORD_CLIENT_ID = "1511745302657241258";
-const DISCORD_OAUTH_SCOPE = "identify";
+// === LOGOWANIE PRZEZ DISCORD (OAuth2) ===
+// Logowanie startuje w Workerze (GUARD_WORKER_URL/auth/discord/start) — tylko on zna ID aplikacji Discord.
+// W Discord Developer Portal → OAuth2 → Redirects musi być wpisany DOKŁADNIE adres tej strony.
 
-// === Powiadomienia Discord przez Twój Worker (sekrety trzyma Worker, nie ta strona) ===
-// WKLEJ adres swojego Workera powiadomień (bez ukośnika na końcu):
-// UWAGA: adres MUSI zaczynać się od "https://". Bez tego przeglądarka traktuje go jako ścieżkę
-// względną i wysyła żądanie na serwer, z którego wczytano tę stronę (zamiast do Workera) —
-// stąd brał się "Błąd." przy wysyłaniu werdyktu i brak powiadomień na Discordzie.
-const FIA_PROXY_BASE = (function (raw) {
-    raw = String(raw || "").trim().replace(/\/+$/, "");
-    return /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
-})("https://fia-worker.andrzejkedzior170.workers.dev");
+// === WŁAŚCICIEL LIGI (opcjonalnie) ===
+// Właściciel po zalogowaniu przez Discord („Panel stewarda”) zawsze ma rolę ROOT i wszystkie uprawnienia,
+// nawet gdy nie ma go na liście stewardów w bazie. Lista właścicieli (OWNER_IDS) jest tylko w Workerze —
+// przy logowaniu nadaje on znacznik „owner”, który sprawdzają strona i reguły bazy. Pusta lista = brak właścicieli.
+const LEAGUE_OWNER_PERMISSIONS = {
+    review_incidents: true, review_appeals: true, manage_users: true, access_trash: true,
+    edit_reports: true, edit_notes: true, edit_appeals: true, clear_chat: true, manage_settings: true,
+    delete_verdicts: true, edit_appeal_verdicts: true, no_lock_restrictions: true
+};
+function isOwnerId(discordId) {
+    const uid = currentUid();
+    return fbClaims.owner === true && !!uid && uid === String(discordId || "").trim();
+}
+function isLeagueOwner() {
+    return !!loggedInSteward && isOwnerId(loggedInSteward.id);
+}
+
+// === Worker „fia-worker” — już tylko serwery TURN dla rozmów głosowych (/turn) ===
+const FIA_PROXY_BASE = "https://fia-worker.andrzejkedzior170.workers.dev";
 
 // Discord odrzuca CAŁĄ wiadomość (HTTP 400), gdy wartość któregokolwiek pola embeda jest pusta
 // albo dłuższa niż 1024 znaki (np. kilka długich linków do dowodów albo obszerne uzasadnienie).
@@ -4377,19 +4520,49 @@ function dcFieldValue(value, max) {
     if (nl > max * 0.5) cut = cut.slice(0, nl); // nie ucinaj linku w połowie, jeśli się da
     return cut + "…";
 }
-// Czytelny opis nieudanej odpowiedzi HTTP (status + treść od Workera/Discorda).
+
+// Czytelny opis nieudanej odpowiedzi HTTP (komunikat Workera „fia-guard” albo status + treść).
 async function describeHttpError(res) {
     let body = "";
     try { body = ((await res.text()) || "").trim().slice(0, 300); } catch (e) {}
+    try {
+        const j = JSON.parse(body);
+        if (j && j.error) {
+            const extra = j.detail && typeof j.detail === "object" && j.detail.body ? " — " + j.detail.body : "";
+            return guardErrorText(j.error, res.status) + extra;
+        }
+    } catch (e) {}
     return "HTTP " + res.status + (res.statusText ? " " + res.statusText : "") + (body ? " — " + body : "");
 }
-const NEW_REPORT_WEBHOOK = FIA_PROXY_BASE + "/notify?t=report";
-const DECISION_WEBHOOK   = FIA_PROXY_BASE + "/notify?t=decision";
-const DISCORD_WEBHOOK_URL = FIA_PROXY_BASE + "/notify?t=file";
-// Webhook wysyłający powiadomienie za każdym razem, gdy ktoś (steward lub kierowca) napisze
-// nową wiadomość na czacie sprawy. Wklej tu URL webhooka wybranego kanału Discord — jeśli
-// zostawisz puste, powiadomienia o czacie będą po prostu wyłączone (bez błędów w konsoli).
-const CHAT_MESSAGE_WEBHOOK = FIA_PROXY_BASE + "/notify?t=report";
+
+// === Powiadomienia Discord — przez Workera „fia-guard” ===
+// Adresy webhooków są tylko w sekretach Workera; tutaj są NAZWY kanałów. Pusty napis ("") = kanał wyłączony.
+//   "stewards"  → WEBHOOK_STEWARDS   (nowe zgłoszenia, apelacje, oświadczenia, wycofania, zaległe sprawy)
+//   "chat"      → WEBHOOK_CHAT, a jeśli go nie ma — WEBHOOK_STEWARDS (wiadomości na czacie spraw)
+//   "decisions" → WEBHOOK_DECISIONS  (przyjęte/odrzucone zgłoszenia i wyniki apelacji)
+//   "verdicts"  → WEBHOOK_VERDICTS   (werdykty z obrazkiem PNG)
+//   "bulletin"  → WEBHOOK_BULLETIN   (biuletyn rundy)
+// Kierowcy mogą pisać tylko na kanały stewardów (stewards / chat), z limitem; reszta tylko dla stewardów.
+const NEW_REPORT_WEBHOOK = "stewards";
+const CHAT_MESSAGE_WEBHOOK = "chat";
+const DECISION_WEBHOOK = "decisions";
+const DISCORD_WEBHOOK_URL = "verdicts";
+const BULLETIN_WEBHOOK = "bulletin";
+// Ping ról stewardów wstawia Worker (STEWARD_ROLE_IDS) w miejsce tego znacznika — ID ról nie ma w kodzie strony.
+const STEWARD_PING = "{{STEWARD_PING}}";
+
+// Wysyłka powiadomienia przez Workera: kanał = nazwa z listy wyżej, nadawca = token logowania Firebase.
+async function postWebhook(channel, options) {
+    if (!channel) return new Response(null, { status: 204 });
+    options = options || {};
+    const user = fbAuth && fbAuth.currentUser;
+    if (!user) {
+        return new Response(JSON.stringify({ error: "login_required" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    }
+    const idToken = await user.getIdToken();
+    const headers = Object.assign({}, options.headers || {}, { Authorization: "Bearer " + idToken });
+    return fetch(`${GUARD_WORKER_URL}/notify/${encodeURIComponent(channel)}`, { method: "POST", headers, body: options.body });
+}
 
 const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024;
 const MAX_EVIDENCE_FILES = 5;
@@ -4943,14 +5116,18 @@ let globalIncidents = [];
 let globalAppeals = [];
 let globalTrash = [];
 let globalChatData = null;
-// Haszowanie haseł (SHA-256) — hasła nie są porównywane ani przechowywane jako jawny tekst
-async function hashPassword(plain) {
-    const enc = new TextEncoder().encode(plain);
-    const buf = await crypto.subtle.digest("SHA-256", enc);
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+// Sekcje „Użytkownicy i Role” i „Kosz” nie mają już osobnych haseł — dostęp wynika z roli
+// i uprawnień konta stewarda (USR / TRASH), a ten sam warunek egzekwują reguły bazy.
+function stewardIsRootLike() {
+    if (!isAdminAuthenticated || !loggedInSteward || loggedInSteward.id === "external-judge") return false;
+    return isLeagueOwner() || loggedInSteward.role === "Główny Steward" || loggedInSteward.role === "ROOT";
 }
-// Hash SHA-256 hasła do sekcji "Użytkownicy i Role" — jawne hasło nie występuje już w kodzie
-const ADMIN_USERS_PASS_HASH = "64e48f3bf07307f751c02213b95e0b5e1e8351597dfbe12bce5cbf115591ce3f";
+function canOpenUsersSection() {
+    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.id !== "external-judge" && loggedInSteward.permissions && loggedInSteward.permissions.manage_users);
+}
+function canOpenTrash() {
+    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.id !== "external-judge" && loggedInSteward.permissions && loggedInSteward.permissions.access_trash);
+}
 
 let isAdminAuthenticated = false;
 let discordDriverAuth = null; // { id, username, globalName, avatarUrl } — kierowca zalogowany przez Discord
@@ -5679,25 +5856,16 @@ function openAdminLogin() { document.getElementById("adminLoginModal").style.dis
 function closeAdminLogin() { document.getElementById("adminLoginModal").style.display = "none"; document.getElementById("loginStatus").textContent = ""; }
 
 async function openUsersSection() {
-    if (isUsersAuth) {
-        showSection('usersSection');
-        renderUsersAndLogs();
+    if (!isAdminAuthenticated) { alert(currentLang === 'pl' ? "Najpierw zaloguj się do panelu." : "Log in to the panel first."); return; }
+    if (!canOpenUsersSection()) {
+        alert(currentLang === 'pl'
+            ? "Brak dostępu do sekcji Użytkownicy i Role — potrzebna rola Główny Steward / ROOT albo uprawnienie USR."
+            : "No access to Users and Roles — requires Lead Steward / ROOT or the USR permission.");
         return;
     }
-    if (!isAdminAuthenticated) { alert(currentLang === 'pl' ? "Najpierw zaloguj się do panelu." : "Log in to the panel first."); return; }
-    const _wU = fiaRateLimit("usersPass", 5, 60000);
-    if (_wU) { alert(currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wU + " s.") : ("Too many attempts. Wait " + _wU + " s.")); return; }
-    const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Zarządzania Użytkownikami i Rolami:" : "Enter password for Users and Roles section:");
-    if (pass === null) return;
-    const passHash = await hashPassword(pass);
-    if (passHash === ADMIN_USERS_PASS_HASH) {
-        isUsersAuth = true;
-        sessionStorage.setItem("usersAuth", ADMIN_USERS_PASS_HASH);
-        showSection('usersSection');
-        renderUsersAndLogs();
-    } else {
-        alert(currentLang === 'pl' ? "Nieprawidłowe hasło!" : "Invalid password!");
-    }
+    isUsersAuth = true;
+    showSection('usersSection');
+    renderUsersAndLogs();
 }
 
 function updateLoggedInAsLabel() {
@@ -5738,46 +5906,41 @@ function getDiscordRedirectUri() {
     return window.location.origin + window.location.pathname;
 }
 
+// Przejście do logowania Discorda przez Workera (on dokłada ID aplikacji i wymagane zgody).
+function startDiscordLogin(mode) {
+    const nonce = newOAuthState(mode).split(".")[1]; // losowy nonce zapamiętany w sessionStorage
+    const params = new URLSearchParams({ mode, nonce, redirect: getDiscordRedirectUri() });
+    window.location.href = `${GUARD_WORKER_URL}/auth/discord/start?${params.toString()}`;
+}
+
 function loginWithDiscord() {
-    if (!DISCORD_CLIENT_ID || DISCORD_CLIENT_ID === "TWOJE_DISCORD_CLIENT_ID") {
-        alert(currentLang === 'pl'
-            ? "Logowanie przez Discord nie zostało jeszcze skonfigurowane przez administratora strony (brak Client ID)."
-            : "Discord login has not been configured by the site admin yet (missing Client ID).");
-        return;
-    }
-    const redirectUri = encodeURIComponent(getDiscordRedirectUri());
-    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}&state=${encodeURIComponent("driver." + fiaMakeNonce())}`;
-    window.location.href = url;
+    startDiscordLogin("driver");
 }
 
 function loginWithDiscordAdmin() {
-    if (!DISCORD_CLIENT_ID || DISCORD_CLIENT_ID === "TWOJE_DISCORD_CLIENT_ID") {
-        alert(currentLang === 'pl'
-            ? "Logowanie przez Discord nie zostało jeszcze skonfigurowane przez administratora strony (brak Client ID)."
-            : "Discord login has not been configured by the site admin yet (missing Client ID).");
-        return;
-    }
-    const redirectUri = encodeURIComponent(getDiscordRedirectUri());
-    // state=admin_panel.<nonce> odróżnia ten login (do panelu stewarda) od zwykłego logowania kierowcy,
-    // a losowy nonce chroni przed podrzuceniem tokenu (CSRF) przy powrocie z Discorda.
-    const url = `https://discord.com/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${encodeURIComponent(DISCORD_OAUTH_SCOPE)}&state=${encodeURIComponent("admin_panel." + fiaMakeNonce())}`;
-    window.location.href = url;
+    // admin_panel odróżnia logowanie do panelu stewarda od zwykłego logowania kierowcy.
+    startDiscordLogin("admin_panel");
 }
 
 function logoutDiscordDriver() {
     discordDriverAuth = null;
     localStorage.removeItem("driverDiscordAuth");
+    // Wylogowanie z Firebase — chyba że w tej karcie jest otwarty panel stewarda (to samo konto).
+    // Potem przeładowanie: bez sesji strona pokaże ekran logowania.
+    if (fbAuth && fbAuth.currentUser && !isAdminAuthenticated) {
+        loginGateBusy = true;
+        fbAuth.signOut().catch(() => {}).finally(() => location.reload());
+        return;
+    }
     applyDriverAuthUI();
 }
 
 // ============ LOGOWANIE SĘDZIEGO SPOZA LIGI (hasłem, do panelu admina) ============
 // Dla gościnnego sędziego bez konta stewarda i bez logowania przez Discord — np. sędzia
 // zapraszany z innej ligi na pojedyncze wydarzenie. Dostęp jest chroniony wspólnym hasłem;
-// jego jawna postać NIE występuje w kodzie strony, przechowywany jest wyłącznie hash SHA-256.
-// Aby ustawić własne hasło: wejdź w konsolę przeglądarki na tej stronie i wpisz
-// `await hashPassword("twoje-nowe-haslo")`, a otrzymany ciąg wklej poniżej jako
-// wartość EXTERNAL_JUDGE_PASSWORD_HASH.
-const EXTERNAL_JUDGE_PASSWORD_HASH = "c30581a727bcb8602da75d9b68f950e8f910425bf8f0583f33ffd499ebebde0d";
+// hasło sprawdza Worker „fia-guard” (sekret JUDGE_PASSWORD albo JUDGE_PASSWORD_HASH) —
+// w kodzie strony nie ma ani hasła, ani jego hasha. Worker ogranicza liczbę prób i wydaje
+// sesję ważną kilka godzin (JUDGE_SESSION_HOURS), po której baza przestaje przyjmować zapisy.
 
 // Uprawnienia gościnnego sędziego — celowo ograniczone: może przeglądać i oceniać
 // zgłoszenia oraz apelacje, ale nie ma dostępu do zarządzania użytkownikami, Kosza,
@@ -5827,95 +5990,148 @@ async function submitExternalJudgeLogin() {
         statusEl.textContent = (currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wJ + " s.") : ("Too many attempts. Wait " + _wJ + " s."));
         return;
     }
-    const passHash = await hashPassword(password);
-    if (passHash !== EXTERNAL_JUDGE_PASSWORD_HASH) {
-        passInput.classList.add("input-error");
-        if (errorEl) errorEl.style.display = "block";
-        statusEl.textContent = langData[currentLang].externalJudgePasswordError;
+    if (!fbAuth) {
+        statusEl.textContent = currentLang === 'pl' ? "Logowanie nie jest skonfigurowane (brak apiKey w firebaseConfig)." : "Login is not configured (missing apiKey).";
+        return;
+    }
+    statusEl.textContent = currentLang === 'pl' ? "Sprawdzanie hasła…" : "Checking password…";
+    let judgeLogin;
+    try {
+        judgeLogin = await guardPost("/auth/judge", { nick, password });
+    } catch (err) {
+        if (err.code === "invalid_password") {
+            passInput.classList.add("input-error");
+            if (errorEl) errorEl.style.display = "block";
+            statusEl.textContent = langData[currentLang].externalJudgePasswordError;
+        } else {
+            statusEl.textContent = err.message;
+        }
         return;
     }
     passInput.classList.remove("input-error");
     if (errorEl) errorEl.style.display = "none";
+    loginGateBusy = true;
+    try {
+        // Sesja sędziego trwa do zamknięcia karty/przeglądarki (jak wcześniej) i najwyżej tyle, ile ustawiono w Workerze.
+        await fbAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+        await fbAuth.signInWithCustomToken(judgeLogin.firebaseToken);
+    } catch (err) {
+        loginGateBusy = false;
+        statusEl.textContent = (currentLang === 'pl' ? "Nie udało się zalogować: " : "Login failed: ") + err.message;
+        return;
+    }
+    passInput.value = "";
+    statusEl.textContent = currentLang === 'pl' ? "Zalogowano — wczytywanie panelu…" : "Logged in — loading the panel…";
+    // Przeładowanie: dane wczytają się już z sesją sędziego, a restoreExternalJudgeSession() otworzy panel.
+    location.reload();
+}
 
+// Przywraca sesję sędziego po odświeżeniu strony — na podstawie sesji Firebase wydanej przez Workera
+// (wcześniej wystarczyło wpisać dane do sessionStorage, żeby wejść do panelu).
+async function restoreExternalJudgeSession() {
+    await authReady;
+    if (isAdminAuthenticated || !fbAuth || !fbAuth.currentUser || fbClaims.judge !== true) return;
+    if (!(Number(fbClaims.judgeUntil) > Date.now())) {
+        try { await fbAuth.signOut(); } catch (e) {}
+        return;
+    }
     loggedInSteward = {
-        nick: nick,
-        id: "external-judge", // brak zweryfikowanego Discord ID — dostęp gościnny hasłem
+        nick: String(fbClaims.nick || (currentLang === 'pl' ? "Sędzia" : "Judge")),
+        id: "external-judge",
         role: langData[currentLang].externalJudgeRole,
         permissions: EXTERNAL_JUDGE_PERMISSIONS
     };
-    // Sesja gościnna trzymana tylko w sessionStorage (nie w localStorage) — wygasa
-    // z zamknięciem karty/przeglądarki, tak jak dostęp do Kosza czy Użytkowników.
-    sessionStorage.setItem("externalJudgeAuth", JSON.stringify(loggedInSteward));
-    closeExternalJudgeLogin();
     finalizeAutoLogin();
 }
 
-function restoreExternalJudgeSession() {
-    const saved = sessionStorage.getItem("externalJudgeAuth");
-    if (!saved || isAdminAuthenticated) return;
-    try {
-        loggedInSteward = JSON.parse(saved);
-        finalizeAutoLogin();
-    } catch (e) {
-        sessionStorage.removeItem("externalJudgeAuth");
-    }
-}
-
 async function handleDiscordOAuthRedirect() {
+    const pl = currentLang === 'pl';
     // Discord (implicit grant) zwraca token we fragmencie URL: #access_token=...&token_type=Bearer...&state=...
     if (window.location.hash && window.location.hash.includes("access_token")) {
         const params = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = params.get("access_token");
-        const oauthState = params.get("state");
+        const oauthState = params.get("state") || "";
         // Usuwamy token z paska adresu, żeby nie został np. w historii przeglądarki
         history.replaceState(null, "", window.location.pathname + window.location.search);
 
-        // Weryfikacja jednorazowego nonce stanu — odrzuca logowania, których nie zainicjowała ta karta
-        // (ochrona przed CSRF / podrzuceniem cudzego tokenu w adresie URL).
-        const _stateParts = (oauthState || "").split(".");
-        const oauthMode = _stateParts[0];
-        const _stateNonce = _stateParts.slice(1).join(".");
-        if (!fiaCheckNonce(_stateNonce)) {
-            console.error("Logowanie przez Discord odrzucone: nieprawidłowy lub brakujący token stanu (nonce).");
-            applyDriverAuthUI();
-            return;
-        }
+        const [oauthMode, oauthNonce] = oauthState.split(".");
+        let expectedNonce = null;
+        try { expectedNonce = sessionStorage.getItem("discordOAuthNonce"); sessionStorage.removeItem("discordOAuthNonce"); } catch (e) {}
 
-        if (accessToken) {
+        if (!accessToken || !oauthNonce || oauthNonce !== expectedNonce) {
+            // Stary albo podrzucony link z tokenem — nie logujemy.
+            console.warn("Logowanie Discord odrzucone: niezgodny parametr state.");
+            alert(pl
+                ? "Logowanie przez Discord nie powiodło się (link wygasł). Kliknij przycisk logowania jeszcze raz."
+                : "Discord login failed (the link expired). Click the login button again.");
+        } else {
+            loginGateBusy = true;
+            updateLoginGate(pl ? "Logowanie przez Discord…" : "Logging in with Discord…");
             try {
-                const res = await fetch("https://discord.com/api/users/@me", {
-                    headers: { Authorization: `Bearer ${accessToken}` }
-                });
-                if (res.ok) {
-                    const user = await res.json();
-                    const avatarUrl = user.avatar
-                        ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
-                        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.discriminator || "0") % 5n)}.png`;
+                await authReady;
+                const uidBefore = currentUid();
+                const user = await signInWithDiscordAccessToken(accessToken);
+                const avatarUrl = user.avatar
+                    ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+                    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.discriminator || "0") % 5n)}.png`;
 
+                if (uidBefore !== String(user.id)) {
+                    // Nowa sesja: dane strony były wczytane bez logowania (albo innym kontem) —
+                    // zapisujemy, kto się zalogował, i przeładowujemy stronę, żeby wczytać je od nowa.
                     if (oauthMode === "admin_panel") {
-                        // Logowanie do panelu stewarda — tożsamość zweryfikowana przez Discord,
-                        // dostęp przyznawany tylko jeśli to Discord ID jest zarejestrowane jako steward.
-                        attemptDiscordAdminLogin(user.id);
+                        try { localStorage.setItem("adminAuthName", user.global_name || user.username || ""); } catch (e) {}
+                        localStorage.setItem("adminAuthId", String(user.id));
+                        try { sessionStorage.setItem("adminLoginAttempt", "1"); } catch (e) {}
                     } else {
-                        discordDriverAuth = {
-                            id: user.id,
-                            username: user.username,
-                            globalName: user.global_name || user.username,
-                            avatarUrl
-                        };
-                        localStorage.setItem("driverDiscordAuth", JSON.stringify(discordDriverAuth));
+                        localStorage.setItem("driverDiscordAuth", JSON.stringify({
+                            id: user.id, username: user.username, globalName: user.global_name || user.username, avatarUrl
+                        }));
                     }
+                    location.reload();
+                    return;
+                }
+                loginGateBusy = false;
+                updateLoginGate();
+
+                if (oauthMode === "admin_panel") {
+                    // Logowanie do panelu stewarda — tożsamość potwierdzona przez Discord i Workera,
+                    // dostęp przyznawany tylko jeśli baza potwierdzi, że to Discord ID jest stewardem.
+                    try { localStorage.setItem("adminAuthName", user.global_name || user.username || ""); } catch (e) {}
+                    attemptDiscordAdminLogin(user.id);
                 } else {
-                    console.error("Discord API error:", res.status);
+                    discordDriverAuth = {
+                        id: user.id,
+                        username: user.username,
+                        globalName: user.global_name || user.username,
+                        avatarUrl
+                    };
+                    localStorage.setItem("driverDiscordAuth", JSON.stringify(discordDriverAuth));
+                    // Zapamiętany panel stewarda dla tego samego konta — przywracamy go.
+                    const savedAdminId = localStorage.getItem("adminAuthId");
+                    if (savedAdminId && savedAdminId === String(user.id)) {
+                        pendingAutoLoginId = savedAdminId;
+                        tryAutoLogin();
+                    }
                 }
             } catch (err) {
+                loginGateBusy = false;
+                updateLoginGate();
                 console.error("Błąd logowania przez Discord:", err);
+                alert((pl ? "Logowanie przez Discord nie powiodło się: " : "Discord login failed: ") + err.message);
             }
         }
     } else {
         const saved = localStorage.getItem("driverDiscordAuth");
         if (saved) {
             try { discordDriverAuth = JSON.parse(saved); } catch (e) { discordDriverAuth = null; }
+        }
+        applyDriverAuthUI();
+        // Zapamiętana sesja kierowcy jest ważna tylko razem z sesją Firebase na to samo konto
+        // (logowania sprzed wprowadzenia zabezpieczeń trzeba odnowić jednym kliknięciem).
+        await authReady;
+        if (discordDriverAuth && currentUid() !== String(discordDriverAuth.id)) {
+            discordDriverAuth = null;
+            try { localStorage.removeItem("driverDiscordAuth"); } catch (e) {}
         }
     }
     applyDriverAuthUI();
@@ -6453,10 +6669,10 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
         evidenceFileInput.classList.remove('input-error');
     }
 
-    const snapshot = await database.ref("incident_counter").get();
-    let counter = snapshot.exists() ? snapshot.val() : 0;
-    counter++;
-    await database.ref("incident_counter").set(counter);
+    // Numer zgłoszenia nadawany atomowo (transakcja) — reguły bazy pozwalają kierowcy tylko na +1.
+    const counterTx = await database.ref("incident_counter").transaction(c => (typeof c === "number" ? c : 0) + 1);
+    if (!counterTx.committed) throw new Error(currentLang === 'pl' ? "Nie udało się nadać numeru zgłoszenia — spróbuj ponownie." : "Could not assign a report number — try again.");
+    const counter = counterTx.snapshot.val();
 
     const fiaId = "FIA-" + String(counter).padStart(4, '0');
 
@@ -6479,6 +6695,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
         }
     }
 
+    await stampRateLimit("report", fiaId);
     await database.ref("incidents/" + fiaId).set(newReport);
     await logAction(nick || discordId || "Kierowca", "REPORT", fiaId, `Złożono nowe zgłoszenie incydentu przeciwko ${accusedNick || accusedDiscordId || "nieznanemu kierowcy"} (${category}, ${track} - ${split} - ${sessionType}).`, {
         items: [{ path: `incidents/${fiaId}`, data: cloneForRestore(newReport) }]
@@ -6502,7 +6719,10 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
         timestamp: new Date().toISOString()
     };
 
-    fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "<@&1443302932811616346> <@&1463610534309007380>", embeds: [embed] }) }).catch(()=>{});
+    postWebhook(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: STEWARD_PING, embeds: [embed] }) }).catch(()=>{});
+    } catch (err) {
+        console.error("Błąd wysyłania zgłoszenia:", err);
+        alert(friendlyWriteError(err, currentLang === 'pl' ? "Nie udało się wysłać zgłoszenia" : "Could not submit the report"));
     } finally {
         if (submitBtn) submitBtn.disabled = false;
     }
@@ -6551,10 +6771,9 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
         return;
     }
 
-    const appealSnap = await database.ref("appeal_counter").get();
-    let appealCounter = appealSnap.exists() ? appealSnap.val() : 0;
-    appealCounter++;
-    await database.ref("appeal_counter").set(appealCounter);
+    const appealCounterTx = await database.ref("appeal_counter").transaction(c => (typeof c === "number" ? c : 0) + 1);
+    if (!appealCounterTx.committed) throw new Error(currentLang === 'pl' ? "Nie udało się nadać numeru apelacji — spróbuj ponownie." : "Could not assign an appeal number — try again.");
+    const appealCounter = appealCounterTx.snapshot.val();
     const appealId = "APP-" + String(appealCounter).padStart(4, "0");
     const newAppeal = { appealId, caseId, nick, discordId, reason, evidence, status: "Nowa", timestamp: Date.now() };
 
@@ -6571,6 +6790,7 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
         }
     }
 
+    await stampRateLimit("appeal", appealId);
     await database.ref("appeals/" + appealId).set(newAppeal);
     await database.ref("incidents/" + caseId + "/status").set("W apelacji");
     await logAction(nick || discordId || "Kierowca", "APPEAL", caseId, `Złożono apelację ${appealId} od decyzji w sprawie ${caseId}.`);
@@ -6592,7 +6812,10 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
         timestamp: new Date().toISOString()
     };
 
-    fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "<@&1443302932811616346> <@&1463610534309007380>", embeds: [embed] }) }).catch(()=>{});
+    postWebhook(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: STEWARD_PING, embeds: [embed] }) }).catch(()=>{});
+    } catch (err) {
+        console.error("Błąd wysyłania apelacji:", err);
+        alert(friendlyWriteError(err, currentLang === 'pl' ? "Nie udało się wysłać apelacji" : "Could not submit the appeal"));
     } finally {
         if (submitBtn) submitBtn.disabled = false;
     }
@@ -7751,7 +7974,7 @@ async function resendVerdict(id) {
         const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
         const accusedPart = isNoOneGuilty ? `🤝 ${noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${guiltyDiscordId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
-        const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+        const res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         if (!res.ok) throw new Error(await describeHttpError(res));
 
         await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "VERDICT", id, `Ponownie wysłano powiadomienie o werdykcie na Discord.`);
@@ -7814,7 +8037,7 @@ async function updateStatus(id, newStatus) {
         timestamp: new Date().toISOString()
     };
     try {
-        await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${item.discordId}>`, embeds: [embed] }) });
+        await postWebhook(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${item.discordId}>`, embeds: [embed] }) });
     } catch(e) { console.error(e); }
 }
 
@@ -7847,7 +8070,7 @@ async function acceptAppeal(appealId, caseId, discordId) {
             { name: isPl ? "👤 Kierowca" : "👤 Driver", value: `${appellantNick} (<@${discordId}>)`, inline: false }
         ], timestamp: new Date().toISOString()
     };
-    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${discordId}>`, embeds: [embed] }) }); } catch(e) { console.error(e); }
+    try { await postWebhook(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${discordId}>`, embeds: [embed] }) }); } catch(e) { console.error(e); }
     alert(`Apelacja ${appealId} rozpatrzona pomyślnie.`);
 }
 
@@ -7884,34 +8107,23 @@ async function rejectAppeal(appealId, caseId, discordId) {
             { name: isPl ? "💬 Uzasadnienie" : "💬 Reason", value: reason, inline: false }
         ], timestamp: new Date().toISOString()
     };
-    try { await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${discordId}>`, embeds: [embed] }) }); } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
+    try { await postWebhook(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${discordId}>`, embeds: [embed] }) }); } catch(e) { console.error("Błąd wysyłania webhooka:", e); }
     alert(`Apelacja ${appealId} odrzucona.`);
 }
 
-// Hash SHA-256 hasła do sekcji "Kosz" — jawne hasło nie występuje już w kodzie
-const TRASH_PASSWORD_HASH = "5ef1e98d8c89dd6154d3445c3cfc006b3aad0378b4c370e39a4a7a2e98864bb0";
 let isTrashAuthenticated = false;
 
 async function openTrash() {
-    if (isTrashAuthenticated) {
-        showSection('trashSection');
-        renderTrash();
+    if (!isAdminAuthenticated) { alert(currentLang === 'pl' ? "Najpierw zaloguj się do panelu." : "Log in to the panel first."); return; }
+    if (!canOpenTrash()) {
+        alert(currentLang === 'pl'
+            ? "Brak dostępu do Kosza — potrzebna rola Główny Steward / ROOT albo uprawnienie TRASH."
+            : "No access to the Trash — requires Lead Steward / ROOT or the TRASH permission.");
         return;
     }
-    if (!isAdminAuthenticated) { alert(currentLang === 'pl' ? "Najpierw zaloguj się do panelu." : "Log in to the panel first."); return; }
-    const _wT = fiaRateLimit("trashPass", 5, 60000);
-    if (_wT) { alert(currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wT + " s.") : ("Too many attempts. Wait " + _wT + " s.")); return; }
-    const pass = prompt(currentLang === 'pl' ? "Podaj hasło dostępu do Kosza:" : "Enter Trash access password:");
-    if (pass === null) return;
-    const passHash = await hashPassword(pass);
-    if (passHash === TRASH_PASSWORD_HASH) {
-        isTrashAuthenticated = true;
-        sessionStorage.setItem("trashAuth", TRASH_PASSWORD_HASH);
-        showSection('trashSection');
-        renderTrash();
-    } else {
-        alert(currentLang === 'pl' ? "Nieprawidłowe hasło do Kosza!" : "Incorrect Trash password!");
-    }
+    isTrashAuthenticated = true;
+    showSection('trashSection');
+    renderTrash();
 }
 
 // Zwraca ścieżkę w bazie, pod którą obiekt danego typu żył przed przeniesieniem do Kosza —
@@ -8292,7 +8504,7 @@ async function resendAppealVerdict(appealId) {
                 };
             }
 
-            const res = await fetch(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${appeal.discordId}>`, embeds: [embed] }) });
+            const res = await postWebhook(DECISION_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `<@${appeal.discordId}>`, embeds: [embed] }) });
             if (!res.ok) throw new Error(await describeHttpError(res));
 
             await logAction(loggedInSteward ? loggedInSteward.nick : "ADMIN", "APPEAL", appealId, `Ponownie wysłano powiadomienie o decyzji apelacyjnej na Discord.`);
@@ -8480,7 +8692,7 @@ function adminLogout() {
     if (confirm("Czy na pewno chcesz się wylogować z panelu administratora?")) {
         const stewardNameOut = loggedInSteward ? loggedInSteward.nick : "ADMIN";
         const stewardIdOut = loggedInSteward ? loggedInSteward.id : "N/A";
-        logAction(stewardNameOut, "AUTH", stewardIdOut, `Wylogowano z panelu administracyjnego.`);
+        const logoutLogDone = logAction(stewardNameOut, "AUTH", stewardIdOut, `Wylogowano z panelu administracyjnego.`);
         isAdminAuthenticated = false;
         loggedInSteward = null;
         vcStopGlobalCallsWatchForSteward();
@@ -8494,6 +8706,12 @@ function adminLogout() {
         sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
         sessionStorage.removeItem("externalJudgeAuth");
+        // Wylogowanie z Firebase (po zapisaniu logu) — chyba że w tej przeglądarce jest też
+        // zalogowany kierowca na to samo konto Discord.
+        if (fbAuth && fbAuth.currentUser && !(discordDriverAuth && String(discordDriverAuth.id) === fbAuth.currentUser.uid)) {
+            loginGateBusy = true;
+            Promise.resolve(logoutLogDone).finally(() => fbAuth.signOut().catch(() => {}).finally(() => location.reload()));
+        }
         document.getElementById("adminMenuBtn").style.borderColor = "#ef4444";
         if(document.getElementById("statsMenuBtn")) {
             document.getElementById("statsMenuBtn").style.display = "none";
@@ -8734,10 +8952,10 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             const formData = new FormData();
             formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [pngEmbed] }));
             formData.append("files[0]", verdictPngBlob, verdictPngFilename);
-            res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
+            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
         } else {
             // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
-            res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         }
         if (!res.ok) throw new Error(await describeHttpError(res));
         statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
@@ -9648,7 +9866,7 @@ async function sendChatMessageWebhook(msgData, caseId, pingContent) {
     if (preview) embed.fields.push({ name: "✉️ Treść", value: preview, inline: false });
     if (msgData.files && msgData.files.length) embed.fields.push({ name: "📎 Załączniki", value: String(msgData.files.length), inline: true });
     try {
-        await fetch(CHAT_MESSAGE_WEBHOOK, {
+        await postWebhook(CHAT_MESSAGE_WEBHOOK, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ content: pingContent || "", embeds: [embed] })
@@ -9778,7 +9996,14 @@ async function sendPlayerChatMessage() {
         }
     }
     const newMsgRef = database.ref("chat").push();
-    await newMsgRef.set(msgData);
+    try {
+        await stampRateLimit("chat", newMsgRef.key);
+        await newMsgRef.set(msgData);
+    } catch (err) {
+        console.error("Błąd wysyłania wiadomości czatu:", err);
+        alert(friendlyWriteError(err, currentLang === 'pl' ? "Nie udało się wysłać wiadomości" : "Could not send the message"));
+        return;
+    }
     await logAction(playerNick || authorizedHistoryDiscordId || "Gracz", "CHAT", selectedPlayerCaseId, `Wysłano wiadomość na czacie sprawy (gracz).`);
     msgInput.value = "";
     if (fileInput) fileInput.value = "";
@@ -9786,7 +10011,7 @@ async function sendPlayerChatMessage() {
     if (playerChatFileListEl) playerChatFileListEl.innerHTML = "";
 
     // Ping roli stewardów — ta sama rola, która jest pingowana przy nowych zgłoszeniach/apelacjach.
-    sendChatMessageWebhook(msgData, selectedPlayerCaseId, "<@&1443302932811616346> <@&1463610534309007380>");
+    sendChatMessageWebhook(msgData, selectedPlayerCaseId, STEWARD_PING);
 }
 
 // ============================================================
@@ -10261,7 +10486,11 @@ function vcStopGlobalCallsWatchForPlayer() {
 // === MODUŁ ZARZĄDZANIA UŻYTKOWNIKAMI, ROLAMI I LOGAMI AKCJI ===
 // ============================================================
 
+// Lista stewardów (z hashami haseł) jest dostępna tylko dla zespołu — wczytujemy ją po zalogowaniu.
+let stewardsListening = false;
 function listenToStewards() {
+    if (stewardsListening) return;
+    stewardsListening = true;
     database.ref("stewards").on("value", snapshot => {
         globalStewards = [];
         if (snapshot.exists()) {
@@ -10273,7 +10502,41 @@ function listenToStewards() {
             renderStewardsTable();
             updateUsersStats();
         }
-        tryAutoLogin();
+        purgeLegacyStewardPasswords();
+    }, err => {
+        stewardsListening = false;
+        console.warn("Brak dostępu do listy stewardów:", err && err.message);
+    });
+}
+
+// Konta stewardów miały kiedyś hasła (hash SHA-256 w bazie) — logowanie idzie dziś wyłącznie przez
+// Discorda, więc te hashe są zbędne. Usuwa je pierwsza osoba z prawem zarządzania stewardami.
+let legacyPasswordsPurged = false;
+function purgeLegacyStewardPasswords() {
+    if (legacyPasswordsPurged || !canOpenUsersSection()) return;
+    const upd = {};
+    globalStewards.forEach(s => { if (s.password !== undefined && s.password !== null) upd[`stewards/${s.id}/password`] = null; });
+    if (!Object.keys(upd).length) return;
+    legacyPasswordsPurged = true;
+    database.ref().update(upd)
+        .then(() => console.info(`[bezpieczeństwo] Usunięto stare hasła ${Object.keys(upd).length} kont stewardów.`))
+        .catch(err => { legacyPasswordsPurged = false; console.warn("Nie udało się usunąć starych haseł stewardów:", err && err.message); });
+}
+
+// Kosz — także tylko dla zespołu (wcześniej czytany przez każdego odwiedzającego).
+let trashListening = false;
+function listenToTrash() {
+    if (trashListening) return;
+    trashListening = true;
+    database.ref("trash").on("value", (snapshot) => {
+        globalTrash = [];
+        snapshot.forEach(child => { globalTrash.push({ id: child.key, ...child.val() }); });
+        const countBtnEl = document.getElementById("trashCountBtn");
+        if (countBtnEl) countBtnEl.textContent = globalTrash.length;
+        if (isAdminAuthenticated && isTrashAuthenticated) renderTrash();
+    }, err => {
+        trashListening = false;
+        console.warn("Brak dostępu do kosza:", err && err.message);
     });
 }
 
@@ -10292,58 +10555,87 @@ function listenToActionLogs() {
 }
 
 function listenToUsersAndLogs() {
-    // Stewardzi są już nasłuchiwani od startu strony (potrzebne do logowania) — tu doładowujemy logi akcji.
+    // Stewardzi, kosz i logi akcji są dostępne tylko dla zespołu (reguły bazy) — ładujemy je po zalogowaniu.
+    listenToStewards();
+    listenToTrash();
     listenToActionLogs();
 }
 
 let pendingAutoLoginId = null;
 let pendingAutoLoginIsDiscordAttempt = false;
-let stewardsFirstSnapshotReceived = false;
 
 function attemptDiscordAdminLogin(discordId) {
-    // Tożsamość jest już potwierdzona przez Discord (OAuth) — sprawdzamy tylko,
-    // czy to Discord ID jest zarejestrowane jako steward w bazie. Bez hasła.
-    pendingAutoLoginId = discordId;
+    // Tożsamość potwierdził Discord + Worker (sesja Firebase na to Discord ID). Czy to steward,
+    // sprawdza tryAutoLogin() — odczytem z bazy, na który reguły pozwalają tylko stewardom.
+    pendingAutoLoginId = String(discordId);
     pendingAutoLoginIsDiscordAttempt = true;
     localStorage.setItem("adminAuthId", discordId);
-
-    if (stewardsFirstSnapshotReceived) {
-        tryAutoLogin();
-    }
-    // Jeśli lista stewardów jeszcze się nie załadowała, tryAutoLogin() i tak zostanie
-    // wywołane automatycznie przez listenToStewards() przy pierwszym snapshotcie z Firebase.
+    tryAutoLogin();
 }
 
-function tryAutoLogin() {
-    stewardsFirstSnapshotReceived = true;
-    if (!pendingAutoLoginId || isAdminAuthenticated) return;
+// Własny wpis w stewards/<uid>. Odmowa dostępu = to konto nie jest stewardem.
+async function fetchOwnStewardRecord(uid) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const snap = await database.ref("stewards/" + uid).once("value");
+            return snap.exists() ? snap.val() : null;
+        } catch (e) {
+            if (attempt === 2) return null;
+            // Tuż po zalogowaniu połączenie z bazą może jeszcze nie mieć nowego tokenu — ponawiamy.
+            await new Promise(r => setTimeout(r, 700));
+        }
+    }
+    return null;
+}
 
-    const steward = globalStewards.find(s => s.id === pendingAutoLoginId);
-    if (steward) {
-        loggedInSteward = { nick: steward.nick, id: steward.id, role: steward.role, permissions: steward.permissions || {} };
+async function tryAutoLogin() {
+    await authReady;
+    const wantedId = pendingAutoLoginId ? String(pendingAutoLoginId).trim() : null;
+    const isDiscordAttempt = pendingAutoLoginIsDiscordAttempt;
+    if (!wantedId || isAdminAuthenticated) return;
+    pendingAutoLoginId = null;
+    pendingAutoLoginIsDiscordAttempt = false;
+
+    // Panel otwieramy tylko dla zalogowanego w Firebase konta o TYM SAMYM Discord ID —
+    // samo wpisanie ID do localStorage (jak dało się wcześniej) już nic nie daje.
+    const uid = currentUid();
+    if (!uid || uid !== wantedId) {
+        localStorage.removeItem("adminAuthId");
+        if (isDiscordAttempt) {
+            alert(currentLang === 'pl'
+                ? "Nie udało się potwierdzić logowania. Zaloguj się ponownie przez Discord."
+                : "Could not confirm the login. Log in again with Discord.");
+        }
+        return;
+    }
+
+    const steward = await fetchOwnStewardRecord(uid);
+    if (isAdminAuthenticated) return;
+    if (isOwnerId(uid)) {
+        let ownerName = "";
+        try { ownerName = localStorage.getItem("adminAuthName") || ""; } catch (e) {}
+        loggedInSteward = {
+            nick: (steward && steward.nick) || ownerName || "Właściciel ligi",
+            id: uid,
+            role: "ROOT",
+            permissions: Object.assign({}, LEAGUE_OWNER_PERMISSIONS)
+        };
         finalizeAutoLogin();
-        pendingAutoLoginId = null;
-        pendingAutoLoginIsDiscordAttempt = false;
+    } else if (steward) {
+        loggedInSteward = { nick: steward.nick, id: uid, role: steward.role, permissions: steward.permissions || {} };
+        finalizeAutoLogin();
     } else {
-        if (pendingAutoLoginIsDiscordAttempt) {
+        if (isDiscordAttempt) {
             alert(currentLang === 'pl'
                 ? "To konto Discord nie jest zarejestrowane jako steward w tym systemie. Poproś administratora o dodanie Twojego Discord ID w sekcji Użytkownicy i Role."
                 : "This Discord account is not registered as a steward in this system. Ask an administrator to add your Discord ID in the Users and Roles section.");
         }
-        // Steward zapisany w localStorage już nie istnieje w bazie (np. usunięty) — czyścimy sesję.
         localStorage.removeItem("adminAuthId");
-        pendingAutoLoginId = null;
-        pendingAutoLoginIsDiscordAttempt = false;
     }
 }
 
 function finalizeAutoLogin() {
     isAdminAuthenticated = true;
-    // WARIANT B: poproś o logowanie do zapisu w bazie (działa tylko po włączeniu flagi powyżej).
-    if (typeof FIA_REQUIRE_FIREBASE_WRITE_AUTH !== "undefined" && FIA_REQUIRE_FIREBASE_WRITE_AUTH
-        && typeof window.fiaFirebaseLogin === "function") {
-        window.fiaFirebaseLogin();
-    }
     document.getElementById("adminMenuBtn").style.borderColor = "#10b981";
     applyStewardPermissions();
     updateLoggedInAsLabel();
@@ -10395,7 +10687,6 @@ function autoAssignPermissions() {
 function resetStewardForm() {
     document.getElementById("stewardForm").reset();
     document.getElementById("stewardDiscord").removeAttribute("disabled");
-    document.getElementById("stewardPassword").placeholder = currentLang === 'pl' ? "Ustaw hasło dla tego stewarda..." : "Set a password for this steward...";
 }
 
 async function saveSteward(event) {
@@ -10405,20 +10696,12 @@ async function saveSteward(event) {
     const nick = document.getElementById("stewardNick").value.trim();
     const discordId = document.getElementById("stewardDiscord").value.trim();
     const role = document.getElementById("stewardRole").value;
-    const passwordInput = document.getElementById("stewardPassword").value;
-
-    const existing = globalStewards.find(s => s.id === discordId);
-    let password = passwordInput;
-    if (!password) {
-        if (existing && existing.password) {
-            password = existing.password; // edycja bez zmiany hasła — zachowaj obecny hash
-        } else {
-            alert(currentLang === 'pl' ? "Ustaw hasło logowania dla tego stewarda (pole nie może być puste dla nowego konta)." : "Set a login password for this steward (required for a new account).");
-            return;
-        }
-    } else {
-        password = await hashPassword(password); // nowe/zmienione hasło — zapisz tylko jego hash SHA-256
+    if (!/^\d{15,21}$/.test(discordId)) {
+        alert(currentLang === 'pl' ? "Discord ID musi składać się z 15–21 cyfr." : "Discord ID must be 15–21 digits.");
+        return;
     }
+    // Steward loguje się wyłącznie przez Discorda — konto nie ma i nie potrzebuje hasła.
+    const existing = globalStewards.find(s => s.id === discordId);
 
     const permissions = {
         review_incidents: document.getElementById("perm_review").checked,
@@ -10435,10 +10718,10 @@ async function saveSteward(event) {
         no_lock_restrictions: document.getElementById("perm_no_block").checked
     };
 
-    const oldStewardSnapshot = existing ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(existing) : null;
+    const oldStewardSnapshot = existing ? (({ id: _dropId, password: _dropPw, ...rest }) => cloneForRestore(rest))(existing) : null;
 
     await database.ref("stewards/" + discordId).set({
-        nick, role, password, permissions, lastUpdated: Date.now()
+        nick, role, permissions, lastUpdated: Date.now()
     });
 
     const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
@@ -10457,10 +10740,6 @@ function editSteward(discordId) {
     document.getElementById("stewardNick").value = st.nick;
     document.getElementById("stewardDiscord").value = st.id;
     document.getElementById("stewardDiscord").setAttribute("disabled", "true");
-    document.getElementById("stewardPassword").value = "";
-    document.getElementById("stewardPassword").placeholder = st.password
-        ? (currentLang === 'pl' ? "Zostaw puste, aby zachować obecne hasło" : "Leave blank to keep current password")
-        : (currentLang === 'pl' ? "Ustaw hasło dla tego stewarda..." : "Set a password for this steward...");
     document.getElementById("stewardRole").value = st.role;
 
     document.getElementById("perm_review").checked = !!st.permissions?.review_incidents;
@@ -10481,7 +10760,7 @@ async function deleteSteward(discordId, nick) {
     if (!confirm(`Czy na pewno chcesz odebrać uprawnienia i usunąć sędziego ${nick}?`)) return;
     try {
         const stewardToDelete = globalStewards.find(s => s.id === discordId);
-        const stewardSnapshot = stewardToDelete ? (({ id: _dropId, ...rest }) => cloneForRestore(rest))(stewardToDelete) : null;
+        const stewardSnapshot = stewardToDelete ? (({ id: _dropId, password: _dropPw, ...rest }) => cloneForRestore(rest))(stewardToDelete) : null;
         await database.ref("stewards/" + discordId).remove();
         const stewardName = loggedInSteward ? loggedInSteward.nick : "ADMIN";
         await logAction(stewardName, "USER_MGMT", discordId, `Usunięto sędziego z personelu ligi: ${nick}`, stewardSnapshot ? { items: [{ path: `stewards/${discordId}`, data: stewardSnapshot }] } : null);
@@ -10562,7 +10841,8 @@ async function logAction(steward, category, targetId, details, restoreInfo = nul
             category: category,
             targetId: targetId || "N/A",
             details: details,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            uid: currentUid() // kto naprawdę zapisał wpis (konto Firebase) — reguły bazy to sprawdzają
         };
         if (restoreInfo && Array.isArray(restoreInfo.items) && restoreInfo.items.length > 0) {
             payload.restore = { items: restoreInfo.items.map(it => ({ path: it.path, data: (it.data === undefined ? null : it.data) })) };
@@ -11037,28 +11317,25 @@ window.addEventListener("DOMContentLoaded", () => {
     // odwiedzających i nadpisuje automatyczny harmonogram splitów, gdy jest włączona.
     listenToManualUnlockSettings();
 
-    // Lista stewardów musi być dostępna od startu strony, żeby logowanie mogło
-    // zidentyfikować, KTO się loguje (po Discord ID) i wczytać jego uprawnienia.
-    listenToStewards();
-
-    // Obsługa logowania kierowców przez Discord (OAuth2) — sprawdza token w URL
-    // po powrocie z Discorda, albo wczytuje zapisaną wcześniej sesję.
+    // Obsługa logowania przez Discord (OAuth2) — po powrocie z Discorda wymienia token na sesję
+    // Firebase (przez Workera), albo wczytuje zapisaną wcześniej sesję kierowcy.
+    const discordOAuthReturn = !!(window.location.hash && window.location.hash.includes("access_token"));
     handleDiscordOAuthRedirect();
 
-    pendingAutoLoginId = localStorage.getItem("adminAuthId");
-    // Dla konkretnego stewarda tryAutoLogin() zostanie wywołane automatycznie,
-    // gdy tylko nadejdzie pierwszy snapshot z "stewards" (patrz listenToStewards).
-
-    // Sesja gościnna sędziego spoza ligi (logowanie hasłem, bez Discorda/konta stewarda).
-    restoreExternalJudgeSession();
+    if (!discordOAuthReturn) {
+        // Zapamiętany panel stewarda — tryAutoLogin() wpuści tylko przy ważnej sesji Firebase
+        // tego samego konta, potwierdzonej odczytem z bazy (lista stewardów nie jest już publiczna).
+        pendingAutoLoginId = localStorage.getItem("adminAuthId");
+        // Świeże logowanie do panelu (strona przeładowana po powrocie z Discorda) — pokaż komunikat, jeśli to nie steward.
+        try { pendingAutoLoginIsDiscordAttempt = sessionStorage.getItem("adminLoginAttempt") === "1"; sessionStorage.removeItem("adminLoginAttempt"); } catch (e) {}
+        tryAutoLogin();
+        // Sesja sędziego spoza ligi (hasło sprawdzone wcześniej przez Workera).
+        restoreExternalJudgeSession();
+    }
     updateJudgeFieldFromSession();
 
-    if (sessionStorage.getItem("trashAuth") === TRASH_PASSWORD_HASH) {
-        isTrashAuthenticated = true;
-    }
-    if (sessionStorage.getItem("usersAuth") === ADMIN_USERS_PASS_HASH) {
-        isUsersAuth = true;
-    }
+    // Dostęp do Kosza i Użytkowników wynika z uprawnień konta (canOpenTrash / canOpenUsersSection).
+    try { sessionStorage.removeItem("trashAuth"); sessionStorage.removeItem("usersAuth"); } catch (e) {}
 
     updateGuiltyPickerState();
 
@@ -11114,13 +11391,7 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    database.ref("trash").on("value", (snapshot) => {
-        globalTrash = [];
-        snapshot.forEach(child => { globalTrash.push({ id: child.key, ...child.val() }); });
-        const countBtnEl = document.getElementById("trashCountBtn");
-        if (countBtnEl) countBtnEl.textContent = globalTrash.length;
-        if (isAdminAuthenticated && isTrashAuthenticated) renderTrash();
-    });
+    // Kosz wczytywany jest dopiero po zalogowaniu do panelu (listenToTrash) — nie jest publiczny.
 
     loadSeasonSettings();
 
@@ -12828,7 +13099,7 @@ window.withdrawReport = async function (id) {
         await logAction(who, "REPORT", id, `Kierowca wycofał zgłoszenie.${reason ? " Powód: " + reason : ""}`, {
             items: [{ path: `incidents/${id}/status`, data: r.status }, { path: `incidents/${id}/withdrawnAt`, data: null }, { path: `incidents/${id}/withdrawReason`, data: null }]
         });
-        fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        postWebhook(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
             allowed_mentions: { parse: [] },
             embeds: [{ title: "↩️ ZGŁOSZENIE WYCOFANE", color: 7105644, timestamp: new Date().toISOString(),
                 fields: [{ name: "🆔 ID", value: `**${id}**`, inline: true }, { name: "🏁 Split", value: r.split || "—", inline: true },
@@ -13280,8 +13551,8 @@ function chunkText(text, max) {
 /* Kanał biuletynu — celowo BEZ kanału werdyktów (t=file), żeby biuletyn nie mieszał się z werdyktami.
    Worker trzyma webhooki; tu wybieramy tylko trasę (?t=...). */
 const BULLETIN_CHANNELS = {
-    bulletin: { label: "📰 Kanał biuletynów", note: "Osobny kanał — Worker wysyła tu przez sekret WEBHOOK_BULLETIN (nigdy na werdykty).", url: () => FIA_PROXY_BASE + "/notify?t=bulletin" },
-    decision: { label: "📢 Kanał decyzji", note: "Tam, gdzie trafiają przyjęte/odrzucone zgłoszenia i wyniki apelacji. Uwaga: bez sekretu WEBHOOK_DECISION Worker wyśle to na kanał werdyktów.", url: () => DECISION_WEBHOOK },
+    bulletin: { label: "📰 Kanał biuletynów", note: "Osobny kanał — Worker wysyła tu przez sekret WEBHOOK_BULLETIN (nigdy na werdykty).", url: () => BULLETIN_WEBHOOK },
+    decision: { label: "📢 Kanał decyzji", note: "Tam, gdzie trafiają przyjęte/odrzucone zgłoszenia i wyniki apelacji. Worker wysyła tu przez sekret WEBHOOK_DECISIONS.", url: () => DECISION_WEBHOOK },
     report:   { label: "🛡️ Kanał stewardów", note: "Wewnętrzny kanał z nowymi zgłoszeniami — np. do przejrzenia biuletynu przed publikacją.", url: () => NEW_REPORT_WEBHOOK }
 };
 const DEFAULT_BULLETIN_CHANNEL = "bulletin";
@@ -13328,7 +13599,7 @@ window.sendBulletinToDiscord = async function () {
     btn.disabled = true;
     try {
         for (const c of chunks) {
-            const res = await fetch(ch.url(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: c, allowed_mentions: { parse: [] } }) });
+            const res = await postWebhook(ch.url(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: c, allowed_mentions: { parse: [] } }) });
             if (!res.ok) throw new Error(await describeHttpError(res));
             await new Promise(r => setTimeout(r, 600)); // limit Discorda
         }
@@ -13766,8 +14037,8 @@ window.remindStaleCases = async function () {
     let desc = "";
     for (const ln of lines) { if ((desc + ln).length > 3800) { desc += `\n…i ${lines.length - desc.split("\n").length} więcej`; break; } desc += (desc ? "\n" : "") + ln; }
     try {
-        const res = await fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-            content: "<@&1443302932811616346> <@&1463610534309007380>",
+        const res = await postWebhook(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+            content: STEWARD_PING,
             embeds: [{ title: `⏰ ZALEGŁE SPRAWY (${total})`, description: desc, color: 15105570, footer: { text: `Czekają ponad 48 h · wysłał: ${loggedInSteward.nick}` }, timestamp: new Date().toISOString() }]
         }) });
         if (!res.ok) throw new Error("HTTP " + res.status);
@@ -14179,7 +14450,7 @@ window.submitStatement = async function () {
         const path = `incidents/${r.id}/statements/${myId}`;
         await database.ref(path).set(st);
         await logAction(nick || "Kierowca", "REPORT", r.id, `${prev ? "Zaktualizowano" : "Złożono"} oświadczenie strony (${role === "accused" ? "oskarżony" : "zgłaszający"})${uploaded.length ? ` z ${uploaded.length} nowymi plikami` : ""}.`, { items: [{ path, data: prev }] });
-        fetch(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        postWebhook(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
             allowed_mentions: { parse: [] },
             embeds: [{ title: prev ? "📝 ZAKTUALIZOWANE OŚWIADCZENIE STRONY" : "📝 NOWE OŚWIADCZENIE STRONY", color: 16347926, timestamp: new Date().toISOString(),
                 fields: [{ name: "🆔 Sprawa", value: `**${r.fiaId || r.id}**`, inline: true }, { name: "🏁 Split", value: r.split || "—", inline: true },
@@ -14522,7 +14793,7 @@ window.printCaseDossier = function (id) {
     const e = escapeHtml;
     const evidenceList = rec => {
         const items = [];
-        if (rec && rec.evidence) items.push(`<a href="${e(rec.evidence)}">${e(rec.evidence)}</a>`);
+        if (rec && rec.evidence) items.push(`<a href="${e(safeHref(rec.evidence))}">${e(rec.evidence)}</a>`);
         asList(rec && rec.evidenceFiles).forEach(f => items.push(`📎 ${e(f.name || "plik")}${f.size ? ` (${Math.round(f.size / 1024)} KB)` : ""}${f.url && /^https?:/.test(f.url) ? ` — <a href="${e(f.url)}">link</a>` : ""}`));
         return items.length ? items.join("<br>") : "—";
     };
@@ -15537,6 +15808,45 @@ setTimeout(start, 8000); // gdyby zdarzenie load się opóźniało (np. wolne za
 window.fiaLive = { sid: SID, state: () => ({ write: Object.assign({}, W), read: { on: R.on, err: R.err.slice(), loaded: R.loaded.slice() }, sessions: sessions() }) };
 })();
 </script>
+
+
+<!-- === EKRAN LOGOWANIA (dane ligi tylko dla zalogowanych — patrz updateLoginGate) === -->
+<style>
+  .rz-login-gate {
+    position: fixed; inset: 0; z-index: 999999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; box-sizing: border-box;
+    background: rgba(0,0,0,0.94);
+    backdrop-filter: blur(6px);
+  }
+  .rz-login-gate .rz-gate-box { width: 360px; max-width: 100%; box-sizing: border-box; }
+  .rz-gate-text { font-size: 12px; color: var(--text-dim); line-height: 1.6; margin: 0 0 18px; }
+  .rz-gate-actions { display: flex; flex-direction: column; gap: 10px; }
+  .rz-gate-actions button { width: 100%; justify-content: center; }
+  .rz-login-gate[data-state="busy"] .rz-gate-actions,
+  .rz-login-gate[data-state="config"] .rz-gate-actions { display: none; }
+  .rz-gate-spinner {
+    display: none; width: 22px; height: 22px; margin: 4px auto 0;
+    border: 2px solid var(--border); border-top-color: var(--red); border-radius: 50%;
+    animation: rzGateSpin .8s linear infinite;
+  }
+  .rz-login-gate[data-state="busy"] .rz-gate-spinner { display: block; }
+  @keyframes rzGateSpin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .rz-gate-spinner { animation-duration: 2.4s; } }
+  html.rz-gated, html.rz-gated body { overflow: hidden; }
+</style>
+<div id="rzLoginGate" class="rz-login-gate" data-state="busy" role="dialog" aria-modal="true" aria-labelledby="rzGateTitle" aria-describedby="rzGateText">
+  <div class="login-box rz-gate-box">
+    <h1 id="rzGateTitle">FIA System</h1>
+    <p id="rzGateText" class="rz-gate-text" aria-live="polite">Sprawdzanie logowania…</p>
+    <div class="rz-gate-actions">
+      <button type="button" id="rzGateDriverBtn" class="discord-login-btn" onclick="loginWithDiscord()"><span id="rzGateDriverLabel">Zaloguj przez Discord</span></button>
+      <button type="button" id="rzGateStewardBtn" class="btn-secondary" onclick="loginWithDiscordAdmin()">Panel stewarda (Discord)</button>
+      <button type="button" id="rzGateJudgeBtn" class="btn-secondary" onclick="openExternalJudgeLogin()">Sędzia spoza ligi (hasło)</button>
+    </div>
+    <div class="rz-gate-spinner" aria-hidden="true"></div>
+  </div>
+</div>
 
 </body>
 </html>
