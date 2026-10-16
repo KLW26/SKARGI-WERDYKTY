@@ -2873,6 +2873,47 @@
     .vv-controls button{background:var(--bg-deep);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 9px;cursor:pointer;font-size:14px;}
     .vv-controls button.off{border-color:var(--red);background:rgba(225,6,0,.15);}
     .vv-controls .vv-leave{background:#b91c1c;border-color:#b91c1c;color:#fff;font-size:11px;font-weight:700;}
+
+    /* === HARMONOGRAM OTWIERANIA ZGŁOSZEŃ (panel stewarda) === */
+    .rs-box, .rs-box:hover { transform: none; }
+    .rs-box .rs-title { color: var(--text); }
+    .rs-desc { font-size: 11px; color: var(--text-dim); margin: 0 0 12px; line-height: 1.5; }
+    .rs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .rs-card { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; padding: 16px; min-width: 0; }
+    .rs-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .rs-card-name { font-family: var(--font-heading); font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: 0.3px; }
+    .rs-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid currentColor; border-radius: 3px; font-family: var(--font-heading); font-size: 11px; font-weight: 700; letter-spacing: 0.4px; white-space: nowrap; }
+    .rs-status.closed { color: var(--amber-text); background: rgba(251,191,36,0.06); }
+    .rs-status.open { color: var(--green-text); background: rgba(16,185,129,0.07); }
+    .rs-mode { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    label.rs-mode-opt { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 7px 12px; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-family: var(--font-heading); font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--text-dim); transition: border-color 0.15s, color 0.15s; user-select: none; }
+    label.rs-mode-opt:hover { color: var(--text); }
+    label.rs-mode-opt.active { border-color: var(--text); color: var(--text); }
+    .rs-mode-opt input[type="radio"] { width: 15px; height: 15px; margin: 0; padding: 0; flex: none; cursor: pointer; accent-color: #3b82f6; box-shadow: none; transform: none; }
+    .rs-field { margin-bottom: 12px; min-width: 0; }
+    .rs-row { display: flex; gap: 12px; }
+    .rs-row .rs-field { flex: 1; }
+    .rs-inline { display: flex; gap: 10px; align-items: stretch; }
+    .rs-inline input { flex: 1; min-width: 0; }
+    .rs-card input[type="datetime-local"], .rs-card input[type="time"] { color-scheme: dark; }
+    html[data-theme="light"] .rs-card input[type="datetime-local"], html[data-theme="light"] .rs-card input[type="time"],
+    html[data-theme="graphite"] .rs-card input[type="datetime-local"], html[data-theme="graphite"] .rs-card input[type="time"] { color-scheme: light; }
+    .rs-card button.rs-now { margin: 0; padding: 0 16px; font-size: 11px; flex: none; }
+    .rs-msg { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 2px; font-size: 11px; line-height: 1.6; color: var(--text-dim); min-height: 18px; }
+    .rs-msg.err { color: var(--red-text); }
+    .rs-msg.warn { color: var(--amber-text); }
+    .rs-msg b { color: var(--text); font-weight: 600; }
+    .rs-msg.err b, .rs-msg.warn b { color: inherit; }
+    .rs-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+    .rs-actions button { margin: 0; padding: 10px 18px; font-size: 11px; }
+    .rs-save-state { font-size: 11px; color: var(--text-dim); }
+    .rs-save-state.dirty { color: var(--amber-text); }
+    @media (max-width: 760px) {
+      .rs-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .rs-row { flex-direction: column; gap: 0; }
+    }
   </style>
 
   <script>/* Firebase 10.8.0 app-compat (Apache-2.0) — wbudowane w stronę zamiast pobierania z CDN */
@@ -3367,7 +3408,10 @@
           <div style="font-size:40px; margin-bottom:16px;">🔒</div>
           <h1 style="font-family:var(--font-heading); font-size:28px; margin:0 0 12px; color:var(--text);" data-key="siteLockTitle">Zgłoszenia są obecnie zamknięte</h1>
           <p style="color:var(--text-dim); font-size:14px; line-height:1.6; margin:0;" id="siteReportWindowLockText"></p>
-          <button type="button" class="btn-secondary" style="margin-top:22px; padding:9px 20px; font-size:11px;" onclick="openAdminLogin()">Zaloguj się jako steward</button>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:22px;">
+            <button type="button" id="siteReportWindowSwitchBtn" style="display:none; margin:0; padding:9px 20px; font-size:11px;" onclick="switchReportFormSplit(this.dataset.split)"></button>
+            <button type="button" class="btn-secondary" style="margin:0; padding:9px 20px; font-size:11px;" onclick="openAdminLogin()">Zaloguj się jako steward</button>
+          </div>
         </div>
       </div>
 
@@ -3665,21 +3709,70 @@
         </div>
       </div>
 
-      <div id="manualUnlockBox" class="stats-group-box" style="display:none; border-color: var(--blue); margin-bottom: 14px;">
-        <div class="stats-group-title" style="color:#60a5fa;">🔓 Ręczna blokada zgłoszeń (data/godzina)</div>
-        <p style="font-size:11px; color:var(--text-dim); margin:0 0 10px; line-height:1.5;">Gdy włączona, cała strona pozostaje zablokowana aż do podanej daty i godziny, po czym odblokowuje się automatycznie.</p>
-        <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px;">
-          <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); cursor:pointer;">
-            <input type="checkbox" id="manualUnlockEnabled" onchange="toggleManualUnlockInput()" style="width:16px; height:16px; cursor:pointer;">
-            Włącz ręczną blokadę
-          </label>
-          <div>
-            <label style="display:block; font-size:11px; color:var(--text-dim); margin-bottom:4px;">Odblokuj od:</label>
-            <input type="datetime-local" id="manualUnlockAt" disabled style="background:var(--bg-input); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:2px; font-size:12px;">
+      <!-- Harmonogram otwierania zgłoszeń (per split) — zapisywany w Firebase (settings/reportWindow),
+           obowiązuje wszystkich odwiedzających. Logika: getReportWindowState() / saveReportSchedule(). -->
+      <div id="reportScheduleBox" class="stats-group-box rs-box" style="display:none; margin-bottom: 14px;">
+        <div class="stats-group-title rs-title">📅 Harmonogram otwierania zgłoszeń</div>
+        <p class="rs-desc">Wpisz, kiedy otwierają się zgłoszenia dla każdego splitu: co tydzień (dzień i godzina) albo na konkretny termin. Poza tym oknem formularz zgłoszeń dla danego splitu jest zamknięty. Zmiana obowiązuje wszystkich od razu po zapisaniu.</p>
+        <div class="rs-grid">
+          <div class="rs-card" id="rsCard1">
+            <div class="rs-card-head">
+              <span class="rs-card-name">Split 1</span>
+              <span class="rs-status" id="rsStatus1"></span>
+            </div>
+            <div class="rs-mode" role="radiogroup" aria-label="Tryb otwierania — Split 1">
+              <label class="rs-mode-opt"><input type="radio" name="rsMode1" value="weekly" onchange="refreshReportScheduleUI()"> Co tydzień</label>
+              <label class="rs-mode-opt"><input type="radio" name="rsMode1" value="date" onchange="refreshReportScheduleUI()"> Konkretny termin</label>
+            </div>
+            <div class="rs-row" id="rsWeekly1">
+              <div class="rs-field"><label for="rsDay1">Dzień tygodnia</label><select id="rsDay1" onchange="refreshReportScheduleUI()"><option value="1">Poniedziałek</option><option value="2">Wtorek</option><option value="3">Środa</option><option value="4">Czwartek</option><option value="5">Piątek</option><option value="6">Sobota</option><option value="0">Niedziela</option></select></div>
+              <div class="rs-field"><label for="rsTime1">Godzina otwarcia</label><input type="time" id="rsTime1" oninput="refreshReportScheduleUI()" onchange="refreshReportScheduleUI()"></div>
+            </div>
+            <div class="rs-field" id="rsDate1">
+              <label for="rsAt1">Data i godzina otwarcia</label>
+              <div class="rs-inline">
+                <input type="datetime-local" id="rsAt1" oninput="refreshReportScheduleUI()" onchange="refreshReportScheduleUI()">
+                <button type="button" class="btn-secondary rs-now" onclick="setReportScheduleNow(1)" title="Wstaw bieżącą datę i godzinę">Teraz</button>
+              </div>
+            </div>
+            <div class="rs-field">
+              <label for="rsHours1">Zgłoszenia otwarte przez (godz.)</label>
+              <input type="number" id="rsHours1" min="1" max="168" step="1" inputmode="numeric" oninput="refreshReportScheduleUI()">
+            </div>
+            <div class="rs-msg" id="rsMsg1"></div>
           </div>
-          <button type="button" class="btn-secondary" style="padding:7px 16px; font-size:11px;" onclick="saveManualUnlockSettings()">💾 ZAPISZ BLOKADĘ</button>
+          <div class="rs-card" id="rsCard2">
+            <div class="rs-card-head">
+              <span class="rs-card-name">Split 2</span>
+              <span class="rs-status" id="rsStatus2"></span>
+            </div>
+            <div class="rs-mode" role="radiogroup" aria-label="Tryb otwierania — Split 2">
+              <label class="rs-mode-opt"><input type="radio" name="rsMode2" value="weekly" onchange="refreshReportScheduleUI()"> Co tydzień</label>
+              <label class="rs-mode-opt"><input type="radio" name="rsMode2" value="date" onchange="refreshReportScheduleUI()"> Konkretny termin</label>
+            </div>
+            <div class="rs-row" id="rsWeekly2">
+              <div class="rs-field"><label for="rsDay2">Dzień tygodnia</label><select id="rsDay2" onchange="refreshReportScheduleUI()"><option value="1">Poniedziałek</option><option value="2">Wtorek</option><option value="3">Środa</option><option value="4">Czwartek</option><option value="5">Piątek</option><option value="6">Sobota</option><option value="0">Niedziela</option></select></div>
+              <div class="rs-field"><label for="rsTime2">Godzina otwarcia</label><input type="time" id="rsTime2" oninput="refreshReportScheduleUI()" onchange="refreshReportScheduleUI()"></div>
+            </div>
+            <div class="rs-field" id="rsDate2">
+              <label for="rsAt2">Data i godzina otwarcia</label>
+              <div class="rs-inline">
+                <input type="datetime-local" id="rsAt2" oninput="refreshReportScheduleUI()" onchange="refreshReportScheduleUI()">
+                <button type="button" class="btn-secondary rs-now" onclick="setReportScheduleNow(2)" title="Wstaw bieżącą datę i godzinę">Teraz</button>
+              </div>
+            </div>
+            <div class="rs-field">
+              <label for="rsHours2">Zgłoszenia otwarte przez (godz.)</label>
+              <input type="number" id="rsHours2" min="1" max="168" step="1" inputmode="numeric" oninput="refreshReportScheduleUI()">
+            </div>
+            <div class="rs-msg" id="rsMsg2"></div>
+          </div>
         </div>
-        <div id="manualUnlockStatus" style="margin-top:10px; font-size:11px; color:var(--text-dim);"></div>
+        <div class="rs-actions">
+          <button type="button" class="btn-success rs-save" onclick="saveReportSchedule()">💾 Zapisz harmonogram</button>
+          <button type="button" class="btn-secondary rs-defaults" onclick="resetReportScheduleDefaults()">↺ Wartości domyślne</button>
+          <span class="rs-save-state" id="rsSaveState"></span>
+        </div>
       </div>
 
       <div id="adminSplitTabs" class="split-tabs">
@@ -4813,111 +4906,141 @@ function formatTimestamp(ts) {
     });
 }
 
-// Automatyczne otwieranie i zamykanie zgłoszeń według harmonogramu splitów — WYŁĄCZONE.
-// Zgłoszenia (i wydawanie werdyktów) są otwarte zawsze; zamyka je tylko „Ręczna blokada zgłoszeń”
-// w panelu stewarda. Ustaw true, żeby wrócił automatyczny harmonogram.
-const AUTO_REPORT_SCHEDULE = false;
-
-// Okno czasowe na złożenie zgłoszenia incydentu, per split — otwiera się o stałej godzinie
-// w konkretnym dniu tygodnia i trwa 24h, zamykając formularz przez resztę tygodnia.
-// getDay(): 0=niedziela, 1=poniedziałek, 2=wtorek, 3=środa, 4=czwartek.
-const REPORT_WINDOWS = {
-    "Split 1": { day: 1, hour: 21, minute: 15 }, // poniedziałek 21:15
-    "Split 2": { day: 3, hour: 21, minute: 15 }  // środa 21:15
+// === HARMONOGRAM OTWIERANIA ZGŁOSZEŃ (per split) ===
+// Ustawiany w panelu stewarda („Harmonogram otwierania zgłoszeń”) i trzymany w Firebase
+// (settings/reportWindow → schedule), więc obowiązuje WSZYSTKICH odwiedzających na każdym
+// urządzeniu od razu po zapisaniu. Każdy split ma własne okno: co tydzień (dzień tygodnia
+// + godzina) albo konkretny termin (data + godzina), otwarte przez podaną liczbę godzin.
+// Poza oknem formularz zgłoszeń dla tego splitu jest zamknięty, a werdykty dla spraw z tego
+// splitu można wydawać dopiero po zamknięciu okna. Dopóki harmonogram nie zostanie zapisany,
+// zgłoszenia są otwarte bez ograniczeń.
+const REPORT_SPLITS = ["Split 1", "Split 2"];
+const REPORT_SPLIT_KEYS = { "Split 1": "split1", "Split 2": "split2" };
+const REPORT_HOURS_MIN = 1;
+const REPORT_HOURS_MAX = 168; // 168 h = cały tydzień (w trybie „co tydzień” = otwarte zawsze)
+const REPORT_HOUR_MS = 60 * 60 * 1000;
+const REPORT_DAY_NAMES = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
+const REPORT_DAY_NAMES_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+// Wartości domyślne (przycisk „Wartości domyślne”): Split 1 — poniedziałek 21:15, Split 2 — środa 21:15, po 24 h.
+const DEFAULT_REPORT_SCHEDULE = {
+    "Split 1": { mode: "weekly", day: 1, time: "21:15", openAt: null, hours: 24 },
+    "Split 2": { mode: "weekly", day: 3, time: "21:15", openAt: null, hours: 24 }
 };
-const REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-// === RĘCZNA BLOKADA CAŁEJ STRONY USTAWIANA W PANELU ADMINA (Firebase — dotyczy
-// WSZYSTKICH użytkowników na każdym urządzeniu). Gdy enabled === true, NADPISUJE
-// automatyczny harmonogram REPORT_WINDOWS: strona jest zablokowana aż do chwili
-// unlockAt, a po jej upłynięciu zostaje odblokowana (aż admin zmieni/wyłączy blokadę).
-let manualUnlockSettings = { enabled: false, unlockAt: null };
+// Zapisany harmonogram po normalizacji: { "Split 1": cfg, ... }. null = nic nie zapisano
+// (zgłoszenia otwarte). Brak/niepoprawny wpis dla splitu = ten split bez ograniczeń.
+let reportSchedule = null;
+// Surowe dane z Firebase (settings/reportWindow) — do wypełnienia formularza i przywracania z logów.
+let reportScheduleData = null;
 
-// true = ręczna blokada jest włączona i data odblokowania jeszcze nie nadeszła
-function isManualLockActive() {
-    return manualUnlockSettings.enabled && !!manualUnlockSettings.unlockAt && Date.now() < manualUnlockSettings.unlockAt;
-}
-
-// Blokada (ręczna z panelu ORAZ nakładka na całą stronę) dotyczy tylko kierowców i zwykłych
-// stewardów. Główny Steward / ROOT zawsze mają dostęp — ustawiane w applyStewardPermissions(),
-// tam gdzie decyduje się, co dany steward może robić. Harmonogram okna zgłoszeniowego per split
-// (REPORT_WINDOWS / isReportWindowOpenForSplit) NIE jest tym dotknięty i działa jak dotychczas.
+// Blokada (nakładka na formularz i zakładki splitów w panelu) dotyczy tylko kierowców i zwykłych
+// stewardów. Główny Steward / ROOT (oraz uprawnienie no_lock_restrictions) zawsze mają dostęp —
+// ustawiane w applyStewardPermissions(), tam gdzie decyduje się, co dany steward może robić.
 let stewardLockBypass = false;
 
-// Tekst najbliższego/wymaganego momentu otwarcia, z uwzględnieniem ręcznej blokady.
-function getNextOpenText(split) {
-    if (manualUnlockSettings.enabled) {
-        return manualUnlockSettings.unlockAt ? formatTimestamp(manualUnlockSettings.unlockAt) : "-";
-    }
-    const nextOpen = findNextReportWindowStart(split);
-    return nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
+function parseReportTime(str) {
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(str || "").trim());
+    if (!m) return null;
+    const h = Number(m[1]), min = Number(m[2]);
+    if (h > 23 || min > 59) return null;
+    return { h, min };
 }
 
-// Zwraca Date najbliższego otwarcia okna dla danego splitu, które zaczyna się w przeszłości
-// lub teraz (przeszukuje ostatnie 7 dni wstecz, licząc od dziś).
-function findLastReportWindowStart(split) {
-    const cfg = REPORT_WINDOWS[split];
-    if (!cfg) return null;
-    const now = new Date();
-    for (let daysAgo = 0; daysAgo <= 7; daysAgo++) {
-        const candidate = new Date(now);
-        candidate.setDate(candidate.getDate() - daysAgo);
-        candidate.setHours(cfg.hour, cfg.minute, 0, 0);
-        if (candidate.getDay() !== cfg.day) continue;
-        if (candidate.getTime() > now.getTime()) continue;
-        return candidate;
+// Zamienia wpis z bazy na konfigurację gotową do liczenia okna, albo null gdy jest niepoprawny.
+function normalizeSplitSchedule(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const hours = Number(raw.hours);
+    if (!Number.isInteger(hours) || hours < REPORT_HOURS_MIN || hours > REPORT_HOURS_MAX) return null;
+    if (raw.mode === "date") {
+        const openAt = Number(raw.openAt);
+        if (!Number.isFinite(openAt) || openAt <= 0) return null;
+        return { mode: "date", openAt, hours };
+    }
+    if (raw.mode === "weekly") {
+        const day = Number(raw.day);
+        const t = parseReportTime(raw.time);
+        if (!Number.isInteger(day) || day < 0 || day > 6 || !t) return null;
+        return { mode: "weekly", day, h: t.h, min: t.min, hours };
     }
     return null;
 }
 
-// Zwraca Date najbliższego przyszłego otwarcia okna dla danego splitu.
+// Liczy okno zgłoszeniowe dla danej konfiguracji w chwili `now`:
+// { open, current: {start, end} | null, next: {start, end} | null }.
+function computeReportWindow(cfg, now = Date.now()) {
+    const len = cfg.hours * REPORT_HOUR_MS;
+    if (cfg.mode === "date") {
+        const start = cfg.openAt, end = start + len;
+        if (now >= start && now < end) return { open: true, current: { start, end }, next: null };
+        return { open: false, current: null, next: now < start ? { start, end } : null };
+    }
+    // Co tydzień: ostatnie otwarcie <= teraz i najbliższe późniejsze (szukane ±7 dni, czas lokalny).
+    let last = null, next = null;
+    for (let d = -7; d <= 7; d++) {
+        const c = new Date(now);
+        c.setDate(c.getDate() + d);
+        c.setHours(cfg.h, cfg.min, 0, 0);
+        if (c.getDay() !== cfg.day) continue;
+        const t = c.getTime();
+        if (t <= now) last = t;
+        else if (next === null) next = t;
+    }
+    const nextWin = next !== null ? { start: next, end: next + len } : null;
+    if (last !== null && now < last + len) return { open: true, current: { start: last, end: last + len }, next: nextWin };
+    return { open: false, current: null, next: nextWin };
+}
+
+// Stan okna dla splitu według ZAPISANEGO harmonogramu; null = split bez ograniczeń.
+function getReportWindowState(split, now = Date.now()) {
+    const cfg = reportSchedule && reportSchedule[split];
+    return cfg ? computeReportWindow(cfg, now) : null;
+}
+
+// Nieznany/pusty split albo brak harmonogramu nie jest blokowany (żeby nie zepsuć np. starych zgłoszeń).
+function isReportWindowOpenForSplit(split) {
+    const st = getReportWindowState(split);
+    return !st || st.open;
+}
+
+// Date najbliższego przyszłego otwarcia okna dla splitu (albo null, gdy nic nie zaplanowano).
 function findNextReportWindowStart(split) {
-    const cfg = REPORT_WINDOWS[split];
-    if (!cfg) return null;
-    const now = new Date();
-    for (let daysAhead = 0; daysAhead <= 7; daysAhead++) {
-        const candidate = new Date(now);
-        candidate.setDate(candidate.getDate() + daysAhead);
-        candidate.setHours(cfg.hour, cfg.minute, 0, 0);
-        if (candidate.getDay() !== cfg.day) continue;
-        if (candidate.getTime() <= now.getTime()) continue;
-        return candidate;
-    }
-    return null;
+    const st = getReportWindowState(split);
+    return st && st.next ? new Date(st.next.start) : null;
 }
 
-// Zwraca znacznik czasu (ms) zamknięcia okna zgłoszeniowego dla danego splitu — czyli moment,
-// w którym wydawanie werdyktów dla spraw z tego splitu się odblokowuje (21:15 dnia następnego
-// po wyścigu, tj. dokładnie moment zamknięcia 24h okna na składanie zgłoszeń).
+// Tekst najbliższego otwarcia — do komunikatów dla kierowców i stewardów.
+function getNextOpenText(split) {
+    const next = findNextReportWindowStart(split);
+    if (next) return formatTimestamp(next.getTime());
+    return currentLang === 'pl' ? "nie zaplanowano" : "not scheduled";
+}
+
+// Moment, od którego można wydawać werdykty dla spraw z danego splitu: koniec AKTUALNIE
+// otwartego okna zgłoszeniowego (żeby nie orzekać, zanim wpłyną wszystkie zgłoszenia z rundy).
+// null = werdykty nie są teraz blokowane.
 function getVerdictUnlockTime(split) {
-    if (!REPORT_WINDOWS[split]) return null;
-    const lastStart = findLastReportWindowStart(split);
-    if (!lastStart) return null;
-    return lastStart.getTime() + REPORT_WINDOW_MS;
+    const st = getReportWindowState(split);
+    return st && st.open ? st.current.end : null;
 }
 
-// Blokada wydawania werdyktów: stewardowie mogą wydać werdykt dla sprawy z danego splitu
-// dopiero PO zamknięciu okna zgłoszeniowego dla tego splitu (żeby nie orzekać, zanim wszystkie
-// zgłoszenia z danej rundy zdążą wpłynąć). Nieznany/pusty split nie jest blokowany.
+// Blokada wydawania werdyktów: dla splitu z otwartym teraz oknem zgłoszeniowym werdykty
+// czekają do jego zamknięcia. Split bez harmonogramu nie jest blokowany.
 function isVerdictWindowOpen(split) {
-    if (!AUTO_REPORT_SCHEDULE) return true; // bez harmonogramu — werdykty można wydawać od razu
-    if (!REPORT_WINDOWS[split]) return true;
-    const unlockAt = getVerdictUnlockTime(split);
-    if (!unlockAt) return true;
-    return Date.now() >= unlockAt;
+    const st = getReportWindowState(split);
+    return !st || !st.open;
 }
 
 // Blokuje (wyszarza i wyłącza) zakładki "Split 1" / "Split 2" w panelu Zarządzanie Zgłoszeniami
 // (#adminSplitTabs), gdy okno zgłoszeniowe dla danego splitu jest właśnie zamknięte. Zakładka
 // "Wszystkie" nigdy nie jest blokowana. Wywoływane razem z updateSiteReportWindowLock (patrz niżej),
-// więc odświeża się co minutę oraz przy każdej zmianie ustawień blokady/harmonogramu.
+// więc odświeża się co minutę oraz przy każdej zmianie harmonogramu.
 function updateAdminSplitTabsLock() {
     const container = document.getElementById("adminSplitTabs");
     if (!container) return;
     // Główny Steward / ROOT (oraz steward z uprawnieniem no_lock_restrictions) omijają blokadę
     // zakładek Split 1 / Split 2 — dla nich zakładki są zawsze odblokowane, niezależnie od
-    // harmonogramu/ręcznej blokady okna zgłoszeniowego. Patrz applyStewardPermissions().
-    ["Split 1", "Split 2"].forEach(split => {
+    // harmonogramu okna zgłoszeniowego. Patrz applyStewardPermissions().
+    REPORT_SPLITS.forEach(split => {
         const open = stewardLockBypass || isReportWindowOpenForSplit(split);
         const btn = container.querySelector(`.split-tab-btn[data-split="${split}"]`);
         if (!btn) return;
@@ -4938,44 +5061,38 @@ function updateAdminSplitTabsLock() {
     });
 }
 
-// Nieznany/pusty split nie jest blokowany (żeby nie zepsuć np. starych zgłoszeń bez tego pola).
-function isReportWindowOpenForSplit(split) {
-    // Ręczna blokada ustawiona w panelu admina ma pierwszeństwo nad harmonogramem splitów.
-    if (manualUnlockSettings.enabled) {
-        if (!manualUnlockSettings.unlockAt) return false; // włączona, ale bez ustawionej daty = zablokowane
-        return Date.now() >= manualUnlockSettings.unlockAt;
-    }
-    if (!AUTO_REPORT_SCHEDULE) return true; // bez harmonogramu — otwarte, dopóki nie ma ręcznej blokady
-    if (!REPORT_WINDOWS[split]) return true;
-    const lastStart = findLastReportWindowStart(split);
-    if (!lastStart) return false;
-    return Date.now() < (lastStart.getTime() + REPORT_WINDOW_MS);
-}
-
-// Ustawia w formularzu domyślnie wybrany split na ten, który jest AKTUALNIE otwarty na
-// zgłoszenia — żeby kierowca po wejściu na stronę nie widział od razu komunikatu "zamknięte"
-// dla splitu, który akurat nie ma okna zgłoszeniowego. Jeśli oba splity są zamknięte (albo
-// żaden nie jest wykrywalny), zostaje domyślny wybór (pierwsza opcja select-a). Wywoływane
-// tylko raz, przy starcie strony — dalsze zmiany splitu należą już do użytkownika.
+// Ustawia w formularzu split, który jest AKTUALNIE otwarty na zgłoszenia — żeby kierowca po
+// wejściu na stronę nie widział od razu komunikatu "zamknięte" dla splitu, który akurat nie ma
+// okna zgłoszeniowego. Jeśli wybrany split jest otwarty albo oba są zamknięte, nic nie zmienia.
+// Wywoływane przy starcie strony i po pierwszym wczytaniu harmonogramu z bazy — dalsze zmiany
+// splitu należą już do użytkownika.
 function setDefaultActiveSplit() {
     const splitEl = document.getElementById("split");
     if (!splitEl) return;
-    const openSplit = Object.keys(REPORT_WINDOWS).find(s => isReportWindowOpenForSplit(s));
+    if (isReportWindowOpenForSplit(splitEl.value)) return;
+    const openSplit = REPORT_SPLITS.find(s => isReportWindowOpenForSplit(s));
     if (openSplit) splitEl.value = openSplit;
 }
 
-// Blokuje całą stronę (formularz zgłoszeń, apelacje, historię, czat, logowanie stewardów —
-// wszystko), gdy okno zgłoszeniowe DLA AKTUALNIE WYBRANEGO SPLITU w formularzu (pole #split)
-// jest zamknięte. Pole #split domyślnie ustawia się na split, który akurat jest aktywny
-// (patrz setDefaultActiveSplit) — dzięki temu przy wejściu na stronę zwykle nic nie blokuje,
-// a blokada pojawia się dopiero, gdy ktoś ręcznie przełączy na split, który nie ma teraz
-// otwartego okna. Nakładka zajmuje cały ekran z najwyższym z-index w pliku, więc gdy się
-// pokazuje, przykrywa dosłownie wszystko poniżej.
+// Przełącza split w formularzu (przycisk na nakładce „Zgłoszenia są obecnie zamknięte”).
+function switchReportFormSplit(split) {
+    const splitEl = document.getElementById("split");
+    if (!splitEl || !split) return;
+    splitEl.value = split;
+    updateReportWindowUI();
+    updateSiteReportWindowLock();
+}
+
+// Zasłania formularz zgłoszeń nakładką, gdy okno zgłoszeniowe DLA AKTUALNIE WYBRANEGO SPLITU
+// (pole #split) jest zamknięte. Pole #split domyślnie ustawia się na split, który akurat jest
+// otwarty (patrz setDefaultActiveSplit), a gdy drugi split jest otwarty, nakładka pokazuje
+// przycisk przejścia do niego.
 function updateSiteReportWindowLock() {
     updateAdminSplitTabsLock();
 
     const overlay = document.getElementById("siteReportWindowLock");
     const textEl = document.getElementById("siteReportWindowLockText");
+    const switchBtn = document.getElementById("siteReportWindowSwitchBtn");
     if (!overlay) return;
 
     // Główny Steward / ROOT omijają nakładkę blokady — dotyczy ona tylko kierowców
@@ -4986,7 +5103,7 @@ function updateSiteReportWindowLock() {
     }
 
     const splitEl = document.getElementById("split");
-    const split = (splitEl && splitEl.value) || "Split 1";
+    const split = (splitEl && splitEl.value) || REPORT_SPLITS[0];
 
     if (isReportWindowOpenForSplit(split)) {
         overlay.style.display = "none";
@@ -4995,13 +5112,19 @@ function updateSiteReportWindowLock() {
 
     const nextOpenText = getNextOpenText(split);
     if (textEl) {
-        textEl.textContent = manualUnlockSettings.enabled
-            ? (currentLang === 'pl'
-                ? `Cały panel jest zablokowany do czasu ustalonego przez administrację. Odblokowanie: ${nextOpenText}.`
-                : `The whole panel is locked until the time set by the administration. Unlocks: ${nextOpenText}.`)
-            : (currentLang === 'pl'
-                ? `Cały panel jest dostępny wyłącznie w oknie przyjmowania zgłoszeń dla ${split}. Najbliższe otwarcie: ${nextOpenText}.`
-                : `The whole panel is only available during the report submission window for ${split}. Next opening: ${nextOpenText}.`);
+        textEl.textContent = currentLang === 'pl'
+            ? `Formularz zgłoszeń dla ${split} jest otwarty tylko w wyznaczonym oknie. Najbliższe otwarcie: ${nextOpenText}.`
+            : `The report form for ${split} is only open during its scheduled window. Next opening: ${nextOpenText}.`;
+    }
+    if (switchBtn) {
+        const otherOpen = REPORT_SPLITS.find(s => s !== split && isReportWindowOpenForSplit(s));
+        if (otherOpen) {
+            switchBtn.dataset.split = otherOpen;
+            switchBtn.textContent = currentLang === 'pl' ? `Przejdź do ${otherOpen} (otwarte)` : `Go to ${otherOpen} (open)`;
+            switchBtn.style.display = "";
+        } else {
+            switchBtn.style.display = "none";
+        }
     }
     overlay.style.display = "flex";
 }
@@ -5582,75 +5705,290 @@ function listenToAppearanceSettings() {
     });
 }
 
-/* === RĘCZNA BLOKADA STRONY (data/godzina) — synchronizacja z Firebase, dotyczy WSZYSTKICH === */
-function listenToManualUnlockSettings() {
+/* === HARMONOGRAM OTWIERANIA ZGŁOSZEŃ — synchronizacja z Firebase, dotyczy WSZYSTKICH === */
+let reportScheduleLoaded = false;
+function listenToReportSchedule() {
     database.ref("settings/reportWindow").on("value", snap => {
-        const data = snap.val() || {};
-        manualUnlockSettings.enabled = !!data.enabled;
-        manualUnlockSettings.unlockAt = data.unlockAt || null;
-        renderManualUnlockAdminBox();
+        const data = snap.val();
+        reportScheduleData = data && typeof data === "object" ? data : null;
+        const sch = reportScheduleData && reportScheduleData.schedule;
+        if (sch && typeof sch === "object") {
+            reportSchedule = {};
+            REPORT_SPLITS.forEach(split => {
+                const cfg = normalizeSplitSchedule(sch[REPORT_SPLIT_KEYS[split]]);
+                if (cfg) reportSchedule[split] = cfg;
+            });
+        } else {
+            reportSchedule = null;
+        }
+        // Przy pierwszym wczytaniu harmonogramu ustaw w formularzu split, który jest teraz otwarty.
+        if (!reportScheduleLoaded) {
+            reportScheduleLoaded = true;
+            setDefaultActiveSplit();
+        }
+        renderReportScheduleAdmin();
         updateSiteReportWindowLock();
         updateReportWindowUI();
+    }, err => console.error("Błąd odczytu harmonogramu zgłoszeń:", err));
+}
+
+function canManageReportSchedule() {
+    return !!loggedInSteward && (isRootSteward() || !!loggedInSteward.permissions?.manage_settings);
+}
+
+function toLocalDateTimeInput(ms) {
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return "";
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Data z dniem tygodnia, np. „pon., 19.10.2026, 21:15”.
+function formatReportWhen(ms) {
+    return new Date(ms).toLocaleString('pl-PL', {
+        weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
 }
 
-function renderManualUnlockAdminBox() {
-    const cb = document.getElementById("manualUnlockEnabled");
-    const dt = document.getElementById("manualUnlockAt");
-    const status = document.getElementById("manualUnlockStatus");
-    if (!cb || !dt || !status) return;
+// Wartości formularza odpowiadające ZAPISANEMU harmonogramowi (albo domyślne, gdy nic nie zapisano).
+function reportScheduleValuesFromSaved() {
+    const sch = (reportScheduleData && reportScheduleData.schedule) || {};
+    const out = {};
+    REPORT_SPLITS.forEach(split => {
+        const def = DEFAULT_REPORT_SCHEDULE[split];
+        const raw = sch[REPORT_SPLIT_KEYS[split]] || def;
+        const day = Number(raw.day);
+        out[split] = {
+            mode: raw.mode === "date" ? "date" : "weekly",
+            day: Number.isInteger(day) && day >= 0 && day <= 6 ? day : def.day,
+            time: parseReportTime(raw.time) ? String(raw.time).slice(0, 5).padStart(5, "0") : def.time,
+            at: raw.openAt ? toLocalDateTimeInput(Number(raw.openAt)) : "",
+            hours: String(raw.hours != null ? raw.hours : def.hours)
+        };
+    });
+    return out;
+}
 
-    cb.checked = manualUnlockSettings.enabled;
-    dt.disabled = !manualUnlockSettings.enabled;
+function readReportScheduleForm() {
+    const out = {};
+    REPORT_SPLITS.forEach((split, i) => {
+        const n = i + 1;
+        const modeEl = document.querySelector(`input[name="rsMode${n}"]:checked`);
+        out[split] = {
+            mode: modeEl ? modeEl.value : "weekly",
+            day: Number(document.getElementById(`rsDay${n}`)?.value ?? 0),
+            time: document.getElementById(`rsTime${n}`)?.value || "",
+            at: document.getElementById(`rsAt${n}`)?.value || "",
+            hours: (document.getElementById(`rsHours${n}`)?.value || "").trim()
+        };
+    });
+    return out;
+}
 
-    // Nie nadpisuj pola, jeśli admin właśnie w nim edytuje wartość.
-    if (manualUnlockSettings.unlockAt && document.activeElement !== dt) {
-        const d = new Date(manualUnlockSettings.unlockAt);
-        const pad = n => String(n).padStart(2, "0");
-        dt.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    } else if (!manualUnlockSettings.unlockAt) {
-        dt.value = "";
+function fillReportScheduleForm(values) {
+    REPORT_SPLITS.forEach((split, i) => {
+        const n = i + 1, v = values[split];
+        document.querySelectorAll(`input[name="rsMode${n}"]`).forEach(r => { r.checked = r.value === v.mode; });
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        set(`rsDay${n}`, String(v.day));
+        set(`rsTime${n}`, v.time);
+        set(`rsAt${n}`, v.at);
+        set(`rsHours${n}`, v.hours);
+    });
+}
+
+// Sprawdza wartości jednego splitu. Zwraca { error } albo { record } (gotowe do zapisu w bazie).
+function validateReportScheduleValues(split, v) {
+    let openAt = null;
+    if (v.mode === "date") {
+        if (!v.at) return { error: `${split}: wpisz datę i godzinę otwarcia.` };
+        openAt = new Date(v.at).getTime();
+        if (isNaN(openAt)) return { error: `${split}: nieprawidłowa data lub godzina otwarcia.` };
+    } else if (!parseReportTime(v.time)) {
+        return { error: `${split}: wpisz godzinę otwarcia.` };
     }
+    const hours = Number(v.hours);
+    if (v.hours === "" || !Number.isInteger(hours) || hours < REPORT_HOURS_MIN || hours > REPORT_HOURS_MAX) {
+        return { error: `${split}: czas otwarcia musi być pełną liczbą godzin od ${REPORT_HOURS_MIN} do ${REPORT_HOURS_MAX}.` };
+    }
+    // Zapisujemy też pola drugiego trybu, żeby po przełączeniu trybu wróciły wpisane wcześniej wartości.
+    const record = { mode: v.mode === "date" ? "date" : "weekly", day: v.day, time: parseReportTime(v.time) ? v.time : DEFAULT_REPORT_SCHEDULE[split].time, hours };
+    if (openAt) record.openAt = openAt;
+    else if (v.at && !isNaN(new Date(v.at).getTime())) record.openAt = new Date(v.at).getTime();
+    return { record };
+}
 
-    if (!manualUnlockSettings.enabled) {
-        status.textContent = "Wyłączona — obowiązuje automatyczny harmonogram splitów.";
-    } else if (!manualUnlockSettings.unlockAt) {
-        status.textContent = "🔒 Aktywna — brak ustawionej daty odblokowania, strona jest zablokowana.";
-    } else if (isManualLockActive()) {
-        status.textContent = "🔒 Aktywna — strona zablokowana do " + formatTimestamp(manualUnlockSettings.unlockAt) + ".";
-    } else {
-        status.textContent = "🟢 Aktywna — strona odblokowana od " + formatTimestamp(manualUnlockSettings.unlockAt) + ".";
+// Krótki opis zapisanego wpisu do Dziennika Akcji.
+function describeReportScheduleRecord(r) {
+    const cfg = normalizeSplitSchedule(r);
+    if (!cfg) return "brak";
+    if (cfg.mode === "date") return `konkretny termin ${formatTimestamp(cfg.openAt)} na ${cfg.hours} h`;
+    return `co tydzień, ${REPORT_DAY_NAMES[cfg.day]} ${r.time} na ${cfg.hours} h`;
+}
+
+// Odświeża badge'e „Teraz otwarte/zamknięte”, tryby, komunikaty pod kartami i stan zapisu
+// — bez nadpisywania tego, co admin wpisał w formularzu.
+function refreshReportScheduleUI() {
+    const box = document.getElementById("reportScheduleBox");
+    if (!box) return;
+    const values = readReportScheduleForm();
+    const now = Date.now();
+
+    REPORT_SPLITS.forEach((split, i) => {
+        const n = i + 1, v = values[split];
+
+        // Przełącznik trybu + widoczność pól.
+        document.querySelectorAll(`input[name="rsMode${n}"]`).forEach(r => {
+            r.closest(".rs-mode-opt")?.classList.toggle("active", r.checked);
+        });
+        const weekly = document.getElementById(`rsWeekly${n}`);
+        const dated = document.getElementById(`rsDate${n}`);
+        if (weekly) weekly.style.display = v.mode === "weekly" ? "" : "none";
+        if (dated) dated.style.display = v.mode === "date" ? "" : "none";
+
+        // Badge — stan NA ŻYWO według zapisanego harmonogramu (to, co teraz widzą kierowcy).
+        const badge = document.getElementById(`rsStatus${n}`);
+        if (badge) {
+            const st = getReportWindowState(split, now);
+            const open = !st || st.open;
+            badge.className = "rs-status " + (open ? "open" : "closed");
+            badge.textContent = open ? "🔓 Teraz otwarte" : "🔒 Teraz zamknięte";
+            badge.title = !st
+                ? "Brak zapisanego harmonogramu dla tego splitu — zgłoszenia są przyjmowane bez ograniczeń."
+                : st.open
+                    ? `Zgłoszenia przyjmowane do ${formatReportWhen(st.current.end)}.`
+                    : (st.next ? `Najbliższe otwarcie: ${formatReportWhen(st.next.start)}.` : "Brak zaplanowanego otwarcia.");
+        }
+
+        // Komunikat pod kartą — podgląd tego, co da wpisana (jeszcze niezapisana) konfiguracja.
+        const msg = document.getElementById(`rsMsg${n}`);
+        if (!msg) return;
+        const res = validateReportScheduleValues(split, v);
+        if (res.error) {
+            msg.className = "rs-msg err";
+            msg.textContent = res.error;
+            return;
+        }
+        const cfg = normalizeSplitSchedule(res.record);
+        const win = computeReportWindow(cfg, now);
+        let cls = "rs-msg", html;
+        if (cfg.mode === "weekly") {
+            if (cfg.hours >= REPORT_HOURS_MAX) {
+                html = `Co tydzień przez ${cfg.hours} h — zgłoszenia będą <b>otwarte cały czas</b>.`;
+            } else {
+                const endMin = cfg.h * 60 + cfg.min + cfg.hours * 60;
+                const endDay = (cfg.day + Math.floor(endMin / 1440)) % 7;
+                const endTime = `${String(Math.floor((endMin % 1440) / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+                html = `Co tydzień: <b>${REPORT_DAY_NAMES[cfg.day]} ${v.time}</b> → ${REPORT_DAY_NAMES[endDay]} ${endTime} (${cfg.hours} h).<br>` +
+                    (win.open
+                        ? `Według tych ustawień okno trwa teraz — zamknięcie ${formatReportWhen(win.current.end)}.`
+                        : `Najbliższe otwarcie: ${formatReportWhen(win.next.start)}.`);
+            }
+        } else {
+            html = `Otwarcie: <b>${formatReportWhen(cfg.openAt)}</b> → zamknięcie: ${formatReportWhen(cfg.openAt + cfg.hours * REPORT_HOUR_MS)}.`;
+            if (win.open) html += `<br>Według tych ustawień okno trwa teraz.`;
+            else if (!win.next) {
+                cls += " warn";
+                html += `<br>Ten termin już minął — zgłoszenia dla ${split} będą zamknięte, dopóki nie ustawisz nowego.`;
+            }
+        }
+        msg.className = cls;
+        msg.innerHTML = html;
+    });
+
+    // Stan zapisu.
+    const stateEl = document.getElementById("rsSaveState");
+    if (stateEl) {
+        const dirty = JSON.stringify(values) !== JSON.stringify(reportScheduleValuesFromSaved());
+        const saved = !!(reportScheduleData && reportScheduleData.schedule);
+        if (dirty) {
+            stateEl.className = "rs-save-state dirty";
+            stateEl.textContent = "Niezapisane zmiany";
+        } else if (!saved) {
+            stateEl.className = "rs-save-state dirty";
+            stateEl.textContent = "Harmonogram nie jest jeszcze zapisany — do tego czasu zgłoszenia są otwarte bez ograniczeń.";
+        } else {
+            stateEl.className = "rs-save-state";
+            const when = reportScheduleData.updatedAt ? formatTimestamp(reportScheduleData.updatedAt) : "";
+            const who = reportScheduleData.updatedBy ? ` · ${reportScheduleData.updatedBy}` : "";
+            stateEl.textContent = when ? `Zapisano ${when}${who}` : "Zapisano";
+        }
     }
 }
 
-function toggleManualUnlockInput() {
-    const cb = document.getElementById("manualUnlockEnabled");
-    const dt = document.getElementById("manualUnlockAt");
-    if (cb && dt) dt.disabled = !cb.checked;
+// Wartości ostatnio wczytane z bazy do formularza — jeśli admin niczego nie zmienił, zmiana
+// harmonogramu zapisana na innym urządzeniu od razu podmienia formularz; jeśli zmienił, jego
+// wpisy zostają (widać wtedy „Niezapisane zmiany”).
+let reportScheduleFilled = null;
+function renderReportScheduleAdmin() {
+    if (!document.getElementById("reportScheduleBox")) return;
+    const current = JSON.stringify(readReportScheduleForm());
+    if (reportScheduleFilled === null || current === reportScheduleFilled) {
+        const saved = reportScheduleValuesFromSaved();
+        fillReportScheduleForm(saved);
+        reportScheduleFilled = JSON.stringify(readReportScheduleForm());
+    }
+    refreshReportScheduleUI();
+}
+setInterval(() => {
+    const box = document.getElementById("reportScheduleBox");
+    if (box && box.style.display !== "none") refreshReportScheduleUI();
+}, 30000);
+
+// Przycisk „Teraz” — wstawia bieżącą datę i godzinę.
+function setReportScheduleNow(n) {
+    const el = document.getElementById(`rsAt${n}`);
+    if (!el) return;
+    el.value = toLocalDateTimeInput(Date.now());
+    refreshReportScheduleUI();
 }
 
-function saveManualUnlockSettings() {
-    const cb = document.getElementById("manualUnlockEnabled");
-    const dt = document.getElementById("manualUnlockAt");
-    if (!cb || !dt) return;
+// „Wartości domyślne” — tylko wypełnia formularz; zmiana obowiązuje dopiero po zapisaniu.
+function resetReportScheduleDefaults() {
+    const current = readReportScheduleForm();
+    const values = {};
+    REPORT_SPLITS.forEach(split => {
+        const def = DEFAULT_REPORT_SCHEDULE[split];
+        values[split] = { mode: def.mode, day: def.day, time: def.time, at: current[split].at, hours: String(def.hours) };
+    });
+    fillReportScheduleForm(values);
+    refreshReportScheduleUI();
+}
 
-    const enabled = cb.checked;
-    let unlockAt = null;
-    if (enabled) {
-        if (!dt.value) {
-            showToast("Błąd", "Ustaw datę i godzinę odblokowania.");
-            return;
-        }
-        unlockAt = new Date(dt.value).getTime();
-        if (isNaN(unlockAt)) {
-            showToast("Błąd", "Nieprawidłowa data lub godzina.");
-            return;
-        }
+async function saveReportSchedule() {
+    if (!canManageReportSchedule()) {
+        showToast("Brak uprawnień", "Harmonogram może zmienić Główny Steward albo steward z uprawnieniem do ustawień (SYS).");
+        return;
+    }
+    const values = readReportScheduleForm();
+    const schedule = {}, errors = [];
+    REPORT_SPLITS.forEach(split => {
+        const res = validateReportScheduleValues(split, values[split]);
+        if (res.error) errors.push(res.error);
+        else schedule[REPORT_SPLIT_KEYS[split]] = res.record;
+    });
+    refreshReportScheduleUI();
+    if (errors.length) {
+        showToast("Nie zapisano harmonogramu", errors.join(" "));
+        return;
     }
 
-    database.ref("settings/reportWindow").set({ enabled, unlockAt })
-        .then(() => showToast("Zapisano", "Ustawienia ręcznej blokady zostały zaktualizowane."))
-        .catch(err => showToast("Błąd zapisu", err.message));
+    const prev = reportScheduleData ? JSON.parse(JSON.stringify(reportScheduleData)) : null;
+    const nick = loggedInSteward ? loggedInSteward.nick : "ADMIN";
+    // enabled:false — zgodność ze starszymi wersjami strony (stara „ręczna blokada” zostaje wyłączona).
+    const payload = { enabled: false, schedule, updatedAt: Date.now(), updatedBy: nick };
+    try {
+        await database.ref("settings/reportWindow").set(payload);
+        reportScheduleFilled = null;
+        renderReportScheduleAdmin();
+        showToast("Zapisano", "Harmonogram otwierania zgłoszeń obowiązuje od teraz wszystkich.");
+        logAction(nick, "SYSTEM", "HARMONOGRAM",
+            "Zmieniono harmonogram otwierania zgłoszeń: " +
+            REPORT_SPLITS.map(s => `${s} — ${describeReportScheduleRecord(schedule[REPORT_SPLIT_KEYS[s]])}`).join("; ") + ".",
+            { items: [{ path: "settings/reportWindow", data: prev }] });
+    } catch (err) {
+        showToast("Błąd zapisu", err.message);
+    }
 }
 
 /* === WYBÓR CZCIONKI STRONY === */
@@ -6224,13 +6562,9 @@ function updateReportWindowUI() {
         notice.textContent = "";
     } else {
         const nextOpenText = getNextOpenText(split);
-        notice.textContent = manualUnlockSettings.enabled
-            ? (currentLang === 'pl'
-                ? `Zgłoszenia są teraz zamknięte (blokada ustawiona przez administrację). Otwarcie: ${nextOpenText}.`
-                : `Reports are currently closed (locked by the administration). Opens: ${nextOpenText}.`)
-            : (currentLang === 'pl'
-                ? `Zgłoszenia dla ${split} są teraz zamknięte. Otwarcie: ${nextOpenText}.`
-                : `Reports for ${split} are currently closed. Opens: ${nextOpenText}.`);
+        notice.textContent = currentLang === 'pl'
+            ? `Zgłoszenia dla ${split} są teraz zamknięte. Najbliższe otwarcie: ${nextOpenText}.`
+            : `Reports for ${split} are currently closed. Next opening: ${nextOpenText}.`;
         notice.style.display = "block";
     }
     if (submitBtn && !open) submitBtn.disabled = true;
@@ -6588,12 +6922,11 @@ function applyStewardPermissions() {
     // uprawnień w bazie — tak samo jak przy przyciskach usuwania w tabeli zgłoszeń.
     const isRoot = loggedInSteward?.role === "Główny Steward" || loggedInSteward?.role === "ROOT";
 
-    // Blokada strony (ręczna z panelu / nakładka) obowiązuje tylko kierowców i zwykłych
-    // stewardów — Główny Steward / ROOT ma zawsze dostęp, podobnie jak steward z dedykowanym
-    // uprawnieniem "Nie blokuj niczego" (no_lock_restrictions / NOBLOCK), które w pełni pomija
-    // wszystkie blokady strony (nakładkę blokady oraz zakładki Split 1 / Split 2 w panelu
-    // zarządzania zgłoszeniami — patrz updateAdminSplitTabsLock). Harmonogram okna zgłoszeniowego
-    // per split (dla formularza kierowcy) pozostaje aktywny i niezmieniony.
+    // Blokada wynikająca z harmonogramu otwierania zgłoszeń (nakładka na formularz) obowiązuje
+    // tylko kierowców i zwykłych stewardów — Główny Steward / ROOT ma zawsze dostęp, podobnie jak
+    // steward z dedykowanym uprawnieniem "Nie blokuj niczego" (no_lock_restrictions / NOBLOCK),
+    // które w pełni pomija wszystkie blokady strony (nakładkę blokady, zakładki Split 1 / Split 2
+    // w panelu zarządzania zgłoszeniami — patrz updateAdminSplitTabsLock — i blokadę werdyktów).
     stewardLockBypass = isRoot || !!perms.no_lock_restrictions;
     updateSiteReportWindowLock();
 
@@ -6616,12 +6949,12 @@ function applyStewardPermissions() {
     const appearanceControls = document.getElementById("appearanceControls");
     if (appearanceControls) appearanceControls.style.display = isRoot ? "flex" : "none";
 
-    // Ręczna blokada strony (data/godzina) — dostępna dla Głównego Stewarda / ROOT oraz
+    // Harmonogram otwierania zgłoszeń — dostępny dla Głównego Stewarda / ROOT oraz
     // stewardów z uprawnieniem manage_settings (tak samo jak inne ustawienia systemowe).
-    const manualUnlockBox = document.getElementById("manualUnlockBox");
-    if (manualUnlockBox) {
-        manualUnlockBox.style.display = (isRoot || perms.manage_settings) ? "block" : "none";
-        if (manualUnlockBox.style.display === "block") renderManualUnlockAdminBox();
+    const reportScheduleBox = document.getElementById("reportScheduleBox");
+    if (reportScheduleBox) {
+        reportScheduleBox.style.display = (isRoot || perms.manage_settings) ? "block" : "none";
+        if (reportScheduleBox.style.display === "block") renderReportScheduleAdmin();
     }
 }
 
@@ -6636,11 +6969,10 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     }
     const splitForWindowCheck = document.getElementById("split")?.value || "";
     if (!isReportWindowOpenForSplit(splitForWindowCheck)) {
-        const nextOpen = findNextReportWindowStart(splitForWindowCheck);
-        const nextOpenText = nextOpen ? formatTimestamp(nextOpen.getTime()) : "-";
+        const nextOpenText = getNextOpenText(splitForWindowCheck);
         alert(currentLang === 'pl'
-            ? `Zgłoszenia dla ${splitForWindowCheck} są teraz zamknięte. Otwarcie: ${nextOpenText}.`
-            : `Reports for ${splitForWindowCheck} are currently closed. Opens: ${nextOpenText}.`);
+            ? `Zgłoszenia dla ${splitForWindowCheck} są teraz zamknięte. Najbliższe otwarcie: ${nextOpenText}.`
+            : `Reports for ${splitForWindowCheck} are currently closed. Next opening: ${nextOpenText}.`);
         updateReportWindowUI();
         return;
     }
@@ -8780,8 +9112,8 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         return;
     }
 
-    // Blokada wydawania werdyktu do czasu zamknięcia okna zgłoszeniowego (21:15 dnia następnego
-    // po wyścigu) dla splitu, do którego należy sprawa — stewardowie muszą poczekać, aż wszystkie
+    // Blokada wydawania werdyktu do czasu zamknięcia okna zgłoszeniowego (wg harmonogramu
+    // otwierania zgłoszeń) dla splitu, do którego należy sprawa — stewardowie muszą poczekać, aż wszystkie
     // zgłoszenia z danej rundy zdążą wpłynąć. Wykrywamy split, odnajdując sprawę po ID (obsługując
     // też format "FIA-xxx (APP-xxx)" oraz samo "APP-xxx" dla apelacji), analogicznie jak niżej przy
     // właściwym zapisie werdyktu — ale zanim wykonamy jakikolwiek zapis do bazy. Główny Steward /
@@ -11296,8 +11628,8 @@ window.addEventListener("DOMContentLoaded", () => {
     // sprawdzimy blokadę), żeby użytkownik nie widział od razu zamkniętego okna.
     setDefaultActiveSplit();
 
-    // Blokada całej strony poza oknem zgłoszeniowym — sprawdzana jako pierwsza,
-    // zanim jakiekolwiek inne dane/logowania się załadują.
+    // Blokada formularza poza oknem zgłoszeniowym — sprawdzana jako pierwsza; harmonogram
+    // z bazy dochodzi chwilę później (listenToReportSchedule) i odświeża ją ponownie.
     updateSiteReportWindowLock();
 
     // Podgląd natychmiastowy z lokalnej pamięci (bez migotania), zanim Firebase odpowie.
@@ -11334,9 +11666,9 @@ window.addEventListener("DOMContentLoaded", () => {
     // dla WSZYSTKICH odwiedzających, na każdym urządzeniu, i nadpisują wersję lokalną.
     listenToAppearanceSettings();
 
-    // Ręczna blokada strony (data/godzina), ustawiana w panelu admina — dotyczy WSZYSTKICH
-    // odwiedzających i nadpisuje automatyczny harmonogram splitów, gdy jest włączona.
-    listenToManualUnlockSettings();
+    // Harmonogram otwierania zgłoszeń (per split), ustawiany w panelu stewarda — dotyczy
+    // WSZYSTKICH odwiedzających od razu po zapisaniu.
+    listenToReportSchedule();
 
     // Obsługa logowania przez Discord (OAuth2) — po powrocie z Discorda wymienia token na sesję
     // Firebase (przez Workera), albo wczytuje zapisaną wcześniej sesję kierowcy.
@@ -12983,7 +13315,7 @@ const ANN_ICONS = { info: "ℹ️", warn: "⚠️", crit: "⛔" };
 const menuEl = document.querySelector(".card .menu");
 if (menuEl) menuEl.insertAdjacentHTML("beforebegin",
     `<div id="announcementBanner" class="ann-banner" role="status"><span class="ann-icon"></span><div class="ann-body"></div><button type="button" class="ann-close" title="Ukryj to ogłoszenie">✕</button></div>`);
-const unlockBox = $("manualUnlockBox");
+const unlockBox = $("reportScheduleBox");
 if (unlockBox) unlockBox.insertAdjacentHTML("afterend", `
   <div id="announcementAdminBox" class="stats-group-box" style="display:none; border-color: var(--gold-dim); margin-bottom: 14px;">
     <div class="stats-group-title" style="color:var(--amber-text);">📢 Ogłoszenie dla wszystkich (baner na górze strony)</div>
@@ -13069,19 +13401,13 @@ function updateReportCountdown() {
     if (!el || !splitEl) return;
     const split = splitEl.value;
     let text = "", cls = "rw-countdown";
-    if (manualUnlockSettings.enabled) {
-        if (isManualLockActive()) text = `⏳ ${L("Odblokowanie za", "Unlocks in")} ${fmtLeft(manualUnlockSettings.unlockAt - Date.now())}`;
-        else if (manualUnlockSettings.unlockAt) { text = `🟢 ${L("Zgłoszenia otwarte", "Reports open")}`; cls += " open"; }
-    } else if (AUTO_REPORT_SCHEDULE && REPORT_WINDOWS[split]) {
-        if (isReportWindowOpenForSplit(split)) {
-            const start = findLastReportWindowStart(split);
-            const left = start ? start.getTime() + REPORT_WINDOW_MS - Date.now() : 0;
-            text = `🟢 ${L(`Zgłoszenia dla ${split} przyjmowane jeszcze przez`, `Reports for ${split} accepted for another`)} ${fmtLeft(left)}`;
-            cls += left < 3 * 3600000 ? " soon" : " open";
-        } else {
-            const next = findNextReportWindowStart(split);
-            if (next) text = `⏳ ${L("Otwarcie za", "Opens in")} ${fmtLeft(next.getTime() - Date.now())}`;
-        }
+    const st = getReportWindowState(split);
+    if (st && st.open) {
+        const left = st.current.end - Date.now();
+        text = `🟢 ${L(`Zgłoszenia dla ${split} przyjmowane jeszcze przez`, `Reports for ${split} accepted for another`)} ${fmtLeft(left)}`;
+        cls += left < 3 * 3600000 ? " soon" : " open";
+    } else if (st && st.next) {
+        text = `⏳ ${L("Otwarcie za", "Opens in")} ${fmtLeft(st.next.start - Date.now())}`;
     }
     el.className = cls;
     el.textContent = text;
@@ -13820,7 +14146,7 @@ const shortTrack = t => { const s = String(t || ""), m = s.match(/\(([^)]+)\)\s*
    1. ZASADY GŁOSOWANIA: TRYB TAJNY + KWORUM
    ============================================================ */
 window.fiaVotingSettings = { mode: "open", quorum: 0 };
-const annBox = $("announcementAdminBox") || $("manualUnlockBox");
+const annBox = $("announcementAdminBox") || $("reportScheduleBox");
 if (annBox) annBox.insertAdjacentHTML("afterend", `
   <div id="votingRulesBox" class="stats-group-box" style="display:none; border-color: rgba(168,85,247,0.5); margin-bottom: 14px;">
     <div class="stats-group-title" style="color:var(--purple-text);">🗳 Zasady głosowania sędziów</div>
@@ -14542,7 +14868,7 @@ function renderVerdictLockInfo() {
     const box = $("verdictLockInfo");
     if (!box) return;
     const inc = isAdminAuthenticated && typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
-    if (!inc || !inc.split || !REPORT_WINDOWS[inc.split] || isVerdictWindowOpen(inc.split)) { box.style.display = "none"; return; }
+    if (!inc || !inc.split || isVerdictWindowOpen(inc.split)) { box.style.display = "none"; return; }
     const at = getVerdictUnlockTime(inc.split);
     box.innerHTML = `🔒 Werdykty dla <b>${escapeHtml(inc.split)}</b> odblokują się ${formatTimestamp(at)} (za ${F.fmtLeft(at - Date.now())}) — po zamknięciu okna zgłoszeń.` +
         (stewardLockBypass ? ` <span style="color:var(--green-text);">Masz uprawnienie do pominięcia tej blokady.</span>` : ` Możesz już głosować i przygotować uzasadnienie.`);
@@ -14566,7 +14892,7 @@ window.fiaAutoSelectRoundTrack = () => autoSelectRoundTrack();
 
 const formTitle = document.querySelector("#formSection .section-title");
 if (formTitle) formTitle.insertAdjacentHTML("afterend", `<div id="roundInfoBar" class="round-bar"></div>`);
-const votingBox = $("votingRulesBox") || $("announcementAdminBox") || $("manualUnlockBox");
+const votingBox = $("votingRulesBox") || $("announcementAdminBox") || $("reportScheduleBox");
 if (votingBox) votingBox.insertAdjacentHTML("afterend", `
   <div id="calendarAdminBox" class="stats-group-box" style="display:none; border-color: var(--gold-dim); margin-bottom:14px;">
     <div class="stats-group-title" style="color:var(--gold);">📅 Kalendarz sezonu</div>
