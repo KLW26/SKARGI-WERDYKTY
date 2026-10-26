@@ -3,8 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <!-- === FIA SECURITY LAYER: nagłówki bezpieczeństwa (działające jako <meta>) === -->
-  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; frame-ancestors 'none';">
+  <!-- frame-ancestors usunięte z <meta>: przeglądarki je tu ignorują. Prawdziwą blokadę ramek daje nagłówek HTTP
+       (Content-Security-Policy: frame-ancestors 'none') ustawiony na hostingu — do tego czasu chroni skrypt niżej. -->
+  <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
+  <!-- Ochrona przed osadzaniem strony w cudzej ramce (clickjacking). Przeglądarki IGNORUJĄ frame-ancestors
+       podane w <meta>, a samo wychodzenie z ramki skryptem da się zablokować atrybutem sandbox — dlatego
+       strona jest ukryta, dopóki ten skrypt nie potwierdzi, że NIE jest w ramce. -->
+  <style id="antiClickjack">body { display: none !important; }</style>
+  <script>(function () {
+    if (window.self === window.top) {
+      var s = document.getElementById("antiClickjack");
+      if (s) s.parentNode.removeChild(s);
+    } else {
+      try { window.top.location.href = window.self.location.href; } catch (e) { /* strona zostaje ukryta */ }
+    }
+  })();</script>
   <title>Zgłoś Incydent – FIA System</title>
   <style id="embeddedFonts">
 /* Czcionki wbudowane w stronę (zamiast fonts.googleapis.com) — pakiety @fontsource 5.3.0.
@@ -1335,7 +1349,7 @@
     /* Modale logowania stewarda muszą być dostępne ponad nakładką blokady strony
        (z-index 999999), żeby Główny Steward / ROOT mógł się zalogować nawet, gdy
        strona jest zablokowana dla kierowców/zwykłych stewardów, i uzyskać dostęp. */
-    #adminLoginModal, #externalJudgeModal {
+    #adminLoginModal {
       z-index: 1000000;
     }
     .login-box {
@@ -3028,40 +3042,10 @@
         <svg width="18" height="18" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
         <span data-key="discordLoginBtn">Zaloguj przez Discord</span>
       </button>
-      <div style="display:flex; align-items:center; gap:10px; margin:14px 0 10px;">
-        <div style="flex:1; height:1px; background: var(--border);"></div>
-        <span style="font-size:10px; color: var(--text-dim); letter-spacing:2px;" data-key="orDivider">LUB</span>
-        <div style="flex:1; height:1px; background: var(--border);"></div>
-      </div>
-      <button type="button" class="btn-secondary" style="width:100%; justify-content:center; margin-bottom:16px;" onclick="closeAdminLogin(); openExternalJudgeLogin();">
-        <span data-key="externalJudgeLoginBtn">Zaloguj jako sędzia spoza ligi</span>
-      </button>
       <button class="btn-secondary" onclick="closeAdminLogin()" data-key="cancelBtn">Anuluj</button>
       <div id="loginStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
     </div>
 
-  </div>
-
-  <div id="externalJudgeModal" class="login-modal">
-    <div class="login-box">
-      <h1 data-key="externalJudgeTitle">Sędzia spoza ligi</h1>
-      <p style="font-size: 11px; color: var(--amber-text); margin-bottom: 16px; line-height:1.5;" data-key="externalJudgeDesc">Dostęp gościnny dla sędziego spoza ligi, bez konta stewarda ani logowania przez Discord. Uprawnienia są ograniczone do przeglądu i oceny zgłoszeń oraz apelacji.</p>
-      <div class="field" style="text-align:left; margin-bottom:12px;">
-        <label data-key="labelNick">Twój Nick</label>
-        <input id="externalJudgeNick" type="text" placeholder="np. Sędzia Kowalski" />
-      </div>
-      <div class="field" style="text-align:left; margin-bottom:6px;">
-        <label data-key="externalJudgePasswordLabel">Hasło dostępu</label>
-        <input id="externalJudgePassword" type="password" placeholder="••••••••" autocomplete="off" />
-        <small style="color: var(--text-dim); font-size: 11px;" data-key="externalJudgePasswordHint">Hasło otrzymujesz od organizatora ligi.</small>
-        <span class="error-message" id="externalJudgePasswordError" data-key="externalJudgePasswordError">Nieprawidłowe hasło.</span>
-      </div>
-      <button type="button" class="discord-login-btn" style="width:100%; justify-content:center; margin:10px 0; background: var(--bg-card); border: 1px solid var(--border); color: var(--text);" onclick="submitExternalJudgeLogin()">
-        <span data-key="externalJudgeSubmit">Zaloguj się jako sędzia</span>
-      </button>
-      <button class="btn-secondary" onclick="closeExternalJudgeLogin()" data-key="cancelBtn">Anuluj</button>
-      <div id="externalJudgeStatus" style="margin-top:10px; font-size:12px; color:#f97373;"></div>
-    </div>
   </div>
 
 
@@ -4370,9 +4354,361 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 // ============================================================
+// === DANE PRYWATNE — widoczne tylko dla stewardów i stron sprawy ===
+// ============================================================
+// Reguły Firebase nie umieją ukryć pojedynczych pól rekordu: kto może czytać „incidents”, widzi
+// wszystko, co w nim leży. Dlatego dane, których kierowcy nie powinni widzieć, leżą w osobnych węzłach:
+//   staffIncidents/{sprawa}               — notatki wewnętrzne, głosy stewardów, przydział (tylko stewardzi)
+//   caseStatements/{discordId}/{sprawa}   — oświadczenia stron (stewardzi + autor oświadczenia)
+//   chats/{sprawa}/{wiadomość}            — czat sprawy (stewardzi + strony sprawy); chats/_staff = czat „Ogólny”
+// Reszta kodu nadal używa starych ścieżek (incidents/X/notes, incidents/X/statements/U, chat/…):
+// ten moduł przekłada je przy zapisie na nowe węzły, a przy odczycie dokleja prywatne pola do
+// globalIncidents (stewardom wszystkie, kierowcy tylko jego własne oświadczenia).
+const FIA_STAFF_FIELDS = ["notes", "stewardVotes", "assignedTo"];
+const FIA_STAFF_CHAT_KEY = "_staff";
+const fiaOrigRef = database.ref.bind(database);
+const fiaChatIndex = Object.create(null); // id wiadomości → węzeł, w którym leży ("chats/{sprawa}" albo stary "chat")
+let fiaLastIncidentsRaw = null;
+
+function fiaChatKey(caseId) {
+    const c = String(caseId == null ? "" : caseId).trim();
+    if (!c || c === "Ogólny") return FIA_STAFF_CHAT_KEY;
+    return c.replace(/[.#$\[\]\/]/g, "_");
+}
+function fiaChatPath(caseId) { return "chats/" + fiaChatKey(caseId); }
+function fiaIsStaffSession() { try { return !!isAdminAuthenticated; } catch (e) { return false; } }
+
+// incidents/X/notes → staffIncidents/X/notes; incidents/X/statements/U → caseStatements/U/X
+function fiaRemapPath(path) {
+    if (typeof path !== "string") return path;
+    const p = path.replace(/^\/+/, "");
+    let m = /^incidents\/([^\/]+)\/(notes|stewardVotes|assignedTo)(\/.*)?$/.exec(p);
+    if (m) return "staffIncidents/" + m[1] + "/" + m[2] + (m[3] || "");
+    m = /^incidents\/([^\/]+)\/statements\/([^\/]+)(\/.*)?$/.exec(p);
+    if (m) return "caseStatements/" + m[2] + "/" + m[1] + (m[3] || "");
+    return path;
+}
+function fiaHasPrivate(v) {
+    return !!v && typeof v === "object" &&
+        (FIA_STAFF_FIELDS.some(f => v[f] !== undefined && v[f] !== null) || (!!v.statements && typeof v.statements === "object"));
+}
+function fiaKnownStatementUids(id) {
+    const out = new Set();
+    try { Object.keys((fiaPriv.statementsByCase || {})[id] || {}).forEach(u => out.add(u)); } catch (e) {}
+    return out;
+}
+// Cały rekord zgłoszenia → część publiczna (incidents) + prywatna (staffIncidents, caseStatements).
+function fiaSplitIncident(id, val, out) {
+    const staff = fiaIsStaffSession();
+    if (val === null || val === undefined) {
+        out["incidents/" + id] = null;
+        if (staff) {
+            out["staffIncidents/" + id] = null;
+            fiaKnownStatementUids(id).forEach(u => { out["caseStatements/" + u + "/" + id] = null; });
+        }
+        return out;
+    }
+    const pub = {}, priv = {};
+    let hasPriv = false;
+    Object.keys(val).forEach(k => {
+        if (FIA_STAFF_FIELDS.includes(k)) {
+            if (val[k] !== null && val[k] !== undefined) { priv[k] = val[k]; hasPriv = true; }
+            return;
+        }
+        if (k === "statements") return;
+        pub[k] = val[k];
+    });
+    out["incidents/" + id] = pub;
+    if (hasPriv || staff) out["staffIncidents/" + id] = hasPriv ? priv : null;
+    const st = val.statements && typeof val.statements === "object" ? val.statements : {};
+    const uids = staff ? fiaKnownStatementUids(id) : new Set();
+    Object.keys(st).forEach(u => uids.add(u));
+    uids.forEach(u => { out["caseStatements/" + u + "/" + id] = st[u] || null; });
+    return out;
+}
+function fiaFindChatMsg(msgId) {
+    try { return globalChatData && globalChatData[msgId] ? globalChatData[msgId] : null; } catch (e) { return null; }
+}
+// Klucze aktualizacji wielościeżkowej (database.ref().update) → nowe węzły.
+function fiaRemapUpdates(updates) {
+    if (!updates || typeof updates !== "object") return updates;
+    const out = {};
+    Object.keys(updates).forEach(rawKey => {
+        const key = String(rawKey).replace(/^\/+/, "");
+        const v = updates[rawKey];
+        let m;
+        if ((m = /^incidents\/([^\/]+)$/.exec(key))) {
+            if (v === null || v === undefined || fiaHasPrivate(v)) fiaSplitIncident(m[1], v, out);
+            else out[key] = v;
+            return;
+        }
+        if ((m = /^incidents\/([^\/]+)\/statements$/.exec(key))) {
+            const st = v && typeof v === "object" ? v : {};
+            const uids = fiaIsStaffSession() ? fiaKnownStatementUids(m[1]) : new Set();
+            Object.keys(st).forEach(u => uids.add(u));
+            uids.forEach(u => { out["caseStatements/" + u + "/" + m[1]] = st[u] || null; });
+            return;
+        }
+        const mapped = fiaRemapPath(key);
+        if (mapped !== key) { out[mapped] = v; return; }
+        if ((m = /^chat\/([^\/]+)(\/.*)?$/.exec(key))) {
+            const msgId = m[1], sub = m[2] || "", base = fiaChatIndex[msgId];
+            if (!sub) {
+                if (v && typeof v === "object") out["chats/" + fiaChatKey(v.caseId) + "/" + msgId] = v;
+                else if (base) out[base + "/" + msgId] = null;
+                return;
+            }
+            if (sub === "/caseId") {
+                const msg = fiaFindChatMsg(msgId);
+                if (!msg) return;
+                const target = "chats/" + fiaChatKey(v);
+                if (base && base !== target) out[base + "/" + msgId] = null;
+                out[target + "/" + msgId] = Object.assign({}, msg, { caseId: v });
+                return;
+            }
+            if (base) out[base + "/" + msgId + sub] = v;
+            return;
+        }
+        out[key] = v;
+    });
+    return out;
+}
+// Czat z kosza: stary format ({id: wiadomość}) albo nowy ({sprawa: {id: wiadomość}}) → aktualizacje chats/…
+function fiaChatDataToUpdates(data) {
+    const out = {};
+    if (!data || typeof data !== "object") return out;
+    const isMsg = v => v && typeof v === "object" && (typeof v.caseId === "string" || typeof v.text === "string" || typeof v.role === "string");
+    Object.keys(data).forEach(k => {
+        const v = data[k];
+        if (!v || typeof v !== "object") return;
+        if (isMsg(v)) { out["chats/" + fiaChatKey(v.caseId) + "/" + k] = v; return; }
+        Object.keys(v).forEach(id => {
+            const msg = v[id];
+            if (isMsg(msg)) out["chats/" + fiaChatKey(msg.caseId || (k === FIA_STAFF_CHAT_KEY ? "Ogólny" : k)) + "/" + id] = msg;
+        });
+    });
+    return out;
+}
+
+// database.ref() przekłada ścieżki prywatnych pól; zapis całego zgłoszenia jest rozkładany na węzły.
+(function fiaInstallPathShim() {
+    database.ref = function (path) {
+        if (typeof path === "string") {
+            const np = fiaRemapPath(path);
+            if (np !== path) return fiaOrigRef(np);
+        }
+        const r = fiaOrigRef.apply(null, arguments);
+        try {
+            const p = typeof path === "string" ? path.replace(/^\/+|\/+$/g, "") : "";
+            if (!p) {
+                const origUpdate = r.update;
+                r.update = function (values, onComplete) {
+                    return origUpdate.call(this, fiaRemapUpdates(values), onComplete);
+                };
+            } else {
+                const m = /^incidents\/([^\/]+)$/.exec(p);
+                if (m) {
+                    const id = m[1], origSet = r.set, origRemove = r.remove;
+                    r.set = function (value, onComplete) {
+                        if (value === null || value === undefined || !(fiaHasPrivate(value) || fiaIsStaffSession())) return origSet.call(this, value, onComplete);
+                        return fiaOrigRef().update(fiaSplitIncident(id, value, {}), onComplete);
+                    };
+                    r.remove = function (onComplete) {
+                        if (!fiaIsStaffSession()) return origRemove.call(this, onComplete);
+                        return fiaOrigRef().update(fiaSplitIncident(id, null, {}), onComplete);
+                    };
+                }
+            }
+        } catch (e) { console.error("[dane prywatne] przekładanie ścieżek:", e); }
+        return r;
+    };
+})();
+
+// --- Odczyt: nasłuchy węzłów prywatnych zależnie od tego, kto jest zalogowany ---
+const fiaPriv = {
+    mode: "none", uid: null,
+    staffByCase: {},       // staffIncidents (stewardzi)
+    statementsByCase: {},  // sprawa → {discordId: oświadczenie}
+    chats: {},             // klucz czatu → {id: wiadomość}
+    legacyChat: {},        // stary węzeł „chat” (do czasu przeniesienia)
+    subs: new Map(),
+    pending: new Set(),
+    migrated: false, migrateTries: 0
+};
+function fiaSub(path, onValue) {
+    if (fiaPriv.subs.has(path)) return;
+    const ref = fiaOrigRef(path);
+    fiaPriv.pending.add(path);
+    const h = ref.on("value",
+        snap => { fiaPriv.pending.delete(path); onValue(snap.val()); },
+        err => { fiaPriv.pending.delete(path); console.warn("[dane prywatne] brak dostępu do " + path + ":", err && (err.code || err.message)); onValue(null); });
+    fiaPriv.subs.set(path, { ref, h });
+}
+function fiaUnsub(filter) {
+    [...fiaPriv.subs.keys()].forEach(path => {
+        if (filter && !filter(path)) return;
+        const s = fiaPriv.subs.get(path);
+        try { s.ref.off("value", s.h); } catch (e) {}
+        fiaPriv.subs.delete(path); fiaPriv.pending.delete(path);
+    });
+}
+function fiaPivotStatements(byUid) {
+    const out = {};
+    Object.keys(byUid || {}).forEach(u => {
+        const cases = byUid[u];
+        if (!cases || typeof cases !== "object") return;
+        Object.keys(cases).forEach(c => { if (cases[c]) (out[c] = out[c] || {})[u] = cases[c]; });
+    });
+    return out;
+}
+// Sprawy (zgłoszenia i apelacje), w których dany kierowca jest stroną — najnowsze najpierw.
+function fiaMyCaseIds(uid, limit) {
+    if (!uid) return [];
+    const list = [];
+    try {
+        (globalIncidents || []).forEach(r => { if (String(r.discordId) === uid || String(r.accusedDiscordId) === uid) list.push([r.id, Number(r.timestamp) || 0]); });
+        (globalAppeals || []).forEach(a => { if (String(a.discordId) === uid && a.appealId) list.push([a.appealId, Number(a.timestamp) || 0]); });
+    } catch (e) {}
+    return [...new Map(list.sort((a, b) => b[1] - a[1]).map(x => [x[0], x])).keys()].slice(0, limit || 100);
+}
+// Nałożenie prywatnych pól na rekord zgłoszenia (wywoływane przy każdym wczytaniu listy spraw).
+function fiaApplyPrivate(r) {
+    if (!r || !r.id) return r;
+    const legacySt = r.statements && typeof r.statements === "object" ? r.statements : null;
+    if (fiaPriv.mode === "staff") {
+        const p = fiaPriv.staffByCase[r.id];
+        if (p && typeof p === "object") FIA_STAFF_FIELDS.forEach(f => { if (p[f] !== undefined && p[f] !== null) r[f] = p[f]; });
+        const st = Object.assign({}, legacySt || {}, fiaPriv.statementsByCase[r.id] || {});
+        if (Object.keys(st).length) r.statements = st; else delete r.statements;
+    } else {
+        FIA_STAFF_FIELDS.forEach(f => { delete r[f]; });
+        const uid = fiaPriv.uid;
+        const own = uid ? ((fiaPriv.statementsByCase[r.id] || {})[uid] || (legacySt ? legacySt[uid] : null)) : null;
+        if (own) r.statements = { [uid]: own }; else delete r.statements;
+    }
+    return r;
+}
+let fiaRerenderTimer = null;
+function fiaScheduleRerender() {
+    clearTimeout(fiaRerenderTimer);
+    fiaRerenderTimer = setTimeout(() => {
+        try { if (typeof window.fiaRerenderIncidents === "function") window.fiaRerenderIncidents(); } catch (e) { console.error(e); }
+    }, 40);
+}
+let fiaChatTimer = null;
+function fiaPublishChat() {
+    clearTimeout(fiaChatTimer);
+    fiaChatTimer = setTimeout(() => {
+        // Czekamy, aż wszystkie czaty wczytają się pierwszy raz — inaczej start strony wyglądałby jak „nowe wiadomości”.
+        if ([...fiaPriv.pending].some(p => p === "chat" || p === "chats" || p.indexOf("chats/") === 0)) return;
+        const all = {};
+        Object.keys(fiaChatIndex).forEach(k => { delete fiaChatIndex[k]; });
+        Object.keys(fiaPriv.legacyChat || {}).forEach(id => {
+            const m = fiaPriv.legacyChat[id];
+            if (m && typeof m === "object") { all[id] = m; fiaChatIndex[id] = "chat"; }
+        });
+        Object.keys(fiaPriv.chats || {}).forEach(ck => {
+            const bucket = fiaPriv.chats[ck] || {};
+            Object.keys(bucket).forEach(id => {
+                const m = bucket[id];
+                if (m && typeof m === "object") { all[id] = m; fiaChatIndex[id] = "chats/" + ck; }
+            });
+        });
+        const flat = {};
+        Object.keys(all).sort().forEach(id => { flat[id] = all[id]; }); // klucze push() rosną z czasem
+        globalChatData = fiaPriv.mode === "none" ? null : flat;
+        try { renderAdminChatBox(); } catch (e) {}
+        try { renderPlayerChatBox(); } catch (e) {}
+    }, 40);
+}
+function fiaSyncPrivateListeners() {
+    let uid = null;
+    try { uid = currentUid(); } catch (e) {}
+    const mode = !uid ? "none" : fiaIsStaffSession() ? "staff" : "driver";
+    if (mode !== fiaPriv.mode || uid !== fiaPriv.uid) {
+        fiaUnsub();
+        Object.assign(fiaPriv, { mode, uid, staffByCase: {}, statementsByCase: {}, chats: {}, legacyChat: {}, migrated: false, migrateTries: 0 });
+        if (mode === "staff") {
+            fiaSub("staffIncidents", v => { fiaPriv.staffByCase = v || {}; fiaScheduleRerender(); fiaMaybeMigrate(); });
+            fiaSub("caseStatements", v => { fiaPriv.statementsByCase = fiaPivotStatements(v); fiaScheduleRerender(); fiaMaybeMigrate(); });
+            fiaSub("chats", v => { fiaPriv.chats = v || {}; fiaPublishChat(); fiaMaybeMigrate(); });
+            fiaSub("chat", v => { fiaPriv.legacyChat = v || {}; fiaPublishChat(); fiaMaybeMigrate(); });
+        } else if (mode === "driver") {
+            fiaSub("caseStatements/" + uid, v => { fiaPriv.statementsByCase = fiaPivotStatements(v ? { [uid]: v } : null); fiaScheduleRerender(); });
+        }
+        fiaScheduleRerender();
+        fiaPublishChat();
+    }
+    if (mode === "driver") {
+        const want = new Set(fiaMyCaseIds(uid, 100).map(id => "chats/" + fiaChatKey(id)));
+        fiaUnsub(p => p.indexOf("chats/") === 0 && !want.has(p));
+        Object.keys(fiaPriv.chats).forEach(ck => { if (!want.has("chats/" + ck)) delete fiaPriv.chats[ck]; });
+        want.forEach(p => {
+            const ck = p.slice(6);
+            fiaSub(p, v => { if (v) fiaPriv.chats[ck] = v; else delete fiaPriv.chats[ck]; fiaPublishChat(); });
+        });
+        fiaPublishChat();
+    }
+    try { if (typeof vcSyncPlayerCallSubs === "function") vcSyncPlayerCallSubs(); } catch (e) {}
+}
+// Jednorazowe przeniesienie starych danych (sprzed tej wersji) do węzłów prywatnych —
+// robi to automatycznie pierwszy steward, który otworzy panel po aktualizacji.
+let fiaMigrating = false;
+async function fiaMaybeMigrate() {
+    if (fiaPriv.mode !== "staff" || fiaPriv.migrated || fiaMigrating || fiaPriv.migrateTries >= 2) return;
+    if (fiaPriv.pending.size) return;
+    const raw = fiaLastIncidentsRaw;
+    if (!raw) return;
+    const upd = {};
+    Object.keys(raw).forEach(id => {
+        const r = raw[id];
+        if (!r || typeof r !== "object") return;
+        const have = fiaPriv.staffByCase[id] || {};
+        FIA_STAFF_FIELDS.forEach(f => {
+            if (r[f] === undefined || r[f] === null) return;
+            if (have[f] === undefined || have[f] === null) upd["staffIncidents/" + id + "/" + f] = r[f];
+            upd["incidents/" + id + "/" + f] = null;
+        });
+        if (r.statements && typeof r.statements === "object") {
+            const haveSt = fiaPriv.statementsByCase[id] || {};
+            Object.keys(r.statements).forEach(u => {
+                if (r.statements[u] && !haveSt[u] && /^[^.#$\[\]\/]+$/.test(u)) upd["caseStatements/" + u + "/" + id] = r.statements[u];
+            });
+            upd["incidents/" + id + "/statements"] = null;
+        }
+    });
+    const legacy = fiaPriv.legacyChat || {};
+    if (Object.keys(legacy).length) {
+        Object.keys(legacy).forEach(mid => {
+            const m = legacy[mid];
+            if (!m || typeof m !== "object") return;
+            const ck = fiaChatKey(m.caseId);
+            if (!(fiaPriv.chats[ck] && fiaPriv.chats[ck][mid])) upd["chats/" + ck + "/" + mid] = m;
+        });
+        upd["chat"] = null;
+    }
+    fiaPriv.migrated = true;
+    const n = Object.keys(upd).length;
+    if (!n) return;
+    fiaMigrating = true;
+    fiaPriv.migrateTries++;
+    try {
+        await fiaOrigRef().update(upd);
+        console.info(`[dane prywatne] Przeniesiono stare dane do węzłów chronionych (${n} zmian).`);
+        logAction(loggedInSteward ? loggedInSteward.nick : "System", "SYSTEM", "MIGRACJA",
+            `Przeniesiono dane prywatne do chronionych węzłów bazy (${n} zmian): notatki wewnętrzne, głosy, przydziały spraw, oświadczenia stron i czat.`);
+    } catch (e) {
+        fiaPriv.migrated = false;
+        console.error("[dane prywatne] Przeniesienie starych danych nie powiodło się (czy nowe reguły bazy są wgrane?):", e);
+    } finally {
+        fiaMigrating = false;
+    }
+}
+
+// ============================================================
 // === ZABEZPIECZENIA: Worker „fia-guard” + logowanie do Firebase ===
 // ============================================================
-// Worker (Cloudflare) sprawdza logowanie Discordem i hasło sędziego spoza ligi, wydaje token
+// Worker (Cloudflare) sprawdza logowanie Discordem, wydaje token
 // logowania do Firebase i jako JEDYNY zna adresy webhooków Discorda. Strona nie zawiera już
 // żadnych sekretów — a reguły bazy wpuszczają do zapisu tylko zalogowanych (patrz database.rules.json).
 // Adres Workera: Cloudflare → Workers & Pages → fia-guard → adres *.workers.dev
@@ -4384,11 +4720,12 @@ if (!fbAuth) console.error("[bezpieczeństwo] Brak apiKey w firebaseConfig — l
 let fbClaims = {};
 let sessionExpiredNotice = false;
 // Sesja jest ważna, dopóki trwa potwierdzenie członkostwa w serwerze Discord ligi (memberUntil,
-// wydane przez Workera przy logowaniu) albo sesja sędziego spoza ligi (judgeUntil).
+// wydane przez Workera przy logowaniu).
 // Starsze lub przeterminowane sesje trzeba odnowić logowaniem — wtedy członkostwo jest sprawdzane od nowa.
+// Logowanie sędziego spoza ligi (hasłem) zostało usunięte — sesje z takim znacznikiem są odrzucane.
 function sessionIsFresh(claims) {
     if (!claims) return false;
-    if (claims.judge === true) return Number(claims.judgeUntil) > Date.now();
+    if (claims.judge === true) return false;
     return Number(claims.memberUntil) > Date.now();
 }
 const authReady = new Promise(resolve => {
@@ -4426,6 +4763,7 @@ function onFirebaseUserChanged(user) {
         try { localStorage.removeItem("driverDiscordAuth"); } catch (e) {}
         if (typeof applyDriverAuthUI === "function") applyDriverAuthUI();
     }
+    try { fiaSyncPrivateListeners(); } catch (e) {}
     if (loginGateBusy) return; // logowanie/wylogowanie w tej karcie — samo przeładuje stronę
     // Zalogowanie w innej karcie: dane wczytujemy od nowa już z sesją. Wylogowanie: ekran logowania.
     if (user && document.documentElement.classList.contains("rz-gated")) { location.reload(); return; }
@@ -4444,7 +4782,7 @@ authReady.then(() => {
     authResolved = true;
     updateLoginGate();
     // Gdy sesja wygaśnie przy otwartej stronie — przeładowanie pokaże ekran logowania.
-    const until = fbClaims.judge === true ? Number(fbClaims.judgeUntil) : Number(fbClaims.memberUntil);
+    const until = Number(fbClaims.memberUntil);
     if (fbAuth && fbAuth.currentUser && until > Date.now()) {
         setTimeout(() => location.reload(), Math.min(until - Date.now() + 1000, 2147483000));
     }
@@ -4469,7 +4807,6 @@ function updateLoginGate(busyText) {
     const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     set("rzGateDriverLabel", pl ? "Zaloguj przez Discord" : "Log in with Discord");
     set("rzGateStewardBtn", pl ? "Panel stewarda (Discord)" : "Steward panel (Discord)");
-    set("rzGateJudgeBtn", pl ? "Sędzia spoza ligi (hasło)" : "External judge (password)");
     set("rzGateText",
         state === "config" ? (pl ? "Logowanie nie jest jeszcze skonfigurowane — w kodzie strony brakuje klucza Web API Firebase (apiKey). Administratorze: INSTRUKCJA.md, krok 4."
                                  : "Login is not configured yet — the Firebase Web API key (apiKey) is missing in the page code.")
@@ -4504,8 +4841,6 @@ function guardErrorText(code, status) {
         guild_not_configured: ["Worker nie ma ustawionego ID serwera Discord (REQUIRED_GUILD_ID).", "The Worker has no Discord server ID set (REQUIRED_GUILD_ID)."],
         discord_rate_limited: ["Discord chwilowo ogranicza zapytania — spróbuj za minutę.", "Discord is rate-limiting requests — try again in a minute."],
         session_expired: ["Sesja wygasła — zaloguj się ponownie.", "Session expired — log in again."],
-        invalid_password: ["Nieprawidłowe hasło.", "Invalid password."],
-        judge_login_disabled: ["Logowanie sędziów spoza ligi jest wyłączone (brak hasła w Workerze).", "External judge login is disabled."],
         origin_not_allowed: ["Adres tej strony nie jest dopisany w ALLOWED_ORIGINS Workera.", "This site's address is not in the Worker's ALLOWED_ORIGINS."],
         service_account_missing: ["Worker nie ma klucza Firebase (sekret FIREBASE_SERVICE_ACCOUNT).", "The Worker has no Firebase key (FIREBASE_SERVICE_ACCOUNT)."],
     };
@@ -4749,6 +5084,17 @@ function fileToBase64(file) {
     });
 }
 
+// Token logowania Firebase dla Workera uploadu (fia-upload-presign). Wysyłany w treści żądania
+// (pole idToken), a nie w nagłówku Authorization — dzięki temu nie trzeba zmieniać ustawień CORS
+// Workera. Worker powinien go weryfikować tak samo jak „fia-guard” i odrzucać żądania bez ważnego
+// tokenu — inaczej każdy z internetu może wrzucać pliki do R2 i pobierać linki do dowodów.
+async function currentIdTokenForWorker() {
+    try {
+        const user = fbAuth && fbAuth.currentUser;
+        return user ? await user.getIdToken() : "";
+    } catch (e) { return ""; }
+}
+
 async function uploadFileToStorage(file, folder, onProgress) {
     if (!R2_WORKER_URL || R2_WORKER_URL === "WKLEJ_TU_ADRES_WORKERA") {
         throw new Error("Upload plików nie jest skonfigurowany: uzupełnij R2_WORKER_URL w kodzie strony.");
@@ -4761,6 +5107,7 @@ async function uploadFileToStorage(file, folder, onProgress) {
             filename: file.name,
             contentType: file.type || "application/octet-stream",
             folder,
+            idToken: await currentIdTokenForWorker(),
         }),
     });
 
@@ -4802,7 +5149,7 @@ async function getFreshEvidenceUrl(key, expiresIn) {
         return cached.url;
     }
 
-    const body = { key };
+    const body = { key, idToken: await currentIdTokenForWorker() };
     if (typeof expiresIn === "number") body.expiresIn = expiresIn;
 
     const res = await fetch(`${R2_WORKER_URL}/presign-get`, {
@@ -5256,14 +5603,14 @@ let globalChatData = null;
 // Sekcje „Użytkownicy i Role” i „Kosz” nie mają już osobnych haseł — dostęp wynika z roli
 // i uprawnień konta stewarda (USR / TRASH), a ten sam warunek egzekwują reguły bazy.
 function stewardIsRootLike() {
-    if (!isAdminAuthenticated || !loggedInSteward || loggedInSteward.id === "external-judge") return false;
+    if (!isAdminAuthenticated || !loggedInSteward) return false;
     return isLeagueOwner() || loggedInSteward.role === "Główny Steward" || loggedInSteward.role === "ROOT";
 }
 function canOpenUsersSection() {
-    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.id !== "external-judge" && loggedInSteward.permissions && loggedInSteward.permissions.manage_users);
+    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.permissions && loggedInSteward.permissions.manage_users);
 }
 function canOpenTrash() {
-    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.id !== "external-judge" && loggedInSteward.permissions && loggedInSteward.permissions.access_trash);
+    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.permissions && loggedInSteward.permissions.access_trash);
 }
 
 let isAdminAuthenticated = false;
@@ -5325,12 +5672,6 @@ const langData = {
     pl: {
         adminPanel: "Panel FIA", adminPass: "Hasło Administracyjne", loginBtn: "Zaloguj", cancelBtn: "Anuluj",
         discordLoginBtn: "Zaloguj przez Discord", discordLoggedInAs: "Kierowca:", discordLogoutBtn: "Wyloguj", orDivider: "LUB",
-        externalJudgeLoginBtn: "Zaloguj jako sędzia spoza ligi", externalJudgeTitle: "Sędzia spoza ligi",
-        externalJudgeDesc: "Dostęp gościnny dla sędziego spoza ligi, bez konta stewarda ani logowania przez Discord. Uprawnienia są ograniczone do przeglądu i oceny zgłoszeń oraz apelacji.",
-        externalJudgePasswordLabel: "Hasło dostępu", externalJudgePasswordHint: "Hasło otrzymujesz od organizatora ligi.",
-        externalJudgePasswordError: "Nieprawidłowe hasło.", externalJudgePasswordRequired: "Podaj hasło.",
-        externalJudgeSubmit: "Zaloguj się jako sędzia", externalJudgeNickRequired: "Podaj swój nick.",
-        externalJudgeRole: "Sędzia (spoza ligi)",
         manualBadge: "RĘCZNIE", manualNoteLocked: "⚠️ Podano ręcznie — dane niezweryfikowane przez Discord.",
         formLockedMsg: "Aby złożyć zgłoszenie, musisz najpierw zalogować się przez Discord. To pozwala nam zweryfikować Twoją tożsamość jako kierowcy.",
         historyVerifiedByDiscord: "Zweryfikowano przez Discord — wyświetlana jest historia powiązana z Twoim kontem.",
@@ -5374,12 +5715,6 @@ const langData = {
     en: {
         adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
         discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout", orDivider: "OR",
-        externalJudgeLoginBtn: "Log in as an outside-league judge", externalJudgeTitle: "Outside-league judge",
-        externalJudgeDesc: "Guest access for a judge from outside the league, without a steward account or Discord login. Permissions are limited to reviewing and ruling on reports and appeals.",
-        externalJudgePasswordLabel: "Access password", externalJudgePasswordHint: "You receive this password from the league organizer.",
-        externalJudgePasswordError: "Incorrect password.", externalJudgePasswordRequired: "Enter the password.",
-        externalJudgeSubmit: "Log in as judge", externalJudgeNickRequired: "Enter your nickname.",
-        externalJudgeRole: "Judge (outside league)",
         manualBadge: "MANUAL", manualNoteLocked: "⚠️ Entered manually — not verified through Discord.",
         formLockedMsg: "You must log in with Discord before submitting a report. This lets us verify your identity as a driver.",
         historyVerifiedByDiscord: "Verified via Discord — showing the history linked to your account.",
@@ -6261,7 +6596,7 @@ function updateLoggedInAsLabel() {
     updateJudgeFieldFromSession();
 }
 
-// Uzupełnia pole "Sędzia prowadzący" nickiem zalogowanego konta (steward/sędzia gościnny)
+// Uzupełnia pole "Sędzia prowadzący" nickiem zalogowanego konta (steward)
 // i blokuje je do edycji — podpis pod werdyktem zawsze pochodzi z aktualnej sesji, a nie
 // z ręcznie wpisanego tekstu.
 function updateJudgeFieldFromSession() {
@@ -6312,115 +6647,6 @@ function logoutDiscordDriver() {
         return;
     }
     applyDriverAuthUI();
-}
-
-// ============ LOGOWANIE SĘDZIEGO SPOZA LIGI (hasłem, do panelu admina) ============
-// Dla gościnnego sędziego bez konta stewarda i bez logowania przez Discord — np. sędzia
-// zapraszany z innej ligi na pojedyncze wydarzenie. Dostęp jest chroniony wspólnym hasłem;
-// hasło sprawdza Worker „fia-guard” (sekret JUDGE_PASSWORD albo JUDGE_PASSWORD_HASH) —
-// w kodzie strony nie ma ani hasła, ani jego hasha. Worker ogranicza liczbę prób i wydaje
-// sesję ważną kilka godzin (JUDGE_SESSION_HOURS), po której baza przestaje przyjmować zapisy.
-
-// Uprawnienia gościnnego sędziego — celowo ograniczone: może przeglądać i oceniać
-// zgłoszenia oraz apelacje, ale nie ma dostępu do zarządzania użytkownikami, Kosza,
-// edycji zgłoszeń/notatek/apelacji ani ustawień systemu.
-const EXTERNAL_JUDGE_PERMISSIONS = {
-    review_incidents: true, review_appeals: true,
-    manage_users: false, access_trash: false,
-    edit_reports: false, edit_notes: false, edit_appeals: false,
-    clear_chat: false, manage_settings: false
-};
-
-function openExternalJudgeLogin() {
-    const modal = document.getElementById("externalJudgeModal");
-    if (!modal) return;
-    document.getElementById("externalJudgeStatus").textContent = "";
-    document.getElementById("externalJudgeNick").value = "";
-    document.getElementById("externalJudgePassword").value = "";
-    modal.style.display = "flex";
-}
-
-function closeExternalJudgeLogin() {
-    const modal = document.getElementById("externalJudgeModal");
-    if (modal) modal.style.display = "none";
-    document.getElementById("externalJudgeStatus").textContent = "";
-}
-
-async function submitExternalJudgeLogin() {
-    const nickInput = document.getElementById("externalJudgeNick");
-    const passInput = document.getElementById("externalJudgePassword");
-    const errorEl = document.getElementById("externalJudgePasswordError");
-    const statusEl = document.getElementById("externalJudgeStatus");
-
-    const nick = nickInput.value.trim();
-    const password = passInput.value;
-
-    if (!nick) {
-        statusEl.textContent = langData[currentLang].externalJudgeNickRequired;
-        return;
-    }
-    if (!password) {
-        statusEl.textContent = langData[currentLang].externalJudgePasswordRequired;
-        return;
-    }
-
-    const _wJ = fiaRateLimit("extJudgePass", 5, 60000);
-    if (_wJ) {
-        statusEl.textContent = (currentLang === 'pl' ? ("Zbyt wiele prób. Odczekaj " + _wJ + " s.") : ("Too many attempts. Wait " + _wJ + " s."));
-        return;
-    }
-    if (!fbAuth) {
-        statusEl.textContent = currentLang === 'pl' ? "Logowanie nie jest skonfigurowane (brak apiKey w firebaseConfig)." : "Login is not configured (missing apiKey).";
-        return;
-    }
-    statusEl.textContent = currentLang === 'pl' ? "Sprawdzanie hasła…" : "Checking password…";
-    let judgeLogin;
-    try {
-        judgeLogin = await guardPost("/auth/judge", { nick, password });
-    } catch (err) {
-        if (err.code === "invalid_password") {
-            passInput.classList.add("input-error");
-            if (errorEl) errorEl.style.display = "block";
-            statusEl.textContent = langData[currentLang].externalJudgePasswordError;
-        } else {
-            statusEl.textContent = err.message;
-        }
-        return;
-    }
-    passInput.classList.remove("input-error");
-    if (errorEl) errorEl.style.display = "none";
-    loginGateBusy = true;
-    try {
-        // Sesja sędziego trwa do zamknięcia karty/przeglądarki (jak wcześniej) i najwyżej tyle, ile ustawiono w Workerze.
-        await fbAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
-        await fbAuth.signInWithCustomToken(judgeLogin.firebaseToken);
-    } catch (err) {
-        loginGateBusy = false;
-        statusEl.textContent = (currentLang === 'pl' ? "Nie udało się zalogować: " : "Login failed: ") + err.message;
-        return;
-    }
-    passInput.value = "";
-    statusEl.textContent = currentLang === 'pl' ? "Zalogowano — wczytywanie panelu…" : "Logged in — loading the panel…";
-    // Przeładowanie: dane wczytają się już z sesją sędziego, a restoreExternalJudgeSession() otworzy panel.
-    location.reload();
-}
-
-// Przywraca sesję sędziego po odświeżeniu strony — na podstawie sesji Firebase wydanej przez Workera
-// (wcześniej wystarczyło wpisać dane do sessionStorage, żeby wejść do panelu).
-async function restoreExternalJudgeSession() {
-    await authReady;
-    if (isAdminAuthenticated || !fbAuth || !fbAuth.currentUser || fbClaims.judge !== true) return;
-    if (!(Number(fbClaims.judgeUntil) > Date.now())) {
-        try { await fbAuth.signOut(); } catch (e) {}
-        return;
-    }
-    loggedInSteward = {
-        nick: String(fbClaims.nick || (currentLang === 'pl' ? "Sędzia" : "Judge")),
-        id: "external-judge",
-        role: langData[currentLang].externalJudgeRole,
-        permissions: EXTERNAL_JUDGE_PERMISSIONS
-    };
-    finalizeAutoLogin();
 }
 
 async function handleDiscordOAuthRedirect() {
@@ -7837,7 +8063,7 @@ function renderAdmin() {
                 <td class="col-cb" style="text-align:center;"><input type="checkbox" class="admin-row-cb" data-id="${escapeHtml(r.id)}" onclick="updateBulkActionsBar()"></td>
                 <td>
                     <strong style="color:var(--text);">${escapeHtml(r.id)}</strong>${caseBadgesHtml(r)}
-                    ${(loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${jsAttr(r.id)}')">✎</button>`}
+                    ${(loggedInSteward && loggedInSteward.role === "Steward") ? '' : `<button title="${currentLang === 'pl' ? 'Edytuj ID' : 'Edit ID'}" style="background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer; margin-left:4px;" onclick="editIncidentId('${jsAttr(r.id)}')">✎</button>`}
                 </td>
                 <td style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${formatTimestamp(r.timestamp)}</td>
                 <td><strong>${escapeHtml(r.nick)}</strong><br><span style="color:var(--text-dim); font-size:10px;">ID: ${escapeHtml(r.discordId)}</span></td>
@@ -8537,7 +8763,7 @@ async function editIncidentId(oldId) {
         return;
     }
     
-    if (loggedInSteward && (loggedInSteward.role === "Steward" || loggedInSteward.id === "external-judge")) {
+    if (loggedInSteward && loggedInSteward.role === "Steward") {
         alert(currentLang === 'pl' ? "Twoja rola nie pozwala na edycję ID zgłoszenia." : "Your role does not allow editing the report ID.");
         return;
     }
@@ -9080,7 +9306,6 @@ function adminLogout() {
         localStorage.removeItem("adminAuthId");
         sessionStorage.removeItem("usersAuth");
         sessionStorage.removeItem("trashAuth");
-        sessionStorage.removeItem("externalJudgeAuth");
         // Wylogowanie z Firebase (po zapisaniu logu) — chyba że w tej przeglądarce jest też
         // zalogowany kierowca na to samo konto Discord.
         if (fbAuth && fbAuth.currentUser && !(discordDriverAuth && String(discordDriverAuth.id) === fbAuth.currentUser.uid)) {
@@ -10010,7 +10235,7 @@ async function restoreTrashItem(trashId) {
         } else if (item.type === "appeal") {
             await database.ref("appeals/" + item.originalId).set(item.data);
         } else if (item.type === "chat_bulk") {
-            await database.ref("chat").update(item.data);
+            await database.ref().update(fiaChatDataToUpdates(item.data));
         } else if (item.type === "verdict") {
             await database.ref("incidents/" + item.originalId + "/decisionData").set(item.data);
             await database.ref("incidents/" + item.originalId + "/status").set("Werdykt wydany");
@@ -10046,7 +10271,7 @@ async function restoreAllTrash() {
             } else if (item.type === "appeal") {
                 await database.ref("appeals/" + item.originalId).set(item.data);
             } else if (item.type === "chat_bulk") {
-                await database.ref("chat").update(item.data);
+                await database.ref().update(fiaChatDataToUpdates(item.data));
             } else if (item.type === "verdict") {
                 await database.ref("incidents/" + item.originalId + "/decisionData").set(item.data);
                 await database.ref("incidents/" + item.originalId + "/status").set("Werdykt wydany");
@@ -10288,7 +10513,7 @@ async function sendChatMessage() {
             return;
         }
     }
-    const newMsgRef = database.ref("chat").push();
+    const newMsgRef = database.ref(fiaChatPath(msgData.caseId)).push();
     await newMsgRef.set(msgData);
     await logAction(loggedInSteward ? loggedInSteward.nick : (msgData.nick || "Steward"), "CHAT", selectedCaseId || "Ogólny", `Wysłano wiadomość na czacie sprawy.`);
     msgInput.value = "";
@@ -10309,10 +10534,13 @@ async function clearChat() {
     }
     if (confirm(currentLang === 'pl' ? "Czy na pewno chcesz całkowicie wyczyścić historię czatu?" : "Are you sure you want to completely clear the chat history?")) {
         try {
-            const snap = await database.ref("chat").once("value");
-            const data = snap.val();
+            // Wszystkie czaty spraw (chats/…) oraz ewentualne resztki starego węzła „chat”.
+            const chatsData = (await database.ref("chats").once("value")).val();
+            let legacyData = null;
+            try { legacyData = (await database.ref("chat").once("value")).val(); } catch (e) {}
+            const data = (chatsData || legacyData) ? Object.assign({}, legacyData || {}, chatsData || {}) : null;
             if (data) await moveToTrash("chat_bulk", null, data);
-            await database.ref("chat").remove();
+            await database.ref().update({ chats: null, chat: null });
             alert(currentLang === 'pl' ? "Czat został pomyślnie wyczyszczony. Historię możesz przywrócić z Kosza." : "Chat has been successfully cleared. You can restore the history from Trash.");
         } catch (error) {
             alert((currentLang === 'pl' ? "Błąd podczas czyszczenia czatu: " : "Error clearing chat: ") + error.message);
@@ -10370,7 +10598,7 @@ async function sendPlayerChatMessage() {
             return;
         }
     }
-    const newMsgRef = database.ref("chat").push();
+    const newMsgRef = database.ref(fiaChatPath(msgData.caseId)).push();
     try {
         await stampRateLimit("chat", newMsgRef.key);
         await newMsgRef.set(msgData);
@@ -10864,14 +11092,40 @@ function vcStopGlobalCallsWatchForSteward() {
     if (vcGlobalStewardRef && vcGlobalStewardHandler) vcGlobalStewardRef.off("value", vcGlobalStewardHandler);
     vcGlobalStewardRef = null; vcGlobalStewardHandler = null;
 }
+// Kierowca nie może czytać całego węzła „calls” (widziałby cudze rozmowy) — nasłuchuje tylko
+// calls/{sprawa} dla spraw, w których jest stroną.
+let vcPlayerWatching = false;
+const vcPlayerCallSubs = new Map();
+let vcPlayerRinging = {};
+function vcSyncPlayerCallSubs() {
+    if (!vcPlayerWatching) return;
+    const want = new Set(fiaMyCaseIds(currentUid(), 40));
+    vcPlayerCallSubs.forEach((s, cid) => {
+        if (want.has(cid)) return;
+        try { s.ref.off("value", s.h); } catch (e) {}
+        vcPlayerCallSubs.delete(cid);
+        delete vcPlayerRinging[cid];
+    });
+    want.forEach(cid => {
+        if (vcPlayerCallSubs.has(cid)) return;
+        const ref = database.ref("calls/" + cid);
+        const h = ref.on("value", snap => {
+            const v = snap.val();
+            if (v && v.status === "ringing") vcPlayerRinging[cid] = v; else delete vcPlayerRinging[cid];
+            vcHandleGlobalRinging(Object.keys(vcPlayerRinging).length ? Object.assign({}, vcPlayerRinging) : null, "player");
+        }, () => {});
+        vcPlayerCallSubs.set(cid, { ref, h });
+    });
+}
 function vcWatchGlobalCallsForPlayer() {
-    if (vcGlobalPlayerRef) return;
-    vcGlobalPlayerRef = database.ref("calls").orderByChild("status").equalTo("ringing");
-    vcGlobalPlayerHandler = vcGlobalPlayerRef.on("value", snap => vcHandleGlobalRinging(snap.val(), "player"));
+    vcPlayerWatching = true;
+    vcSyncPlayerCallSubs();
 }
 function vcStopGlobalCallsWatchForPlayer() {
-    if (vcGlobalPlayerRef && vcGlobalPlayerHandler) vcGlobalPlayerRef.off("value", vcGlobalPlayerHandler);
-    vcGlobalPlayerRef = null; vcGlobalPlayerHandler = null;
+    vcPlayerWatching = false;
+    vcPlayerCallSubs.forEach(s => { try { s.ref.off("value", s.h); } catch (e) {} });
+    vcPlayerCallSubs.clear();
+    vcPlayerRinging = {};
 }
 
 // ============================================================
@@ -11032,11 +11286,10 @@ function finalizeAutoLogin() {
     applyStewardPermissions();
     updateLoggedInAsLabel();
     listenToUsersAndLogs();
+    fiaSyncPrivateListeners(); // stewardzi: wszystkie czaty, notatki, głosy i oświadczenia
     renderNotifBell();
     vcWatchGlobalCallsForSteward();
-    const loginSourceMsg = (loggedInSteward && loggedInSteward.id === "external-judge")
-        ? `Zalogowano do panelu administracyjnego jako sędzia spoza ligi (hasłem).`
-        : `Zalogowano do panelu administracyjnego przez Discord.`;
+    const loginSourceMsg = `Zalogowano do panelu administracyjnego przez Discord.`;
     // Adres IP pobierany jest asynchronicznie, więc wpis do logu nie blokuje wejścia do panelu —
     // dopisujemy go, gdy tylko będzie gotowy.
     getLoginSourceInfo().then(sourceInfo => {
@@ -11227,23 +11480,31 @@ async function getLoginSourceInfo() {
 // jeśli akcja utworzyła coś, co przy przywracaniu należy usunąć.
 async function logAction(steward, category, targetId, details, restoreInfo = null, verdictSnapshot = null) {
     try {
+        // Dane do „Przywróć” i migawki werdyktów zapisują tylko stewardzi — kierowca mógłby
+        // w nich podrzucić np. własne konto ROOT, które steward nieświadomie „przywróciłby” jednym kliknięciem.
+        const staff = !!isAdminAuthenticated;
         const newLogRef = database.ref("action_logs").push();
         const payload = {
-            steward: steward || "System",
+            steward: String(steward || "System").slice(0, 200),
             category: category,
-            targetId: targetId || "N/A",
-            details: details,
+            targetId: String(targetId || "N/A").slice(0, 200),
+            details: String(details == null ? "" : details).slice(0, 20000),
             timestamp: Date.now(),
             uid: currentUid() // kto naprawdę zapisał wpis (konto Firebase) — reguły bazy to sprawdzają
         };
-        if (restoreInfo && Array.isArray(restoreInfo.items) && restoreInfo.items.length > 0) {
+        if (staff && restoreInfo && Array.isArray(restoreInfo.items) && restoreInfo.items.length > 0) {
             payload.restore = { items: restoreInfo.items.map(it => ({ path: it.path, data: (it.data === undefined ? null : it.data) })) };
         }
         // Migawka werdyktu zapisana W MOMENCIE tej akcji — dzięki niej podgląd werdyktu
         // z Dziennika Akcji działa zawsze, nawet jeśli sprawa zostanie później usunięta,
         // a werdykt cofnięty albo nadpisany kolejną decyzją.
-        if (verdictSnapshot && verdictSnapshot.decision) {
+        if (staff && verdictSnapshot && verdictSnapshot.decision) {
             payload.verdictSnapshot = cloneForRestore(verdictSnapshot);
+        }
+        // Kierowca: znacznik limitu (rate/<uid>/log) — chroni dziennik przed zalaniem wpisami.
+        if (!staff) {
+            try { await stampRateLimit("log", newLogRef.key); }
+            catch (e) { await new Promise(r => setTimeout(r, 1700)); await stampRateLimit("log", newLogRef.key); } // dwie akcje tuż po sobie
         }
         await newLogRef.set(payload);
     } catch(err) {
@@ -11265,6 +11526,33 @@ function getRestorableLogs() {
 // Rdzeń przywracania - działa na pojedynczym wpisie logu, niezależnie od tego, czy
 // pochodzi z aktywnej listy logów, czy z archiwum usuniętych logów. Nadpisuje dane
 // pod zapisanymi ścieżkami stanem sprzed danej akcji i tworzy nowy wpis RESTORE.
+// Przywracać wolno tylko dane z wpisów zapisanych przez stewardów i tylko w dozwolonych miejscach bazy.
+const FIA_RESTORE_ROOTS = ["incidents", "appeals", "trash", "verdictTemplates", "settings", "staffIncidents", "caseStatements", "chats", "chat", "stewards"];
+function fiaLogWrittenByStaff(log) {
+    const uid = log && log.uid ? String(log.uid) : "";
+    if (!uid) return true; // stare wpisy sprzed zapisywania autora
+    if ((globalStewards || []).some(s => String(s.id) === uid)) return true;
+    return uid === currentUid() && isLeagueOwner();
+}
+function fiaLogRestoreProblem(log) {
+    if (!fiaLogWrittenByStaff(log)) {
+        return currentLang === 'pl'
+            ? "Ten wpis dziennika zapisało konto, które nie jest stewardem — zapisanych w nim danych nie można przywrócić."
+            : "This log entry was written by an account that is not a steward — its data cannot be restored.";
+    }
+    for (const it of (log.restore.items || [])) {
+        const p = String((it && it.path) || "").replace(/^\/+/, "");
+        const root = p.split("/")[0];
+        if (!p || !FIA_RESTORE_ROOTS.includes(root)) return (currentLang === 'pl' ? "Niedozwolona ścieżka w danych do przywrócenia: " : "Path not allowed in restore data: ") + (p || "(—)");
+        if (root === "stewards" && !canOpenUsersSection()) {
+            return currentLang === 'pl'
+                ? "Ten wpis przywraca konta stewardów — potrzebne jest uprawnienie do zarządzania użytkownikami."
+                : "This entry restores steward accounts — the user management permission is required.";
+        }
+    }
+    return null;
+}
+
 async function performLogRestore(log) {
     if (!log || !log.restore || !Array.isArray(log.restore.items) || log.restore.items.length === 0) {
         alert(currentLang === 'pl' ? "Ten wpis logu nie zawiera danych umożliwiających przywrócenie." : "This log entry has no restorable data.");
@@ -11274,6 +11562,8 @@ async function performLogRestore(log) {
         alert(currentLang === 'pl' ? "Brak uprawnień do przywracania danych z logów." : "Not authorized to restore data from logs.");
         return false;
     }
+    const restoreProblem = fiaLogRestoreProblem(log);
+    if (restoreProblem) { alert(restoreProblem); return false; }
 
     const dateStr = new Date(log.timestamp).toLocaleString("pl-PL");
     const confirmMsg = currentLang === 'pl'
@@ -11721,8 +12011,6 @@ window.addEventListener("DOMContentLoaded", () => {
         // Świeże logowanie do panelu (strona przeładowana po powrocie z Discorda) — pokaż komunikat, jeśli to nie steward.
         try { pendingAutoLoginIsDiscordAttempt = sessionStorage.getItem("adminLoginAttempt") === "1"; sessionStorage.removeItem("adminLoginAttempt"); } catch (e) {}
         tryAutoLogin();
-        // Sesja sędziego spoza ligi (hasło sprawdzone wcześniej przez Workera).
-        restoreExternalJudgeSession();
     }
     updateJudgeFieldFromSession();
 
@@ -11734,9 +12022,13 @@ window.addEventListener("DOMContentLoaded", () => {
     let knownIncidentIds = null;
     let knownAppealIds = null;
 
-    database.ref("incidents").on("value", (snapshot) => {
+    let fiaLastIncidentsSnap = null;
+    const fiaHandleIncidents = (snapshot) => {
+        fiaLastIncidentsSnap = snapshot;
+        fiaLastIncidentsRaw = snapshot.val() || {};
         globalIncidents = [];
-        snapshot.forEach(child => { globalIncidents.push({ id: child.key, ...child.val() }); });
+        // Prywatne pola (notatki, głosy, przydział, oświadczenia) doklejane z węzłów chronionych.
+        snapshot.forEach(child => { globalIncidents.push(fiaApplyPrivate({ id: child.key, ...child.val() })); });
         const currentIncidentIds = new Set(globalIncidents.map(r => r.id));
         if (knownIncidentIds) {
             globalIncidents.forEach(r => {
@@ -11757,7 +12049,12 @@ window.addEventListener("DOMContentLoaded", () => {
             const statsSecEl = document.getElementById("statsSection");
             if (statsSecEl && statsSecEl.classList.contains("active")) renderStats();
         }
-    });
+        fiaSyncPrivateListeners();
+        fiaMaybeMigrate();
+    };
+    database.ref("incidents").on("value", fiaHandleIncidents);
+    // Ponowne przeliczenie listy spraw, gdy zmienią się dane prywatne (notatki, głosy, oświadczenia).
+    window.fiaRerenderIncidents = () => { if (fiaLastIncidentsSnap) fiaHandleIncidents(fiaLastIncidentsSnap); };
 
     database.ref("appeals").on("value", (snapshot) => {
         globalAppeals = [];
@@ -11781,19 +12078,15 @@ window.addEventListener("DOMContentLoaded", () => {
             const statsSecEl2 = document.getElementById("statsSection");
             if (statsSecEl2 && statsSecEl2.classList.contains("active")) renderStats();
         }
+        fiaSyncPrivateListeners();
     });
 
     // Kosz wczytywany jest dopiero po zalogowaniu do panelu (listenToTrash) — nie jest publiczny.
 
     loadSeasonSettings();
 
-    database.ref("chat").on("value", (snapshot) => {
-        const data = snapshot.val();
-        globalChatData = data;
-
-        renderAdminChatBox();
-        renderPlayerChatBox();
-    });
+    // Czat: stewardzi czytają wszystkie czaty (chats/…), kierowca tylko czaty swoich spraw.
+    fiaSyncPrivateListeners();
 
     initFormDropdowns();
     initAdminTrackFilter();
@@ -12312,7 +12605,7 @@ function renderTemplateSelect() {
     });
     sel.value = verdictTemplates[cur] ? cur : "";
 }
-database.ref("verdictTemplates").on("value", snap => { verdictTemplates = snap.val() || {}; renderTemplateSelect(); });
+database.ref("verdictTemplates").on("value", snap => { verdictTemplates = snap.val() || {}; renderTemplateSelect(); }, () => {}); // tylko dla stewardów
 function applyVerdictTemplate(key) {
     const t = verdictTemplates[key];
     if (!t) return;
@@ -12356,7 +12649,7 @@ async function deleteVerdictTemplate() {
 <script>
 /* === ROZBUDOWA 122: historia kierowcy w werdykcie, konflikt interesów, masowe przejmowanie, licznik zaległych, wykrywanie duplikatów === */
 function conflictOf(inc) {
-    if (!inc || !loggedInSteward || loggedInSteward.id === "external-judge") return null;
+    if (!inc || !loggedInSteward) return null;
     const me = String(loggedInSteward.id);
     if (String(inc.discordId) === me) return "zgłaszającym";
     if (String(inc.accusedDiscordId) === me) return "oskarżonym";
@@ -12881,7 +13174,7 @@ vcHideIncomingOverlay = function () {
         const memRef = database.ref("voiceMembers/" + chId);
         const meRef = memRef.child(st.myId);
         const myId = st.myId;
-        const mePayload = () => ({ name: m.name, role: m.role, discordId: m.id, muted: st.muted, deaf: st.deaf, joinedAt: firebase.database.ServerValue.TIMESTAMP });
+        const mePayload = () => ({ name: String(m.name || "").slice(0, 60), role: m.role, discordId: m.id, muted: st.muted, deaf: st.deaf, joinedAt: firebase.database.ServerValue.TIMESTAMP });
 
         // 1) najpierw nasłuch sygnałów, dopiero potem ogłaszamy obecność — nikt nie wyśle oferty w próżnię
         const sigH = sigRef.on("child_added", onSignal);
@@ -13063,13 +13356,43 @@ vcHideIncomingOverlay = function () {
     };
 
     /* ---------- obecność (kto jest na kanałach) ---------- */
+    // Stewardzi widzą wszystkie kanały; kierowca czyta tylko kanały swoich spraw (voiceMembers/{kanał}) —
+    // inaczej mógłby podejrzeć, kto siedzi na kanale sędziowskim albo w cudzych sprawach.
+    let presenceMode = null;
+    const ownPresenceSubs = new Map();
+    function syncOwnPresence() {
+        const want = new Set(channelList().map(c => c.id));
+        if (st.ch) want.add(st.ch);
+        ownPresenceSubs.forEach((sub, ch) => {
+            if (want.has(ch)) return;
+            try { sub.ref.off("value", sub.h); } catch (e) {}
+            ownPresenceSubs.delete(ch);
+            delete presence[ch];
+        });
+        want.forEach(ch => {
+            if (ownPresenceSubs.has(ch)) return;
+            const ref = database.ref("voiceMembers/" + ch);
+            const h = ref.on("value", s => { const v = s.val(); if (v) presence[ch] = v; else delete presence[ch]; render(); }, () => {});
+            ownPresenceSubs.set(ch, { ref, h });
+        });
+    }
     function attachPresence() {
-        presenceRef = database.ref("voiceMembers");
-        presenceHandler = presenceRef.on("value", s => { presence = s.val() || {}; render(); });
+        const m = me();
+        presenceMode = m && m.role === "steward" ? "all" : "own";
+        if (presenceMode === "all") {
+            presenceRef = database.ref("voiceMembers");
+            presenceHandler = presenceRef.on("value", s => { presence = s.val() || {}; render(); }, () => {});
+        } else {
+            presenceRef = true; // znacznik: nasłuchy pojedynczych kanałów
+            presence = {};
+            syncOwnPresence();
+        }
     }
     function detachPresence() {
-        if (presenceRef && presenceHandler) presenceRef.off("value", presenceHandler);
-        presenceRef = null; presenceHandler = null; presence = {};
+        if (presenceRef && presenceRef !== true && presenceHandler) presenceRef.off("value", presenceHandler);
+        ownPresenceSubs.forEach(sub => { try { sub.ref.off("value", sub.h); } catch (e) {} });
+        ownPresenceSubs.clear();
+        presenceRef = null; presenceHandler = null; presence = {}; presenceMode = null;
     }
     const panel = $("vvPanel");
     panel.addEventListener("click", e => {
@@ -13088,7 +13411,8 @@ vcHideIncomingOverlay = function () {
         const m = me(), fab = $("vvFab");
         fab.style.display = m ? "flex" : "none";
         if (!m) { if (presenceRef) { detachPresence(); } if (st.ch) leave(); $("vvPanel").classList.remove("open"); panelOpen = false; return; }
-        if (!presenceRef) attachPresence();
+        if (presenceRef && presenceMode !== (m.role === "steward" ? "all" : "own")) detachPresence();
+        if (!presenceRef) attachPresence(); else if (presenceMode === "own") syncOwnPresence();
         if (panelOpen && ++eligTick % 3 === 0) render();
     }, 1500);
 
@@ -13283,7 +13607,7 @@ function restorablePathKind(parts) {
 
 window.restoreAllFromLogs = async function () {
     if (!canRestoreLogs()) return alert(L("Brak uprawnień do przywracania danych z logów.", "Not authorized to restore data from logs."));
-    const sources = [...globalLogs, ...globalDeletedLogs].filter(l => l.restore && Array.isArray(l.restore.items));
+    const sources = [...globalLogs, ...globalDeletedLogs].filter(l => l.restore && Array.isArray(l.restore.items) && fiaLogWrittenByStaff(l));
     const best = {};
     sources.forEach(l => l.restore.items.forEach(it => {
         if (!it || !it.path || it.data === null || it.data === undefined) return;
@@ -13676,7 +14000,7 @@ function voteScopeFromForm() {
 }
 function myVoterKey() {
     if (!loggedInSteward) return null;
-    const base = loggedInSteward.id === "external-judge" ? "ext_" + loggedInSteward.nick : String(loggedInSteward.id || loggedInSteward.nick);
+    const base = String(loggedInSteward.id || loggedInSteward.nick);
     return base.replace(/[.#$\[\]\/]/g, "_");
 }
 function votesFor(inc, scope) {
@@ -14061,7 +14385,7 @@ window.addEventListener("submit", e => {
 const MODAL_CLOSERS = {
     descModal: "closeDescModal", appealEditModal: "closeAppealEditModal", appealVerdictEditModal: "closeAppealVerdictEditModal",
     logVerdictPreviewModal: "closeLogVerdictPreview", reportPreviewModal: "closeReportPreview", bulletinModal: "closeBulletin",
-    adminLoginModal: "closeAdminLogin", externalJudgeModal: "closeExternalJudgeLogin"
+    adminLoginModal: "closeAdminLogin"
 };
 const isTyping = el => el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 document.addEventListener("keydown", e => {
@@ -15334,7 +15658,6 @@ html[data-theme] #lvTabs .split-tab-btn.active{background:var(--red);border-colo
 
 .lv-person{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;margin-bottom:8px;background:var(--bg-deep);border:1px solid var(--border);border-left:3px solid var(--lv-k,#64748b);border-radius:4px;}
 .lv-person.k-steward{--lv-k:var(--red);}
-.lv-person.k-judge{--lv-k:#a855f7;}
 .lv-person.k-driver{--lv-k:#3b82f6;}
 .lv-person.k-guest{--lv-k:#64748b;}
 .lv-person.st-idle,.lv-person.st-hidden{opacity:.6;}
@@ -15350,7 +15673,6 @@ html[data-theme] #lvTabs .split-tab-btn.active{background:var(--red);border-colo
 .lv-name em{font-style:normal;font-weight:600;color:var(--green-text);font-size:11px;margin-left:4px;}
 .lv-kind{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;}
 .lv-kind.k-steward{color:var(--red-text);border-color:rgba(225,6,0,.4);background:rgba(225,6,0,.08);}
-.lv-kind.k-judge{color:var(--purple-text);border-color:rgba(168,85,247,.45);background:rgba(168,85,247,.08);}
 .lv-kind.k-driver{color:#60a5fa;border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.08);}
 html[data-theme="light"] .lv-kind.k-driver,html[data-theme="graphite"] .lv-kind.k-driver{color:#1d4ed8;}
 .lv-since{margin-left:auto;font-size:11px;color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums;}
@@ -15392,8 +15714,8 @@ html[data-theme="light"] button.lv-case:hover,html[data-theme="graphite"] button
 .lv-diag pre{white-space:pre-wrap;word-break:break-word;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;padding:10px 12px;font-size:11px;color:var(--text);margin:8px 0;}
 
 .lv-rowchips .lv-chip{font-weight:700;cursor:default;}
-.lv-chip.k-steward,.lv-chip.k-judge{color:var(--green-text);border-color:rgba(16,185,129,.5);}
-.lv-chip.k-steward.work,.lv-chip.k-judge.work{color:#000;background:#fbbf24;border-color:#fbbf24;}
+.lv-chip.k-steward{color:var(--green-text);border-color:rgba(16,185,129,.5);}
+.lv-chip.k-steward.work{color:#000;background:#fbbf24;border-color:#fbbf24;}
 .lv-chip.k-driver{color:#60a5fa;border-color:rgba(59,130,246,.5);}
 html[data-theme="light"] .lv-chip.k-driver,html[data-theme="graphite"] .lv-chip.k-driver{color:#1d4ed8;}
 #lvVerdictWarn{display:none;margin-bottom:12px;padding:9px 12px;border-radius:4px;font-size:12px;line-height:1.5;}
@@ -15406,7 +15728,7 @@ html[data-theme="light"] .lv-chip.k-driver,html[data-theme="graphite"] .lv-chip.
 <script>
 /* ============================================================
    === ROZBUDOWA 128 — PODGLĄD NA ŻYWO: kto co robi w danym momencie ===
-   1. Każda otwarta karta strony (steward, sędzia gościnny, kierowca, gość) na bieżąco
+   1. Każda otwarta karta strony (steward, kierowca, gość) na bieżąco
       zgłasza, kim jest i co robi: zakładka, sprawa, otwarte okno, „pisze…”,
       bezczynność / karta w tle, kanał głosowy, rozmowa, telefon / komputer.
       Zapisywane są wyłącznie te flagi i identyfikatory — nigdy treść wpisywana w pola,
@@ -15486,8 +15808,8 @@ const ACT = {
 };
 // czynności, przy których dwóch stewardów naraz to potencjalna kolizja
 const WORK = new Set(["verdict", "appeal_verdict", "case_edit", "notes", "appeal_edit", "appeal_verdict_edit"]);
-const KIND = { steward: ["Steward", "Steward"], judge: ["Sędzia gościnny", "Guest judge"], driver: ["Kierowca", "Driver"], guest: ["Gość", "Guest"] };
-const KIND_ORDER = { steward: 0, judge: 1, driver: 2, guest: 3 };
+const KIND = { steward: ["Steward", "Steward"], driver: ["Kierowca", "Driver"], guest: ["Gość", "Guest"] };
+const KIND_ORDER = { steward: 0, driver: 1, guest: 2 };
 const STATE_ORDER = { active: 0, idle: 1, hidden: 2 };
 const actLabel = a => { const d = ACT[a] || ACT.other; return L(d[1], d[2]); };
 const actIcon = a => (ACT[a] || ACT.other)[0];
@@ -15504,9 +15826,8 @@ function avatarFor(id) {
 function identity() {
     const st = g(() => (isAdminAuthenticated && loggedInSteward) ? loggedInSteward : null);
     if (st) {
-        const ext = st.id === "external-judge";
-        return { kind: ext ? "judge" : "steward", role: "steward", name: clip(st.nick || "Steward", 60),
-                 discordId: ext ? "" : clip(st.id, 30), rank: clip(st.role, 40), avatar: ext ? "" : avatarFor(st.id) };
+        return { kind: "steward", role: "steward", name: clip(st.nick || "Steward", 60),
+                 discordId: clip(st.id, 30), rank: clip(st.role, 40), avatar: avatarFor(st.id) };
     }
     const d = g(() => discordDriverAuth);
     if (d && d.id) {
@@ -15516,7 +15837,7 @@ function identity() {
     return { kind: "guest", role: "player", name: "Gość", discordId: "", rank: "", avatar: "" };
 }
 // Podgląd (zakładka, znaczniki w panelu, ostrzeżenia) widzi WYŁĄCZNIE Główny Steward (oraz ROOT).
-// Pozostali stewardzi, sędziowie gościnni i kierowcy tylko zgłaszają swoją obecność — niczego nie widzą.
+// Pozostali stewardzi i kierowcy tylko zgłaszają swoją obecność — niczego nie widzą.
 const LEAD_ROLES = ["Główny Steward", "ROOT"];
 const canView = () => { const me = identity(); return me.kind === "steward" && LEAD_ROLES.includes(me.rank); };
 
@@ -15540,7 +15861,7 @@ function formDraft() { return ["details", "accusedNick", "accusedDiscordId", "ev
 function detect() {
     const me = identity(), sec = activeSection();
     let a = "other", c = "", x = "";
-    if (shown("adminLoginModal") || shown("externalJudgeModal")) a = "login";
+    if (shown("adminLoginModal")) a = "login";
     else if (shown("descModal")) {
         c = g(() => currentlyEditedReportId) || "";
         const notes = $("modalNotesField");
@@ -15616,7 +15937,7 @@ function buildPayload() {
     if (key !== W.sinceKey) { W.sinceKey = key; W.since = sNow(); }
     if (!W.joinedAt) W.joinedAt = sNow();
     return {
-        v: 1, kind: me.kind, role: me.role, name: me.name, discordId: me.discordId, rank: me.rank, avatar: me.avatar,
+        v: 1, uid: String(g(() => currentUid()) || ""), kind: me.kind, role: me.role, name: me.name, discordId: me.discordId, rank: me.rank, avatar: me.avatar,
         act: d.a, c: d.c, x: d.x, sec: d.sec,
         typing: n - lastType < TYPING_MS,
         state: document.hidden ? "hidden" : (n - lastInput > IDLE_MS ? "idle" : "active"),
@@ -15652,6 +15973,7 @@ async function setWithFallback(payload) {
 }
 
 async function writeNow() {
+    if (!g(() => currentUid())) return; // niezalogowani nie zapisują obecności (reguły i tak by odrzuciły)
     if (W.busy) { W.pending = true; return; }
     const gap = Date.now() - W.lastWrite;
     if (gap < MIN_WRITE_GAP) { clearTimeout(W.timer); W.timer = setTimeout(tick, MIN_WRITE_GAP - gap + 10); return; }
@@ -15943,8 +16265,8 @@ function updateMenu() {
     const ppl = people(sessions()).filter(p => !p.self);
     const cnt = $("liveMenuCount"); if (cnt) cnt.textContent = ppl.length ? String(ppl.length) : "";
     const k = kk => ppl.filter(p => kk.includes(p.kind)).length;
-    btn.title = L(`Teraz na stronie: stewardzi ${k(["steward", "judge"])}, kierowcy ${k(["driver"])}, goście ${k(["guest"])}`,
-                  `On the site now: stewards ${k(["steward", "judge"])}, drivers ${k(["driver"])}, guests ${k(["guest"])}`);
+    btn.title = L(`Teraz na stronie: stewardzi ${k(["steward"])}, kierowcy ${k(["driver"])}, goście ${k(["guest"])}`,
+                  `On the site now: stewards ${k(["steward"])}, drivers ${k(["driver"])}, guests ${k(["guest"])}`);
     btn.style.borderBottomColor = liveActive() ? "var(--green-text)" : "transparent";
 }
 
@@ -16010,7 +16332,7 @@ function casesHtml(list) {
         const byPerson = new Map();
         gr.ss.sort(rankSession).forEach(s => { if (!byPerson.has(pkey(s))) byPerson.set(pkey(s), s); });
         const ss = [...byPerson.values()];
-        const workers = ss.filter(s => (s.kind === "steward" || s.kind === "judge") && WORK.has(s.act));
+        const workers = ss.filter(s => s.kind === "steward" && WORK.has(s.act));
         return { ci: gr.ci, ss, conflict: workers.length >= 2 };
     }).sort((a, b) => (b.conflict - a.conflict) || (b.ss.length - a.ss.length));
     return arr.map(gr => {
@@ -16039,7 +16361,7 @@ function feedHtml() {
 function renderLive() {
     if (!liveActive()) return;
     const list = sessions(), ppl = people(list);
-    const staff = ppl.filter(p => p.kind === "steward" || p.kind === "judge");
+    const staff = ppl.filter(p => p.kind === "steward");
     const drivers = ppl.filter(p => p.kind === "driver"), guests = ppl.filter(p => p.kind === "guest");
     const typingN = ppl.filter(p => p.sessions.some(s => s.typing)).length;
     const voiceN = ppl.filter(p => p.sessions.some(s => s.voice || s.call)).length;
@@ -16088,13 +16410,9 @@ function renderConn() {
     }
 }
 
-const RULES_SNIPPET = `"presence": {
-  ".read": "auth != null",
-  "$sesja": {
-    ".write": "$sesja.matches(/^[a-z0-9]{8,24}$/)",
-    ".validate": "newData.hasChildren(['kind', 'name', 'act']) && newData.child('name').isString() && newData.child('name').val().length <= 60"
-  }
-},`;
+const RULES_SNIPPET = `Reguła dla „presence” jest już w pliku database.rules.json dołączonym do tej wersji strony:
+czytać mogą tylko stewardzi, zapisywać tylko zalogowani członkowie ligi — każdy wyłącznie własne wpisy
+(pole uid = jego konto), a jako „steward” może się przedstawić tylko prawdziwy steward.`;
 function renderDiag() {
     const body = $("lvDiagBody"), sum = $("lvDiagSummary");
     if (!body || !liveActive()) return;
@@ -16179,7 +16497,7 @@ function renderVerdictWarn() {
     if (!box) return;
     const v = canView() && shown("adminSection") ? verdictTarget() : null;
     const ci = v ? caseInfo(v.c) : null;
-    const arr = ci ? (othersOnCases().get(ci.key) || []).filter(s => s.kind === "steward" || s.kind === "judge") : [];
+    const arr = ci ? (othersOnCases().get(ci.key) || []).filter(s => s.kind === "steward") : [];
     if (!arr.length) { box.style.display = "none"; box.innerHTML = ""; return; }
     const work = arr.filter(s => WORK.has(s.act)), view = arr.filter(s => !WORK.has(s.act));
     box.className = work.length ? "work" : "view";
@@ -16195,7 +16513,7 @@ function renderDescViewers() {
     const id = canView() && shown("descModal") ? g(() => currentlyEditedReportId) : null;
     const arr = id ? (othersOnCases().get((caseInfo(id) || {}).key || id) || []) : [];
     if (!arr.length) { box.style.display = "none"; box.innerHTML = ""; return; }
-    box.className = arr.some(s => (s.kind === "steward" || s.kind === "judge") && WORK.has(s.act)) ? "work" : "";
+    box.className = arr.some(s => s.kind === "steward" && WORK.has(s.act)) ? "work" : "";
     box.innerHTML = `🟢 ${esc(L("Teraz przy tej sprawie", "Right now on this case"))}: ${whoLine(arr)}`;
     box.style.display = "block";
 }
@@ -16273,7 +16591,6 @@ window.fiaLive = { sid: SID, state: () => ({ write: Object.assign({}, W), read: 
     <div class="rz-gate-actions">
       <button type="button" id="rzGateDriverBtn" class="discord-login-btn" onclick="loginWithDiscord()"><span id="rzGateDriverLabel">Zaloguj przez Discord</span></button>
       <button type="button" id="rzGateStewardBtn" class="btn-secondary" onclick="loginWithDiscordAdmin()">Panel stewarda (Discord)</button>
-      <button type="button" id="rzGateJudgeBtn" class="btn-secondary" onclick="openExternalJudgeLogin()">Sędzia spoza ligi (hasło)</button>
     </div>
     <div class="rz-gate-spinner" aria-hidden="true"></div>
   </div>
@@ -16400,7 +16717,7 @@ const short = (s, n) => { s = String(s == null ? "" : s); n = n || 60; return s.
 const perms = () => (loggedInSteward && loggedInSteward.permissions) || {};
 const isRoot = () => !!loggedInSteward && (loggedInSteward.role === "Główny Steward" || loggedInSteward.role === "ROOT");
 const isOwner = () => typeof isLeagueOwner === "function" && isLeagueOwner();
-const canEdit = () => !!isAdminAuthenticated && !!loggedInSteward && loggedInSteward.id !== "external-judge" && (isRoot() || isOwner() || !!perms().manage_settings);
+const canEdit = () => !!isAdminAuthenticated && !!loggedInSteward && (isRoot() || isOwner() || !!perms().manage_settings);
 const myNick = () => (loggedInSteward && loggedInSteward.nick) || "ADMIN";
 const fmtDate = ts => { try { return new Date(ts).toLocaleString("pl-PL"); } catch (e) { return ""; } };
 const toast = (t, b) => { try { if (typeof showToast === "function") showToast(t, b); } catch (e) {} };
@@ -17716,10 +18033,12 @@ const DB_NAMES = {
     textOverrides: "Zmienione teksty strony", appearance: "Wygląd", announcement: "Ogłoszenie",
     reportWindow: "Ręczna blokada zgłoszeń", reportSchedule: "Harmonogram otwierania zgłoszeń", season: "Sezon", calendar: "Kalendarz", suspensions: "Zawieszenia",
     voting: "Głosowanie", bulletin: "Biuletyn", permissions: "Uprawnienia", statements: "Oświadczenia stron",
-    customFields: "Rubryki formularzy / dodatkowe rubryki"
+    customFields: "Rubryki formularzy / dodatkowe rubryki",
+    staffIncidents: "Dane wewnętrzne spraw (notatki, głosy, przydział)", caseStatements: "Oświadczenia stron (wg Discord ID)",
+    presence: "Obecność na stronie", rate: "Znaczniki limitów"
 };
 DB_NAMES[EVIDENCE_NODE] = "Pliki dowodów";
-const DB_ROOT_FALLBACK = ["incidents", "appeals", "stewards", "settings", "action_logs", "deleted_action_logs", "trash", "chat", "verdictTemplates", "incident_counter", "appeal_counter", "counters", EVIDENCE_NODE];
+const DB_ROOT_FALLBACK = ["incidents", "appeals", "staffIncidents", "caseStatements", "chats", "stewards", "settings", "action_logs", "deleted_action_logs", "trash", "chat", "verdictTemplates", "incident_counter", "appeal_counter", "counters", EVIDENCE_NODE];
 const DB_PAGE = 100;
 const DB_PREVIEW_FIELDS = ["nick", "accusedNick", "status", "decision", "track", "category", "split", "role", "steward", "title", "name", "category", "details", "text", "message", "from"];
 
@@ -18306,7 +18625,7 @@ const L = (pl, en) => (typeof currentLang !== "undefined" && currentLang === "en
 const perms = () => (loggedInSteward && loggedInSteward.permissions) || {};
 const isRoot = () => !!loggedInSteward && (loggedInSteward.role === "Główny Steward" || loggedInSteward.role === "ROOT");
 const isOwner = () => typeof isLeagueOwner === "function" && isLeagueOwner();
-const canManage = () => !!isAdminAuthenticated && !!loggedInSteward && loggedInSteward.id !== "external-judge" && (isRoot() || isOwner() || !!perms().manage_settings);
+const canManage = () => !!isAdminAuthenticated && !!loggedInSteward && (isRoot() || isOwner() || !!perms().manage_settings);
 const canEditReports = () => !!loggedInSteward && (isRoot() || !!perms().edit_reports);
 const canEditAppeals = () => !!loggedInSteward && (isRoot() || !!perms().edit_appeals);
 const myNick = () => (loggedInSteward && loggedInSteward.nick) || "ADMIN";
@@ -19379,7 +19698,7 @@ const short = (s, n) => { s = String(s == null ? "" : s); n = n || 60; return s.
 const perms = () => (loggedInSteward && loggedInSteward.permissions) || {};
 const isRoot = () => !!loggedInSteward && (loggedInSteward.role === "Główny Steward" || loggedInSteward.role === "ROOT");
 const isOwner = () => typeof isLeagueOwner === "function" && isLeagueOwner();
-const canEdit = () => !!isAdminAuthenticated && !!loggedInSteward && loggedInSteward.id !== "external-judge" && (isRoot() || isOwner() || !!perms().manage_settings);
+const canEdit = () => !!isAdminAuthenticated && !!loggedInSteward && (isRoot() || isOwner() || !!perms().manage_settings);
 const myNick = () => (loggedInSteward && loggedInSteward.nick) || "ADMIN";
 const toast = (t, b) => { try { if (typeof showToast === "function") showToast(t, b); } catch (e) {} };
 const plural = (n, a, b, c) => n === 1 ? a : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? b : c;
