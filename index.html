@@ -21683,6 +21683,7 @@ if (chatInputRow && !$("chatDmTarget")) {
             <label for="chatDmTarget" style="margin:0; font-size:11px;">📩 Powiadomienie na PV:</label>
             <select id="chatDmTarget" title="Bot ligi wyśle kierowcom prywatną wiadomość na Discordzie z podglądem tej wiadomości i linkiem do czatu sprawy"
                     style="width:auto; max-width:100%; min-width:0; padding:5px 8px; font-size:12px;"></select>
+            <span id="chatDmStatus" style="font-size:11px; letter-spacing:0;" title="Wynik ostatniego powiadomienia na PV"></span>
         </div>`);
 }
 
@@ -21731,39 +21732,60 @@ const DM_ERR = {
     discord_rate_limited: "Discord chwilowo ogranicza wysyłkę",
     network: "błąd połączenia z Discordem"
 };
-let workerWarned = false;
-function warnWorkerOnce(body) {
-    if (workerWarned) return;
-    workerWarned = true;
-    showToast("⚠️ Powiadomienia PV nie działają", body);
+// Każdy wynik (także „nic nie wysłano”) widać w toaście i w linii obok wyboru odbiorców —
+// toast znika po kilku sekundach, linia zostaje do następnej wiadomości.
+function setDmStatus(ok, text) {
+    const el = $("chatDmStatus");
+    if (!el) return;
+    const t = new Date();
+    el.textContent = `${ok === true ? "✅" : ok === false ? "❌" : "ℹ️"} ${text} · ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+    el.style.color = ok === true ? "var(--green-text)" : ok === false ? "var(--red-text, #ef4444)" : "var(--text-dim)";
+}
+function dmProblem(title, body) {
+    console.warn("[PV]", title, body);
+    showToast(title, body);
+    setDmStatus(false, body);
 }
 
 function reportDmResult(caseId, data) {
-    if (!data || data.already) return;
+    console.info("[PV] wynik /chat/dm:", caseId, data);
+    if (!data) return;
+    if (data.already) { setDmStatus(null, "ta wiadomość była już rozesłana"); return; }
     const info = caseParties(caseId);
-    const nick = id => { const p = info && info.parties.find(x => x.id === String(id)); return p ? p.nick : String(id); };
+    const nick = id => { const p = info && info.parties.find(x => x.id === String(id)); return p ? p.nick : String(id || "?"); };
+    const sk = data.skipped || [];
     const sent = (data.sent || []).map(s => nick(s.id));
     const failed = (data.failed || []).map(f => `${nick(f.id)} — ${DM_ERR[f.error] || f.error || "błąd"}`);
-    const skipped = (data.skipped || []).filter(s => s.reason === "cooldown").map(s => nick(s.id));
+    const cooldown = sk.filter(s => s.reason === "cooldown").map(s => nick(s.id));
+    const self = sk.filter(s => s.reason === "self").map(s => nick(s.id));
+    const noId = sk.filter(s => s.reason === "no_discord_id").map(s => s.role === "accused" ? "oskarżony" : s.role === "reporter" ? "zgłaszający" : "apelujący");
     const caseLabel = info ? info.display : caseId;
     const parts = [];
     if (sent.length) parts.push("Wysłano: " + sent.join(", "));
     if (failed.length) parts.push("Nie dotarło: " + failed.join("; "));
-    if (skipped.length) parts.push(`Pominięto (PV o tej sprawie poszło przed chwilą): ${skipped.join(", ")}`);
-    if (!parts.length) return;
-    const title = failed.length ? "⚠️ PV nie dotarło do wszystkich" : sent.length ? "📩 Powiadomiono na PV" : "📩 Bez nowego PV";
+    if (cooldown.length) parts.push(`Pominięto — dostał PV o tej sprawie przed chwilą (przerwa 3 min): ${cooldown.join(", ")}`);
+    if (self.length) parts.push(`Pominięto — to Ty (sam sobie PV nie wyślesz; do testu napisz w sprawie innego kierowcy)`);
+    if (noId.length) parts.push(`Brak Discord ID: ${noId.join(", ")}`);
+    if (!parts.length) parts.push("brak odbiorców");
+    const title = failed.length ? "⚠️ PV nie dotarło do wszystkich" : sent.length ? "📩 Powiadomiono na PV" : "📩 PV nie wysłane";
     showToast(title, `${caseLabel} · ${parts.join(" · ")}`);
+    setDmStatus(sent.length && !failed.length ? true : sent.length ? null : false, parts.join(" · "));
 }
 
 window.fiaChatDmNotify = async function (caseId, msgId) {
     if (!caseId || caseId === "Ogólny" || !msgId) return;
     const sel = $("chatDmTarget");
     const target = sel && sel.dataset.case === caseId ? sel.value : "all";
-    if (target === "off") return;
     const info = caseParties(caseId);
-    if (!info || !info.parties.length) return;
+    if (target === "off") {
+        setDmStatus(info && !info.parties.length ? false : null, info && !info.parties.length ? "kierowcy nie mają poprawnego Discord ID — PV nie da się wysłać" : "PV wyłączone dla tej wiadomości");
+        return;
+    }
+    if (!info) return dmProblem("📩 PV nie wysłane", `Nie znaleziono sprawy ${caseId} na liście.`);
+    if (!info.parties.length) return dmProblem("📩 PV nie wysłane", `${info.display}: kierowcy nie mają poprawnego Discord ID.`);
     const user = fbAuth && fbAuth.currentUser;
-    if (!user) return;
+    if (!user) return dmProblem("📩 PV nie wysłane", "Sesja logowania wygasła — zaloguj się ponownie przez Discord.");
+    setDmStatus(null, "wysyłanie PV…");
     let res, data = null;
     try {
         const idToken = await user.getIdToken();
@@ -21775,17 +21797,14 @@ window.fiaChatDmNotify = async function (caseId, msgId) {
         try { data = await res.json(); } catch (e) {}
     } catch (e) {
         console.warn("[PV] /chat/dm:", e);
-        warnWorkerOnce("Brak połączenia z Workerem „fia-guard” — spróbuj ponownie za chwilę.");
-        return;
+        return dmProblem("⚠️ PV nie wysłane", "Brak połączenia z Workerem „fia-guard” (sieć albo CORS) — sprawdź, czy wdrożono nowy fia-guard.js.");
     }
     if (!res.ok) {
         const code = data && data.error;
         if (res.status === 404 && (!code || code === "not_found")) {
-            warnWorkerOnce("Worker „fia-guard” nie zna jeszcze /chat/dm — wdróż jego nową wersję (plik fia-guard.js).");
-            return;
+            return dmProblem("⚠️ PV nie działają", "Worker „fia-guard” nie zna jeszcze /chat/dm — wklej nowy fia-guard.js w Cloudflare i kliknij Deploy.");
         }
-        showToast("⚠️ PV nie wysłane", ERR[code] || guardErrorText(code, res.status));
-        return;
+        return dmProblem("⚠️ PV nie wysłane", (ERR[code] || guardErrorText(code, res.status)) + (code ? ` (${code})` : ` (HTTP ${res.status})`));
     }
     reportDmResult(caseId, data);
 };
