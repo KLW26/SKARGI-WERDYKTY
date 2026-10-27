@@ -4172,6 +4172,12 @@
                                 <input type="checkbox" id="perm_delete_verdicts" style="width: auto; margin: 0; cursor: pointer;"> Usuwanie wydanych werdyktów (DELV)
                             </label>
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_delete_reports" style="width: auto; margin: 0; cursor: pointer;"> Usuwanie zgłoszeń (DELINC)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
+                                <input type="checkbox" id="perm_delete_appeals" style="width: auto; margin: 0; cursor: pointer;"> Usuwanie apelacji (DELAPP)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer;">
                                 <input type="checkbox" id="perm_edit_appeal_verdicts" style="width: auto; margin: 0; cursor: pointer;"> Edycja werdyktów wydanych w apelacji (APPVERDICT)
                             </label>
                             <label style="display: flex; align-items: center; gap: 10px; text-transform: none; font-size: 12px; color: var(--text); cursor: pointer; border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 4px;">
@@ -4963,7 +4969,7 @@ const R2_WORKER_URL = "https://fia-upload-presign.andrzejkedzior170.workers.dev"
 const LEAGUE_OWNER_PERMISSIONS = {
     review_incidents: true, review_appeals: true, manage_users: true, access_trash: true,
     edit_reports: true, edit_notes: true, edit_appeals: true, clear_chat: true, manage_settings: true,
-    delete_verdicts: true, edit_appeal_verdicts: true, no_lock_restrictions: true
+    delete_verdicts: true, delete_reports: true, delete_appeals: true, edit_appeal_verdicts: true, no_lock_restrictions: true
 };
 function isOwnerId(discordId) {
     const uid = currentUid();
@@ -5877,6 +5883,21 @@ function canOpenUsersSection() {
 }
 function canOpenTrash() {
     return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && loggedInSteward.permissions && loggedInSteward.permissions.access_trash);
+}
+// Dedykowane uprawnienia usuwania zgłoszeń (DELINC → delete_reports) i apelacji (DELAPP → delete_appeals).
+// Konta zapisane, zanim te uprawnienia istniały, nie mają tych kluczy w bazie — dla nich obowiązuje
+// dotychczasowa zasada (usuwanie razem z uprawnieniem TRSH), żeby nikt nie stracił dostępu do czasu
+// ponownego zapisania stewarda w panelu „Użytkownicy i Role”. Po zapisie decyduje już sam checkbox.
+function stewardDeletePerm(perms, key) {
+    if (!perms) return false;
+    if (typeof perms[key] === "boolean") return perms[key];
+    return !!perms.access_trash;
+}
+function canDeleteReports() {
+    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && stewardDeletePerm(loggedInSteward.permissions, "delete_reports"));
+}
+function canDeleteAppeals() {
+    return stewardIsRootLike() || !!(isAdminAuthenticated && loggedInSteward && stewardDeletePerm(loggedInSteward.permissions, "delete_appeals"));
 }
 
 let isAdminAuthenticated = false;
@@ -7471,7 +7492,7 @@ function applyStewardPermissions() {
     if (trashBtn) trashBtn.style.display = (isRoot || perms.access_trash) ? "inline-block" : "none";
 
     const deleteAllAppealsBtn = document.getElementById("btnDeleteAllAppeals");
-    if (deleteAllAppealsBtn) deleteAllAppealsBtn.style.display = (isRoot || perms.access_trash) ? "inline-block" : "none";
+    if (deleteAllAppealsBtn) deleteAllAppealsBtn.style.display = (isRoot || canDeleteAppeals()) ? "inline-block" : "none";
 
     const bulkBar = document.getElementById("bulkBar");
     if (bulkBar && !isRoot && !perms.review_incidents) bulkBar.style.display = "none";
@@ -7772,7 +7793,7 @@ function fetchAndRenderHistory(discordId) {
         return;
     }
 
-    if (isAdminAuthenticated) {
+    if (isAdminAuthenticated && (canDeleteReports() || canDeleteAppeals())) {
         const adminDeleteWrap = document.createElement("div");
         adminDeleteWrap.style.cssText = "margin-bottom:14px; text-align:right;";
         adminDeleteWrap.innerHTML = `
@@ -7839,7 +7860,7 @@ function fetchAndRenderHistory(discordId) {
             ${(hasEvidence(r) && !r.decisionData) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(r)}</p>` : ''}
             ${decisionBlock}
             <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
-                ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleReport('${jsAttr(r.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
+                ${(isAdminAuthenticated && canDeleteReports()) ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleReport('${jsAttr(r.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
                 <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${jsAttr(r.id)}')">💬 Czatuj o tej sprawie</button>
             </div>
         `;
@@ -7900,7 +7921,7 @@ function fetchAndRenderHistory(discordId) {
                 <div style="margin-top:8px;">${renderAppealEvidencePairHtml(a, relatedCaseForUserAppeal)}</div>
                 ${userAppVerdictBlock}
                 <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
-                    ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${jsAttr(a.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
+                    ${(isAdminAuthenticated && canDeleteAppeals()) ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${jsAttr(a.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
                     <button type="button" class="btn-success" style="padding:5px 12px; font-size:11px;" onclick="selectPlayerChatCase('${jsAttr(a.appealId)}')">💬 Czatuj o tej apelacji</button>
                 </div>
             `;
@@ -8322,7 +8343,7 @@ function renderAdmin() {
                     <button class="btn-verdict-transfer" onclick="transferToVerdictPanel('${jsAttr(r.id)}', '${jsAttr(r.accusedDiscordId)}')">Werdykt ⚖️</button>
                 `;
             }
-            if (perms.access_trash || isRoot) {
+            if (canDeleteReports() || isRoot) {
                 incActionsHtml += `<button style="background:#4b5563;" onclick="deleteReport('${jsAttr(r.id)}')">${escapeHtml(t.btnDelete)}</button>`;
             }
             if ((perms.review_incidents || isRoot) && loggedInSteward) {
@@ -8442,7 +8463,7 @@ function renderAdmin() {
             if (perms.edit_appeals || isRoot) {
                 appActionsHtml += `<button style="background:#6d28d9;" onclick="openAppealEditModal('${jsAttr(a.appealId)}')">✎ Edytuj</button>`;
             }
-            if (perms.access_trash || isRoot) {
+            if (canDeleteAppeals() || isRoot) {
                 appActionsHtml += `<button style="background:#4b5563;" onclick="deleteAppeal('${jsAttr(a.appealId)}')">Usuń</button>`;
             }
             if (!appActionsHtml) appActionsHtml = `<span style="font-size:10px; color:var(--text-dim); text-align:center;">Brak uprawnień</span>`;
@@ -9112,6 +9133,10 @@ async function editIncidentId(oldId) {
 }
 
 async function deleteReport(id) {
+    if (!canDeleteReports()) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania zgłoszeń (DELINC)." : "Not authorized to delete reports (DELINC).");
+        return;
+    }
     if (!confirm(langData[currentLang].confirmDelete)) return;
     try {
         const report = globalIncidents.find(r => r.id === id);
@@ -9125,6 +9150,10 @@ async function deleteReport(id) {
     }
 }
 async function deleteAppeal(id) {
+    if (!canDeleteAppeals()) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania apelacji (DELAPP)." : "Not authorized to delete appeals (DELAPP).");
+        return;
+    }
     if (!confirm("Czy na pewno chcesz usunąć tę apelację z bazy danych?")) return;
     try {
         const appeal = globalAppeals.find(a => a.id === id);
@@ -9140,7 +9169,7 @@ async function deleteAppeal(id) {
 
 async function deleteAllAppeals() {
     const isRootDel = loggedInSteward?.role === "ROOT" || loggedInSteward?.role === "Główny Steward";
-    const canDeleteAll = isRootDel || !!(loggedInSteward?.permissions && loggedInSteward.permissions.access_trash);
+    const canDeleteAll = isRootDel || canDeleteAppeals();
     if (!canDeleteAll) return;
     // Migawka na stałe — globalAppeals odświeży się (na pusto) w trakcie usuwania,
     // gdy tylko pierwsze wpisy znikną z bazy, więc licznik liczymy raz, na starcie.
@@ -9406,8 +9435,8 @@ async function resendAppealVerdict(appealId) {
 
 
 async function adminDeleteSingleReport(id, discordId) {
-    if (!isAdminAuthenticated) {
-        alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usuwać wpisy z historii." : "Not authorized — only an admin can delete history entries.");
+    if (!isAdminAuthenticated || !canDeleteReports()) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania zgłoszeń (DELINC)." : "Not authorized to delete reports (DELINC).");
         return;
     }
     const report = globalIncidents.find(r => r.id === id);
@@ -9429,8 +9458,8 @@ async function adminDeleteSingleReport(id, discordId) {
 }
 
 async function adminDeleteSingleAppeal(id, discordId) {
-    if (!isAdminAuthenticated) {
-        alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usuwać wpisy z historii." : "Not authorized — only an admin can delete history entries.");
+    if (!isAdminAuthenticated || !canDeleteAppeals()) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania apelacji (DELAPP)." : "Not authorized to delete appeals (DELAPP).");
         return;
     }
     const appeal = globalAppeals.find(a => a.id === id);
@@ -9452,14 +9481,18 @@ async function adminDeleteSingleAppeal(id, discordId) {
 }
 
 async function adminDeleteAllHistory(discordId) {
-    if (!isAdminAuthenticated) {
-        alert(currentLang === 'pl' ? "Brak uprawnień — tylko administrator może usunąć całą historię." : "Not authorized — only an admin can delete the entire history.");
+    // Usuwa tylko to, do czego steward ma uprawnienie: zgłoszenia (DELINC) i/lub apelacje (DELAPP).
+    const allowReports = isAdminAuthenticated && canDeleteReports();
+    const allowAppeals = isAdminAuthenticated && canDeleteAppeals();
+    if (!allowReports && !allowAppeals) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania zgłoszeń (DELINC) ani apelacji (DELAPP)." : "Not authorized to delete reports (DELINC) or appeals (DELAPP).");
         return;
     }
     if (!discordId) return;
 
-    const reports = globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId);
-    const appeals = globalAppeals.filter(a => a.discordId === discordId);
+    const reports = allowReports ? globalIncidents.filter(r => r.discordId === discordId || r.accusedDiscordId === discordId) : [];
+    const appeals = allowAppeals ? globalAppeals.filter(a => a.discordId === discordId) : [];
+    const partialDelete = !allowReports || !allowAppeals;
 
     if (reports.length === 0 && appeals.length === 0) return;
 
@@ -9487,9 +9520,13 @@ async function adminDeleteAllHistory(discordId) {
             await database.ref().update(updates);
         }
 
-        alert(currentLang === 'pl'
-            ? "Cała historia użytkownika została usunięta. Możesz ją przywrócić z Kosza."
-            : "The user's entire history has been deleted. You can restore it from Trash.");
+        alert(partialDelete
+            ? (currentLang === 'pl'
+                ? `Usunięto ${reports.length} zgłoszeń i ${appeals.length} apelacji (tylko to, do czego masz uprawnienia). Możesz je przywrócić z Kosza.`
+                : `Deleted ${reports.length} reports and ${appeals.length} appeals (only what you're permitted to delete). You can restore them from Trash.`)
+            : (currentLang === 'pl'
+                ? "Cała historia użytkownika została usunięta. Możesz ją przywrócić z Kosza."
+                : "The user's entire history has been deleted. You can restore it from Trash."));
 
         fetchAndRenderHistory(discordId);
     } catch (err) {
@@ -9508,7 +9545,7 @@ function updateBulkActionsBar() {
     const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
     if (bulkDeleteBtn) {
         const isRoot = loggedInSteward?.role === "ROOT" || loggedInSteward?.role === "Główny Steward";
-        const canDelete = isRoot || !!(loggedInSteward?.permissions && loggedInSteward.permissions.access_trash);
+        const canDelete = isRoot || canDeleteReports();
         bulkDeleteBtn.style.display = canDelete ? "inline-flex" : "none";
     }
     if (selected.length > 0) {
@@ -9567,6 +9604,10 @@ async function bulkStatusUpdate(newStatus) {
 }
 
 async function bulkDelete() {
+    if (!canDeleteReports()) {
+        alert(currentLang === 'pl' ? "Brak uprawnień do usuwania zgłoszeń (DELINC)." : "Not authorized to delete reports (DELINC).");
+        return;
+    }
     const selected = document.querySelectorAll(".admin-row-cb:checked");
     if (selected.length === 0) return;
     if (!confirm(langData[currentLang].confirmDelete)) return;
@@ -11704,21 +11745,23 @@ function autoAssignPermissions() {
     const pChat = document.getElementById("perm_chat");
     const pSettings = document.getElementById("perm_settings");
     const pDeleteVerdicts = document.getElementById("perm_delete_verdicts");
+    const pDeleteReports = document.getElementById("perm_delete_reports");
+    const pDeleteAppeals = document.getElementById("perm_delete_appeals");
     const pEditAppealVerdicts = document.getElementById("perm_edit_appeal_verdicts");
     const pNoBlock = document.getElementById("perm_no_block");
 
     if (role === "Główny Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = true; pTrash.checked = true; pEdit.checked = true; pNotes.checked = true; pEditAppeals.checked = true; pChat.checked = true; pSettings.checked = true;
-        pDeleteVerdicts.checked = true; pEditAppealVerdicts.checked = true; pNoBlock.checked = true;
+        pDeleteVerdicts.checked = true; pDeleteReports.checked = true; pDeleteAppeals.checked = true; pEditAppealVerdicts.checked = true; pNoBlock.checked = true;
     } else if (role === "Steward") {
         pReview.checked = true; pAppeals.checked = true; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
+        pDeleteVerdicts.checked = false; pDeleteReports.checked = false; pDeleteAppeals.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
     } else if (role === "Junior Steward") {
         pReview.checked = true; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
+        pDeleteVerdicts.checked = false; pDeleteReports.checked = false; pDeleteAppeals.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
     } else {
         pReview.checked = false; pAppeals.checked = false; pUsers.checked = false; pTrash.checked = false; pEdit.checked = false; pNotes.checked = false; pEditAppeals.checked = false; pChat.checked = false; pSettings.checked = false;
-        pDeleteVerdicts.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
+        pDeleteVerdicts.checked = false; pDeleteReports.checked = false; pDeleteAppeals.checked = false; pEditAppealVerdicts.checked = false; pNoBlock.checked = false;
     }
 }
 
@@ -11752,6 +11795,8 @@ async function saveSteward(event) {
         clear_chat: document.getElementById("perm_chat").checked,
         manage_settings: document.getElementById("perm_settings").checked,
         delete_verdicts: document.getElementById("perm_delete_verdicts").checked,
+        delete_reports: document.getElementById("perm_delete_reports").checked,
+        delete_appeals: document.getElementById("perm_delete_appeals").checked,
         edit_appeal_verdicts: document.getElementById("perm_edit_appeal_verdicts").checked,
         no_lock_restrictions: document.getElementById("perm_no_block").checked
     };
@@ -11790,6 +11835,8 @@ function editSteward(discordId) {
     document.getElementById("perm_chat").checked = !!st.permissions?.clear_chat;
     document.getElementById("perm_settings").checked = !!st.permissions?.manage_settings;
     document.getElementById("perm_delete_verdicts").checked = !!st.permissions?.delete_verdicts;
+    document.getElementById("perm_delete_reports").checked = stewardDeletePerm(st.permissions, "delete_reports");
+    document.getElementById("perm_delete_appeals").checked = stewardDeletePerm(st.permissions, "delete_appeals");
     document.getElementById("perm_edit_appeal_verdicts").checked = !!st.permissions?.edit_appeal_verdicts;
     document.getElementById("perm_no_block").checked = !!st.permissions?.no_lock_restrictions;
 }
@@ -12029,6 +12076,8 @@ function renderStewardsTable() {
         if (st.permissions?.clear_chat) permsHtml += `<span class="badge" style="background:#ef4444; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #b91c1c;" title="Czyszczenie Czatu">CHAT</span>`;
         if (st.permissions?.manage_settings) permsHtml += `<span class="badge" style="background:#6366f1; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #4338ca;" title="Ustawienia i System">SYS</span>`;
         if (st.permissions?.delete_verdicts) permsHtml += `<span class="badge" style="background:#dc2626; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #991b1b;" title="Usuwanie Werdyktów">DELV</span>`;
+        if (stewardDeletePerm(st.permissions, "delete_reports")) permsHtml += `<span class="badge" style="background:#b91c1c; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #7f1d1d;" title="Usuwanie Zgłoszeń">DELINC</span>`;
+        if (stewardDeletePerm(st.permissions, "delete_appeals")) permsHtml += `<span class="badge" style="background:#be123c; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #881337;" title="Usuwanie Apelacji">DELAPP</span>`;
         if (st.permissions?.edit_appeal_verdicts) permsHtml += `<span class="badge" style="background:#9333ea; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #6b21a8;" title="Edycja Werdyktów Apelacji">APPVERDICT</span>`;
         if (st.permissions?.no_lock_restrictions) permsHtml += `<span class="badge" style="background:#0891b2; font-size:9px; margin-right:4px; padding:1px 4px; color:white; border: 1px solid #0e7490;" title="Nie Blokuj Niczego — Pełne Pominięcie Wszystkich Blokad">NOBLOCK</span>`;
 
