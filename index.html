@@ -5063,6 +5063,9 @@ async function postApprovalWebhook(options) {
 // trafia do sprawy jako jego oświadczenie. Stan prośby: staffIncidents/{sprawa}/accusedEvidence
 //   { status: requested | submitted | declined | dm_failed, requestedAt, deadline, override? }.
 // Dopóki oskarżony nie odpowie, a termin nie minął, nie można przyjąć zgłoszenia ani wydać werdyktu.
+// Termin na odpowiedź: ACCUSED_EVIDENCE_HOURS od wysłania prośby (requestedAt). Gdy Worker zapisze
+// dłuższy termin, strona i tak liczy ten krótszy; po jego upływie bez odpowiedzi blokada znika.
+const ACCUSED_EVIDENCE_HOURS = 12;
 async function requestAccusedEvidenceDm(caseId, opts) {
     const user = fbAuth && fbAuth.currentUser;
     if (!user) throw new Error(guardErrorText("login_required", 401));
@@ -5070,11 +5073,16 @@ async function requestAccusedEvidenceDm(caseId, opts) {
     const res = await fetch(`${GUARD_WORKER_URL}/accused/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-        body: JSON.stringify({ caseId, resend: !!(opts && opts.resend) })
+        body: JSON.stringify({ caseId, resend: !!(opts && opts.resend), again: !!(opts && opts.again) })
     });
     let data = null;
     try { data = await res.json(); } catch (e) {}
-    if (!res.ok) throw new Error(guardErrorText(data && data.error, res.status));
+    if (!res.ok) {
+        const err = new Error(guardErrorText(data && data.error, res.status));
+        err.code = data && data.error;
+        err.status = res.status;
+        throw err;
+    }
     return data || {};
 }
 
@@ -5089,7 +5097,9 @@ function accusedEvidenceInfo(r) {
     const fresh = at => !requestedAt || !(Number(at) > 0) || Number(at) >= requestedAt;
     const accStmts = Object.entries(sts).filter(([u, s]) => s && (u === accId && !!accId || s.role === "accused")).map(([, s]) => s);
     const hasStatement = accStmts.some(s => fresh(s.ts));
-    const deadline = Number(ae.deadline) || 0;
+    let deadline = Number(ae.deadline) || 0;
+    const cap = requestedAt ? requestedAt + ACCUSED_EVIDENCE_HOURS * 3600000 : 0;
+    if (cap && (!deadline || deadline > cap)) deadline = cap;
     const state = hasStatement ? "submitted" : ae.status;
     const overridden = !!(ae.override && ae.override.at && fresh(ae.override.at));
     const waiting = state === "requested" && deadline > Date.now() && !overridden;
@@ -5129,8 +5139,9 @@ function accusedEvidenceChipHtml(r) {
     const id = jsAttr(r.id);
     const hasAccusedId = /^\d{15,21}$/.test(String(r.accusedDiscordId || "").trim());
     if (!info) {
-        const canAsk = isAdminAuthenticated && r.status === "Oczekuje" && hasAccusedId;
-        return canAsk ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}')" title="Wyślij oskarżonemu prywatną wiadomość na Discordzie z prośbą o jego dowód">✉️ Poproś o dowód</span>` : "";
+        // Także starsze zgłoszenia (sprzed prośby o dowód) — oczekujące i przyjęte, bez werdyktu.
+        const canAsk = isAdminAuthenticated && hasAccusedId;
+        return canAsk ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}')" title="Wyślij oskarżonemu prywatną wiadomość na Discordzie z prośbą o jego dowód. Ma ${ACCUSED_EVIDENCE_HOURS} h na odpowiedź — do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">✉️ Poproś o dowód</span>` : "";
     }
     // Ponowna prośba o dowód — przy każdym stanie poza „DM nie dotarł” (tam jest własne „ponów”).
     const againChip = isAdminAuthenticated && hasAccusedId && info.state !== "dm_failed"
@@ -5159,21 +5170,20 @@ async function resendAccusedEvidenceDm(caseId, again) {
             : info.waiting ? `Poprzednia prośba jest jeszcze aktywna (do ${formatTimestamp(info.deadline)}) — termin zacznie się od nowa.`
             : "Poprzednia prośba wygasła bez odpowiedzi.";
         question = `Poprosić oskarżonego (${who}) PONOWNIE o dowód w sprawie ${caseLabel}?\n\n${now}\n\n` +
-            "Bot wyśle mu nową prywatną wiadomość na Discordzie. Do czasu odpowiedzi albo nowego terminu (domyślnie 24 h) nie będzie można przyjąć zgłoszenia ani wydać werdyktu — blokadę może pominąć Główny Steward.";
+            `Bot wyśle mu nową prywatną wiadomość na Discordzie. Przez ${ACCUSED_EVIDENCE_HOURS} h albo do jego odpowiedzi nie będzie można przyjąć zgłoszenia ani wydać werdyktu — blokadę może pominąć Główny Steward.`;
     } else {
         question = `Wysłać${info ? " ponownie" : ""} oskarżonemu (${who}) prywatną wiadomość na Discordzie z prośbą o dowód w sprawie ${caseLabel}?` +
-            (info ? "" : "\n\nDo czasu jego odpowiedzi (maks. termin z Workera, domyślnie 24 h) nie będzie można przyjąć zgłoszenia ani wydać werdyktu.");
+            `\n\nPrzez ${ACCUSED_EVIDENCE_HOURS} h albo do jego odpowiedzi nie będzie można przyjąć zgłoszenia ani wydać werdyktu.`;
     }
     if (!confirm(question)) return;
     try {
-        const res = await requestAccusedEvidenceDm(caseId, { resend: true });
+        const res = await requestAccusedEvidenceDm(caseId, { resend: true, again: !!(again && info) });
         if (res.status === "dm_failed") showToast("✉️ DM nie dotarł", "Oskarżony prawdopodobnie ma wyłączone wiadomości prywatne.");
         else if (res.status === "no_discord_id") showToast("✉️ Brak Discord ID", "Oskarżony nie ma poprawnego Discord ID w zgłoszeniu.");
         else showToast(again ? "🔁 Ponowna prośba o dowód wysłana" : "✉️ Prośba o dowód wysłana", `${r.accusedNick || "Oskarżony"} · ${caseLabel}`);
         if (again && info && res.status !== "dm_failed" && res.status !== "no_discord_id") {
             const by = loggedInSteward ? loggedInSteward.nick : "Steward";
-            // Znacznik „ponowna prośba” (tylko do opisu na liście spraw) — bez niego wszystko działa tak samo.
-            try { await database.ref(`incidents/${r.id}/accusedEvidence/again`).set({ by, at: Date.now() }); } catch (e) {}
+            // Znacznik „ponowna prośba” (accusedEvidence/again), nowy termin i status zapisuje Worker.
             try { await logAction(by, "VERDICT", r.id, `Ponownie poproszono oskarżonego (${who}) o dowód przez Discord (poprzedni stan: ${info.state}).`); } catch (e) {}
         }
     } catch (err) {
@@ -21627,7 +21637,7 @@ renderHint();
        a kolejne wiadomości w krótkim odstępie (domyślnie 3 min) nie zasypują kierowcy PV.
      • Przycisk w PV prowadzi na adres strony z ?czat=<ID sprawy> — po zalogowaniu kierowcy
        otwiera się od razu czat tej sprawy (także po drodze przez logowanie Discordem).
-   Wymaga wdrożenia w Workerze endpointu /chat/dm (plik fia-guard-chat-dm.js).
+   Wymaga wersji Workera „fia-guard” z endpointem /chat/dm.
    ============================================================ */
 (function () {
 "use strict";
@@ -21765,13 +21775,13 @@ window.fiaChatDmNotify = async function (caseId, msgId) {
         try { data = await res.json(); } catch (e) {}
     } catch (e) {
         console.warn("[PV] /chat/dm:", e);
-        warnWorkerOnce("Brak połączenia z Workerem „fia-guard” — czy wdrożono w nim endpoint /chat/dm (plik fia-guard-chat-dm.js)?");
+        warnWorkerOnce("Brak połączenia z Workerem „fia-guard” — spróbuj ponownie za chwilę.");
         return;
     }
     if (!res.ok) {
         const code = data && data.error;
         if (res.status === 404 && (!code || code === "not_found")) {
-            warnWorkerOnce("Worker „fia-guard” nie zna jeszcze /chat/dm — wdróż jego nową wersję (plik fia-guard-chat-dm.js).");
+            warnWorkerOnce("Worker „fia-guard” nie zna jeszcze /chat/dm — wdróż jego nową wersję (plik fia-guard.js).");
             return;
         }
         showToast("⚠️ PV nie wysłane", ERR[code] || guardErrorText(code, res.status));
@@ -21842,6 +21852,149 @@ if (pendingDeepLink()) {
         }
     }, 700);
 }
+})();
+</script>
+
+<script>
+/* ============================================================
+   === PROŚBY O DOWÓD W STARSZYCH ZGŁOSZENIACH ===
+   ============================================================
+   Zgłoszenia sprzed wprowadzenia prośby o dowód (albo takie, w których bot jej nie wysłał)
+   nie mają wpisu accusedEvidence, więc nie czekały na oskarżonego. Tu można to nadrobić:
+     • przycisk „✉️ POPROŚ O DOWODY (N)” w panelu — wszystkie otwarte zgłoszenia (Oczekuje /
+       Przyjęte) bez prośby, z poprawnym Discord ID oskarżonego i bez jego oświadczenia,
+     • „✉️ Poproś o dowód” w pasku zaznaczonych — to samo tylko dla zaznaczonych wierszy.
+   Każda prośba idzie przez Workera (/accused/request) jak pojedyncza, co ~3,5 s — oskarżony ma
+   ACCUSED_EVIDENCE_HOURS (12 h) na odpowiedź i do tego czasu zgłoszenia nie można przyjąć
+   ani wydać w nim werdyktu (blokadę może pominąć Główny Steward).
+   ============================================================ */
+(function () {
+"use strict";
+
+const $ = id => document.getElementById(id);
+const OPEN = ["Oczekuje", "Przyjęte"];
+const STOP_CODES = ["too_many_requests", "rate_limited", "discord_rate_limited", "login_required", "session_expired", "token_expired", "token_invalid", "not_found"];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let running = false;
+
+function canRequest() {
+    if (typeof isAdminAuthenticated === "undefined" || !isAdminAuthenticated || !loggedInSteward) return false;
+    const root = typeof isRootSteward === "function" && isRootSteward();
+    return root || !!(loggedInSteward.permissions && loggedInSteward.permissions.review_incidents);
+}
+
+// Otwarte zgłoszenie, w którym jeszcze nie proszono oskarżonego o dowód (i nic od niego nie ma).
+function needsRequest(r) {
+    if (!r || !OPEN.includes(r.status)) return false;
+    const acc = String(r.accusedDiscordId || "").trim();
+    if (!/^\d{15,21}$/.test(acc) || acc === String(r.discordId || "").trim()) return false;
+    if (r.accusedEvidence && typeof r.accusedEvidence === "object" && r.accusedEvidence.status) return false;
+    const sts = r.statements && typeof r.statements === "object" ? r.statements : {};
+    if (sts[acc] || Object.values(sts).some(s => s && s.role === "accused")) return false;
+    return true;
+}
+const eligibleAll = () => (typeof globalIncidents !== "undefined" ? globalIncidents : []).filter(needsRequest);
+
+/* ---------- przyciski ---------- */
+const trashBtn = $("openTrashBtn");
+if (trashBtn && !$("btnEvidenceOld")) {
+    trashBtn.insertAdjacentHTML("beforebegin",
+        `<button id="btnEvidenceOld" type="button" style="display:none; font-size:11px; padding:6px 14px; background:#1e3a5f; border:1px solid #3b82f6;"
+                 title="Wyślij prośbę o dowód oskarżonym we wszystkich otwartych zgłoszeniach, w których jeszcze o niego nie proszono (starsze zgłoszenia). Każdy ma ${ACCUSED_EVIDENCE_HOURS} h na odpowiedź.">✉️ POPROŚ O DOWODY (<span id="btnEvidenceOldCount">0</span>)</button>`);
+    $("btnEvidenceOld").addEventListener("click", () => runBulk(eligibleAll(), null));
+}
+const bulkBtns = document.querySelector("#bulkBar .btns");
+if (bulkBtns && !$("bulkEvidenceBtn")) {
+    bulkBtns.insertAdjacentHTML("beforeend",
+        `<button id="bulkEvidenceBtn" type="button" style="background:#1e3a5f; border:1px solid #3b82f6;" title="Poproś oskarżonych o dowód w zaznaczonych zgłoszeniach (tylko tam, gdzie jeszcze nie proszono)">✉️ Poproś o dowód</button>`);
+    $("bulkEvidenceBtn").addEventListener("click", () => {
+        const ids = [...document.querySelectorAll(".admin-row-cb:checked")].map(cb => cb.getAttribute("data-id"));
+        const picked = ids.map(id => (globalIncidents || []).find(r => r.id === id)).filter(Boolean);
+        runBulk(picked.filter(needsRequest), picked.length);
+    });
+}
+
+function refreshButton() {
+    const btn = $("btnEvidenceOld");
+    if (!btn || running) return;
+    const n = canRequest() ? eligibleAll().length : 0;
+    $("btnEvidenceOldCount").textContent = String(n);
+    btn.style.display = n ? "" : "none";
+    const bb = $("bulkEvidenceBtn");
+    if (bb) bb.style.display = canRequest() ? "" : "none";
+}
+
+/* ---------- wysyłka ---------- */
+async function runBulk(list, pickedCount) {
+    if (running) return;
+    if (!canRequest()) return alert("Prośby o dowód może wysyłać steward z uprawnieniem do rozpatrywania zgłoszeń.");
+    const skipped = pickedCount ? pickedCount - list.length : 0;
+    if (!list.length) {
+        return alert(pickedCount
+            ? "W zaznaczonych zgłoszeniach nie ma czego wysłać — prośba już poszła, oskarżony złożył oświadczenie, brak jego Discord ID albo zgłoszenie jest zamknięte."
+            : "Wszystkie otwarte zgłoszenia mają już prośbę o dowód (albo oświadczenie oskarżonego).");
+    }
+    const preview = list.slice(0, 15).map(r => `• ${r.fiaId || r.id} — ${r.accusedNick || "?"} (${r.status})`).join("\n") +
+        (list.length > 15 ? `\n… i ${list.length - 15} więcej` : "");
+    if (!confirm(`Wysłać prośbę o dowód w ${list.length} ${list.length === 1 ? "zgłoszeniu" : "zgłoszeniach"}?` +
+        (skipped ? ` (pominięto ${skipped} zaznaczonych — prośba już była, jest oświadczenie oskarżonego albo brak Discord ID)` : "") +
+        `\n\n${preview}\n\nKażdy oskarżony dostanie PV od bota i ma ${ACCUSED_EVIDENCE_HOURS} h na odpowiedź. Do tego czasu tych zgłoszeń nie można przyjąć ani wydać w nich werdyktu (blokadę może pominąć Główny Steward).`)) return;
+
+    running = true;
+    const btn = $("btnEvidenceOld"), label = btn ? btn.innerHTML : "";
+    const out = { sent: [], dmFailed: [], noId: [], errors: [] };
+    let stoppedBy = null;
+    try {
+        for (let i = 0; i < list.length; i++) {
+            const r = list[i];
+            if (btn) { btn.style.display = ""; btn.disabled = true; btn.textContent = `⏳ WYSYŁANIE ${i + 1}/${list.length}…`; }
+            try {
+                const res = await requestAccusedEvidenceDm(r.id, { resend: true });
+                if (res.status === "dm_failed") out.dmFailed.push(r);
+                else if (res.status === "no_discord_id") out.noId.push(r);
+                else out.sent.push(r);
+            } catch (err) {
+                out.errors.push(`${r.fiaId || r.id}: ${err.message}`);
+                if (err.status === 401 || err.status === 429 || STOP_CODES.includes(err.code)) { stoppedBy = err.message; break; }
+            }
+            if (i < list.length - 1) await sleep(3500); // limit Workera: 20 próśb/min na stewarda; nie zasypujemy Discorda
+        }
+    } finally {
+        running = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = label; }
+        refreshButton();
+    }
+
+    const tag = r => `${r.fiaId || r.id} (${r.accusedNick || "?"})`;
+    const lines = [`✉️ Wysłano: ${out.sent.length}`];
+    if (out.dmFailed.length) lines.push(`DM nie dotarł (zablokowane PV): ${out.dmFailed.map(tag).join(", ")}`);
+    if (out.noId.length) lines.push(`Brak poprawnego Discord ID: ${out.noId.map(tag).join(", ")}`);
+    if (out.errors.length) lines.push(`Błędy:\n${out.errors.slice(0, 10).join("\n")}${out.errors.length > 10 ? `\n… i ${out.errors.length - 10} więcej` : ""}`);
+    const rest = list.length - out.sent.length - out.dmFailed.length - out.noId.length - out.errors.length;
+    if (stoppedBy) lines.push(`Przerwano: ${stoppedBy}${rest > 0 ? ` — zostało ${rest}, kliknij ponownie za chwilę.` : ""}`);
+    alert(lines.join("\n\n"));
+    try {
+        await logAction(loggedInSteward ? loggedInSteward.nick : "Steward", "VERDICT", "DOWODY",
+            `Wysłano prośby o dowód w starszych zgłoszeniach: ${out.sent.length}` +
+            (out.sent.length ? ` (${out.sent.map(r => r.fiaId || r.id).join(", ")})` : "") +
+            (out.dmFailed.length ? `; DM nie dotarł: ${out.dmFailed.map(r => r.fiaId || r.id).join(", ")}` : "") +
+            (out.errors.length ? `; błędy: ${out.errors.length}` : "") + ".");
+    } catch (e) { console.warn("[dowody] logAction:", e); }
+}
+
+function wrap(name, after) {
+    const orig = window[name];
+    if (typeof orig !== "function") return;
+    window[name] = function () {
+        const r = orig.apply(this, arguments);
+        try { after.apply(this, arguments); } catch (e) { console.error("[dowody] " + name, e); }
+        return r;
+    };
+}
+wrap("renderAdmin", refreshButton);
+wrap("applyStewardPermissions", refreshButton);
+refreshButton();
+window.fiaEvidenceBulk = { eligible: eligibleAll, needsRequest, refresh: refreshButton };
 })();
 </script>
 
