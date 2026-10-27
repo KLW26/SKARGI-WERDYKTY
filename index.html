@@ -2887,16 +2887,6 @@
     .quick-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
     .quick-chips .case-chip{margin:0;cursor:pointer;background:transparent;color:var(--text-dim);font-family:inherit;}
     .quick-chips .case-chip:hover{border-color:var(--red);color:var(--text);}
-    /* === Kolejne rubryki decyzji w formularzu werdyktu === */
-    .extra-decision{background:var(--bg-deep);border:1px dashed var(--border);border-left:3px solid var(--red);border-radius:4px;padding:12px 14px 2px;margin-bottom:14px;}
-    .extra-decision-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
-    .extra-decision-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);}
-    .extra-decision-remove{width:auto;font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;}
-    .extra-decision-remove:hover{border-color:var(--red);color:var(--red-text);}
-    .extra-decision .ed-time-field, .extra-decision .ed-points-field{display:flex;flex-direction:column;}
-    #btnAddExtraDecision{display:block;width:100%;margin:-4px 0 14px;padding:9px 12px;font-size:12px;border-style:dashed;cursor:pointer;}
-    #btnAddExtraDecision:disabled{opacity:.5;cursor:not-allowed;}
-    @media (max-width:640px){.extra-decision .row{flex-direction:column;gap:0;}}
     /* === KANAŁY GŁOSOWE (jak na Discordzie) === */
     #vcPlayerCallBtn, #vcStewardCallBtn { display: none !important; } /* stare dzwonienie 1:1 zastąpione kanałami */
     .vv-fab{position:fixed;left:18px;bottom:18px;z-index:3600;width:48px;height:48px;border-radius:50%;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:all .2s;padding:0;}
@@ -3969,8 +3959,6 @@
               <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
               <option value="Apelacja odrzucona – Werdykt podtrzymany" data-key="optAppealMaintained">Apelacja odrzucona – Werdykt podtrzymany</option>
             </select>
-            <button type="button" id="btnAddDecisionOption" class="btn-secondary" style="display:none; width:auto; margin-top:6px; padding:5px 12px; font-size:11px;" title="Dodaj własną decyzję do tej listy (poza grupami albo w grupie)">➕ Dodaj nową decyzję do listy</button>
-            <button type="button" id="btnManageDecisionList" class="btn-secondary" style="display:none; width:auto; margin-top:6px; margin-left:6px; padding:5px 12px; font-size:11px;" title="Usuń pozycje z listy, zmień ich kolejność albo przywróć usunięte">🗑 Usuń / zarządzaj listą</button>
           </div>
   
           <div class="row" id="penaltyFields">
@@ -3986,9 +3974,6 @@
             </div>
           </div>
   
-          <div id="extraDecisionsBox"></div>
-          <button type="button" id="btnAddExtraDecision" class="btn-secondary" data-key="addExtraBtn" onclick="addExtraDecisionRow()">➕ Dodaj kolejną decyzję</button>
-
           <div class="field">
             <label for="verdictDetails" data-key="detailsLabel">Uzasadnienie</label>
             <textarea id="verdictDetails" placeholder="Opisz decyzję..." required style="min-height:80px; max-height:200px;"></textarea>
@@ -6098,7 +6083,7 @@ const langData = {
         decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt3c: "Kara czasowa i punkty karne", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
-        addExtraBtn: "➕ Dodaj kolejną decyzję", sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
+        sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
         embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Winny", fieldEvidence: "🎬 Dowód", fieldSplit: "🏁 Split",
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
         lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
@@ -10957,7 +10942,7 @@ function searchDriverCard(forcedQuery) {
 function exportStatsCsv() {
     const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
     if (!canExport) { alert("Brak uprawnień do eksportu danych!"); return; }
-    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia","Dodatkowe decyzje","Punkty karne (łącznie z dodatkowymi decyzjami)","Rubryki werdyktu"]];
+    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia","Rubryki werdyktu"]];
     globalIncidents.forEach(r => {
         rows.push([
             r.fiaId || r.id || "",
@@ -10968,8 +10953,6 @@ function exportStatsCsv() {
             r.decisionData ? (r.decisionData.timePenalty || "") : "",
             r.decisionData ? (r.decisionData.pointsPenalty || "") : "",
             r.decisionData ? (r.decisionData.judge || "") : "",
-            r.decisionData ? extraDecisionsText(r.decisionData) : "",
-            r.decisionData ? sumPenaltyPoints(r.decisionData) : "",
             r.decisionData ? verdictCustomLines(r.decisionData).map(x => x.label + ": " + x.text).join("; ") : ""
         ]);
     });
@@ -19599,13 +19582,6 @@ $("teDlgList").addEventListener("click", async e => {
         toast("↩ Przywrócono", `„${short(h.label, 50)}” wróciło na listę.`);
     } catch (err) { b.disabled = false; alert("Nie udało się przywrócić: " + (err && err.message)); }
 });
-function liRefreshAccess() {
-    ["btnAddDecisionOption", "btnManageDecisionList"].forEach(id => { const b = $(id); if (b) b.style.display = canEdit() ? "" : "none"; });
-}
-const liAddBtn = $("btnAddDecisionOption");
-if (liAddBtn) liAddBtn.addEventListener("click", () => window.liOpenDialog($("decision"), "option"));
-const liManageBtn = $("btnManageDecisionList");
-if (liManageBtn) liManageBtn.addEventListener("click", () => { if (typeof window.teOpenSelect === "function") window.teOpenSelect($("decision")); });
 // Panel „Listy rozwijane” w Edytorze treści (formularz zgłoszenia jest dla stewarda zablokowany, więc listę przewinień otwieramy stąd).
 document.addEventListener("click", e => {
     const b = e.target.closest && e.target.closest("[data-li-open]");
@@ -19613,9 +19589,6 @@ document.addEventListener("click", e => {
     const sel = $(b.dataset.liOpen);
     if (sel && typeof window.teOpenSelect === "function") window.teOpenSelect(sel);
 });
-wrap("applyStewardPermissions", liRefreshAccess);
-wrap("adminLogout", liRefreshAccess);
-liRefreshAccess();
 
 /* ============================================================
    6. ZMIANY TEKSTÓW NA ŻYWO Z BAZY (dla wszystkich odwiedzających)
