@@ -5065,7 +5065,7 @@ async function postApprovalWebhook(options) {
 // Dopóki oskarżony nie odpowie, a termin nie minął, nie można przyjąć zgłoszenia ani wydać werdyktu.
 // Termin na odpowiedź: ACCUSED_EVIDENCE_HOURS od wysłania prośby (requestedAt). Gdy Worker zapisze
 // dłuższy termin, strona i tak liczy ten krótszy; po jego upływie bez odpowiedzi blokada znika.
-const ACCUSED_EVIDENCE_HOURS = 12;
+const ACCUSED_EVIDENCE_HOURS = 24;
 async function requestAccusedEvidenceDm(caseId, opts) {
     const user = fbAuth && fbAuth.currentUser;
     if (!user) throw new Error(guardErrorText("login_required", 401));
@@ -21865,7 +21865,7 @@ if (pendingDeepLink()) {
        Przyjęte) bez prośby, z poprawnym Discord ID oskarżonego i bez jego oświadczenia,
      • „✉️ Poproś o dowód” w pasku zaznaczonych — to samo tylko dla zaznaczonych wierszy.
    Każda prośba idzie przez Workera (/accused/request) jak pojedyncza, co ~3,5 s — oskarżony ma
-   ACCUSED_EVIDENCE_HOURS (12 h) na odpowiedź i do tego czasu zgłoszenia nie można przyjąć
+   ACCUSED_EVIDENCE_HOURS (24 h) na odpowiedź i do tego czasu zgłoszenia nie można przyjąć
    ani wydać w nim werdyktu (blokadę może pominąć Główny Steward).
    ============================================================ */
 (function () {
