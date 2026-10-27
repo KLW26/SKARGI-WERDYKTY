@@ -16328,7 +16328,7 @@ document.addEventListener("click", () => kick(), true);
    2. ZAPIS OBECNOŚCI DO FIREBASE (z automatycznym węzłem zapasowym)
    ============================================================ */
 const W = { node: null, mode: "init", err: "", lastSig: "", lastWrite: 0, busy: false, pending: false,
-            timer: null, needFull: true, needDisc: true, since: 0, sinceKey: "", joinedAt: 0, deniedAt: 0, noText: {} };
+            timer: null, needFull: true, needDisc: true, since: 0, sinceKey: "", joinedAt: 0, deniedAt: 0, noText: {}, textOk: {} };
 const isDenied = e => /permission/i.test(String((e && e.code) || "") + " " + String((e && e.message) || e || ""));
 const errMsg = e => clip((e && (e.code || e.message)) || String(e || ""), 160);
 
@@ -16361,6 +16361,7 @@ async function setWithFallback(payload) {
         for (let vi = 0; vi < variants.length; vi++) {
             try {
                 await ref.set(variants[vi]);
+                if (vi === 0 && payload.w) W.textOk[node] = true; // potwierdzone: zapis Z treścią „w” przeszedł
                 if (vi === 1) { W.noText[node] = true; console.warn("[128] Reguły Firebase odrzucają treść pisania w " + node + " — zapisuję samą obecność."); }
                 if (W.node !== node || W.needDisc) {
                     W.needDisc = false;
@@ -16865,9 +16866,13 @@ function renderDiag() {
     body.innerHTML = `
       <div>${esc(L("Ta karta zapisuje obecność w", "This tab writes presence to"))}: ${wr}</div>
       <div>${esc(L("Odczyt", "Read"))} presence: ${rd(0)} · ${esc(L("odczyt", "read"))} voiceMembers/_presence: ${rd(1)}</div>
-      <div>${esc(L("Treść pisana na żywo", "Live typed text"))}: ${Object.keys(W.noText || {}).length
-          ? `<span class="lv-bad">❌ ${esc(L("reguły Firebase odrzucają pole „w” w presence — widać tylko obecność, bez treści. Dodaj pole „w” do reguł walidacji presence.", "Firebase rules reject the “w” field in presence — only presence is shown, without text. Add the “w” field to the presence validation rules."))}</span>`
-          : `<span class="lv-ok">✅ ${esc(L("przesyłana", "being sent"))}</span>`}</div>
+      <div>${esc(L("Treść pisana na żywo (ta karta)", "Live typed text (this tab)"))}: ${
+          Object.keys(W.noText || {}).length
+              ? `<span class="lv-bad">❌ ${esc(L("reguły Firebase odrzucają pole „w” w presence — widać tylko obecność, bez treści. Dodaj pole „w” do reguł walidacji presence (patrz niżej).", "Firebase rules reject the “w” field in presence — only presence is shown, without text. Add the “w” field to the presence validation rules (see below)."))}</span>`
+              : Object.keys(W.textOk || {}).length
+                  ? `<span class="lv-ok">✅ ${esc(L("potwierdzone — zapis z treścią przeszedł", "confirmed — a write with text went through"))}</span>`
+                  : `<span class="lv-dim">${esc(L("jeszcze nie sprawdzono w tej karcie — zacznij coś pisać w dowolnym polu formularza, aby przetestować", "not yet tested in this tab — start typing in any form field to test it"))}</span>`
+      }</div>
       <div class="lv-dim">${esc(L("ID tej karty", "This tab's ID"))}: ${esc(SID)}</div>
       <p style="margin:10px 0 0;">${esc(L(
         "Każda karta dodaje jeden mały wpis, który Firebase usuwa sam po jej zamknięciu. Docelowo wpisy powinny trafiać do węzła presence. Jeśli powyżej widać węzeł zapasowy albo błąd, dodaj w konsoli Firebase (Realtime Database → Reguły) poniższy fragment wewnątrz \"rules\": { … } — obok pozostałych węzłów — i kliknij Opublikuj. Odczyt jest ograniczony do zalogowanych stewardów (konto Firebase z wariantu B).",
