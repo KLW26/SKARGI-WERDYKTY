@@ -2887,6 +2887,16 @@
     .quick-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
     .quick-chips .case-chip{margin:0;cursor:pointer;background:transparent;color:var(--text-dim);font-family:inherit;}
     .quick-chips .case-chip:hover{border-color:var(--red);color:var(--text);}
+    /* === Kolejne rubryki decyzji w formularzu werdyktu === */
+    .extra-decision{background:var(--bg-deep);border:1px dashed var(--border);border-left:3px solid var(--red);border-radius:4px;padding:12px 14px 2px;margin-bottom:14px;}
+    .extra-decision-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;}
+    .extra-decision-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);}
+    .extra-decision-remove{width:auto;font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;}
+    .extra-decision-remove:hover{border-color:var(--red);color:var(--red-text);}
+    .extra-decision .ed-time-field, .extra-decision .ed-points-field{display:flex;flex-direction:column;}
+    #btnAddExtraDecision{display:block;width:100%;margin:-4px 0 14px;padding:9px 12px;font-size:12px;border-style:dashed;cursor:pointer;}
+    #btnAddExtraDecision:disabled{opacity:.5;cursor:not-allowed;}
+    @media (max-width:640px){.extra-decision .row{flex-direction:column;gap:0;}}
     /* === KANAŁY GŁOSOWE (jak na Discordzie) === */
     #vcPlayerCallBtn, #vcStewardCallBtn { display: none !important; } /* stare dzwonienie 1:1 zastąpione kanałami */
     .vv-fab{position:fixed;left:18px;bottom:18px;z-index:3600;width:48px;height:48px;border-radius:50%;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:all .2s;padding:0;}
@@ -3975,6 +3985,9 @@
             </div>
           </div>
   
+          <div id="extraDecisionsBox"></div>
+          <button type="button" id="btnAddExtraDecision" class="btn-secondary" data-key="addExtraBtn" onclick="addExtraDecisionRow()">➕ Dodaj kolejną rubrykę</button>
+
           <div class="field">
             <label for="verdictDetails" data-key="detailsLabel">Uzasadnienie</label>
             <textarea id="verdictDetails" placeholder="Opisz decyzję..." required style="min-height:80px; max-height:200px;"></textarea>
@@ -6084,7 +6097,7 @@ const langData = {
         decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt3c: "Kara czasowa i punkty karne", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
-        sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
+        addExtraBtn: "➕ Dodaj kolejną rubrykę", sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
         embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Winny", fieldEvidence: "🎬 Dowód", fieldSplit: "🏁 Split",
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
         lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
@@ -6127,7 +6140,7 @@ const langData = {
         decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt3c: "Time penalty and points", opt4: "Disqualification",
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
-        sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
+        addExtraBtn: "➕ Add another entry", sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
         embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Guilty", fieldEvidence: "🎬 Evidence", fieldSplit: "🏁 Split",
         fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
         lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
@@ -7862,6 +7875,7 @@ function renderOriginalVerdictBox(decisionData, caseId) {
             <div style="margin-top:4px;">
                 ${escapeHtml(orig.decision || "")}<br>
                 <strong>${escapeHtml(penaltyLabel)}:</strong> ${escapeHtml(orig.timePenalty || 'brak')} / ${escapeHtml(orig.pointsPenalty || '0 pkt')}<br>
+                ${extraDecisionsHtml(orig)}
                 <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(orig.verdictDetails || "")}"</span><br>
                 <small style="color:#64748b;">${escapeHtml(judgeLabel)}: ${escapeHtml(orig.judge || "—")}${orig.issuedAt ? ' | ' + formatTimestamp(orig.issuedAt) : ''}</small>
             </div>
@@ -7923,6 +7937,7 @@ function fetchAndRenderHistory(discordId) {
                     <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                         <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${escapeHtml(r.decisionData.decision)}<br>
                         <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${escapeHtml(r.decisionData.timePenalty || 'brak')}, Punkty: ${escapeHtml(r.decisionData.pointsPenalty || '0')}<br>
+                        ${extraDecisionsHtml(r.decisionData)}
                         <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(r.decisionData.verdictDetails)}"</span><br>
                         ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                         <small style="color:#64748b;">Sędzia: ${escapeHtml(r.decisionData.judge)}</small>
@@ -7990,6 +8005,7 @@ function fetchAndRenderHistory(discordId) {
                         <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                             <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${escapeHtml(dv.decision)}<br>
                             <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${escapeHtml(dv.timePenalty || 'brak')}, Punkty: ${escapeHtml(dv.pointsPenalty || '0')}<br>
+                            ${extraDecisionsHtml(dv)}
                             <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(dv.verdictDetails)}"</span><br>
                             <small style="color:#64748b;">Sędzia: ${escapeHtml(dv.judge)}</small>
                             ${renderOriginalVerdictBox(dv, a.caseId)}
@@ -8474,6 +8490,7 @@ function renderAdmin() {
                             </div>
                             ${escapeHtml(r.decisionData.decision)}<br>
                             <strong>Kara:</strong> ${escapeHtml(r.decisionData.timePenalty || 'brak')} / ${escapeHtml(r.decisionData.pointsPenalty || '0')} pkt<br>
+                            ${extraDecisionsHtml(r.decisionData)}
                             <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(r.decisionData.verdictDetails)}"</span><br>
                             ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                             <small style="color:#64748b;">Sędzia: ${escapeHtml(r.decisionData.judge)}</small>
@@ -8537,6 +8554,7 @@ function renderAdmin() {
                         </div>
                         ${escapeHtml(dv.decision)}<br>
                         <strong>Kara:</strong> ${escapeHtml(dv.timePenalty || 'brak')} / ${escapeHtml(dv.pointsPenalty || '0')} pkt<br>
+                        ${extraDecisionsHtml(dv)}
                         <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(dv.verdictDetails)}"</span><br>
                         <small style="color:#64748b;">Sędzia: ${escapeHtml(dv.judge)}</small>
                         ${renderOriginalVerdictBox(dv, a.caseId)}
@@ -8962,6 +8980,7 @@ async function resendVerdict(id) {
                 { name: t.fieldDecision, value: dcFieldValue(`**${d.decision}**`), inline: false },
                 { name: t.fieldTime, value: dcFieldValue(d.timePenalty || "brak"), inline: true },
                 { name: t.fieldPoints, value: dcFieldValue(d.pointsPenalty || "0 pkt"), inline: true },
+                ...extraDecisionEmbedFields(d.extraDecisions),
                 { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(d.verdictDetails, 1000)}\n\`\`\``, inline: false },
                 { name: t.fieldJudge, value: dcFieldValue(d.judge), inline: false }
             ],
@@ -9813,6 +9832,7 @@ async function publishVerdict(draft) {
     const pointsPenalty = draft.pointsPenalty || "0 pkt";
     const verdictDetails = draft.verdictDetails || "";
     const judge = draft.judge || "";
+    const extraDecisions = getExtraDecisions({ extraDecisions: draft.extraDecisions });
     const approvedBy = (Array.isArray(draft.approvedBy) ? draft.approvedBy : (draft.approvedBy && typeof draft.approvedBy === "object" ? Object.values(draft.approvedBy) : []))
         .filter(a => a && a.nick)
         .map(a => ({ id: a.id || null, nick: a.nick, ts: Number(a.ts) || Date.now() }));
@@ -9838,6 +9858,7 @@ async function publishVerdict(draft) {
         guiltyNick: winnerNick
     };
     if (approvedBy.length) decisionDataToSave.approvedBy = approvedBy;
+    if (extraDecisions.length) decisionDataToSave.extraDecisions = extraDecisions;
     // Werdykt apelacji nadpisuje decisionData sprawy — zanim to zrobimy, zachowujemy
     // pierwotny werdykt (i jego ewentualną wcześniejszą historię apelacji) w polu
     // previousDecisionData, żeby po wydaniu werdyktu apelacji nadal było widać,
@@ -9852,7 +9873,7 @@ async function publishVerdict(draft) {
             { path: `incidents/${originalCaseId}/decisionData`, data: cloneForRestore(mainReport.decisionData) }
         );
         await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
-        await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
+        await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | ${extraDecisions.length ? "Dodatkowe: " + extraDecisionsText({ extraDecisions }) + " | " : ""}Uzasadnienie: ${verdictDetails}`);
         await database.ref("incidents/" + originalCaseId + "/decisionData").set(decisionDataToSave);
         // Werdykt jest już wydany — ewentualna wersja czekająca na akceptację przestaje być aktualna.
         if (mainReport.pendingVerdict) {
@@ -9863,7 +9884,7 @@ async function publishVerdict(draft) {
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
     const authorNote = stewardName !== judge ? ` Autor: ${judge}.` : "";
     const approvalNote = approvedNames ? ` Zatwierdzili: ${approvedNames}.` : "";
-    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).${authorNote}${approvalNote}`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty})${extraDecisions.length ? ` + ${extraDecisions.length} dodatk. rubr.: ${extraDecisionsText({ extraDecisions })}` : ""}.${authorNote}${approvalNote}`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
     // Dwa pola z dowodami: zgłaszającego i oskarżonego. W werdykcie apelacji dowód z apelacji
@@ -9888,6 +9909,7 @@ async function publishVerdict(draft) {
             { name: t.fieldDecision, value: dcFieldValue(`**${decision}**`), inline: false },
             { name: t.fieldTime, value: dcFieldValue(timePenalty), inline: true },
             { name: t.fieldPoints, value: dcFieldValue(pointsPenalty), inline: true },
+            ...extraDecisionEmbedFields(extraDecisions),
             { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(verdictDetails, 1000)}\n\`\`\``, inline: false },
             { name: t.fieldJudge, value: dcFieldValue(judge), inline: false }
         ].concat(approvedField ? [approvedField] : []),
@@ -10055,6 +10077,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     const draft = {
         caseIdInput, originalCaseId, appealId, isAppealVerdict,
         decision, timePenalty, pointsPenalty, verdictDetails, judge,
+        extraDecisions: collectExtraDecisions(),
         judgeId: loggedInSteward ? String(loggedInSteward.id || "") : "",
         accusedId: verdictNoOneGuilty ? null : (accusedId || null),
         noOneGuilty: !!verdictNoOneGuilty
@@ -10103,6 +10126,251 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     }
 });
 
+
+/* === KOLEJNE RUBRYKI DECYZJI W WERDYKCIE ===
+   Pierwsza rubryka (Decyzja / Kara czasowa / Punkty karne) działa jak dotąd i trafia do
+   decisionData.decision / timePenalty / pointsPenalty — dzięki temu statystyki, ranking punktów,
+   karta kierowcy i apelacje nadal z niej korzystają. Każda kolejna rubryka (przycisk „Dodaj kolejną
+   rubrykę”) trafia do decisionData.extraDecisions[] jako { decision, timePenalty, pointsPenalty }. */
+const MAX_EXTRA_DECISIONS = 6;
+let extraDecisionSeq = 0;
+
+// Firebase potrafi oddać listę jako obiekt — normalizujemy do tablicy poprawnych rubryk.
+function getExtraDecisions(d) {
+    if (!d || !d.extraDecisions) return [];
+    const raw = Array.isArray(d.extraDecisions) ? d.extraDecisions : Object.values(d.extraDecisions);
+    return raw.filter(x => x && x.decision).map(x => ({
+        decision: String(x.decision),
+        timePenalty: x.timePenalty || "brak",
+        pointsPenalty: x.pointsPenalty || "0 pkt"
+    }));
+}
+
+// Suma punktów karnych z głównej i wszystkich dodatkowych rubryk.
+function sumPenaltyPoints(d) {
+    if (!d) return 0;
+    return parsePenaltyPoints(d.pointsPenalty) + getExtraDecisions(d).reduce((sum, x) => sum + parsePenaltyPoints(x.pointsPenalty), 0);
+}
+
+// Tekst punktów do list: gdy dodatkowe rubryki mają punkty — pokazujemy sumę, inaczej oryginalny zapis.
+function penaltyPointsDisplay(d) {
+    if (!d) return "0 pkt";
+    const hasExtraPoints = getExtraDecisions(d).some(x => parsePenaltyPoints(x.pointsPenalty) > 0);
+    return hasExtraPoints ? `${sumPenaltyPoints(d)} pkt` : (d.pointsPenalty || "0 pkt");
+}
+
+function extraDecisionPenaltyParts(x) {
+    const parts = [];
+    if (x.timePenalty && !/^brak$/i.test(String(x.timePenalty).trim())) parts.push(x.timePenalty);
+    if (parsePenaltyPoints(x.pointsPenalty) > 0) parts.push(x.pointsPenalty);
+    return parts;
+}
+
+// „Naruszenie – kara czasowa · +5s · 2 pkt”
+function formatExtraDecision(x) {
+    return [x.decision].concat(extraDecisionPenaltyParts(x)).join(" · ");
+}
+
+function extraDecisionsText(d, sep) {
+    return getExtraDecisions(d).map(formatExtraDecision).join(sep || "; ");
+}
+
+// Blok HTML do kart werdyktu (kończy się <br>, żeby wpasować się w istniejące widoki).
+function extraDecisionsHtml(d) {
+    const list = getExtraDecisions(d);
+    if (!list.length) return "";
+    const pl = currentLang === 'pl';
+    return `<strong>${pl ? 'Dodatkowe rubryki' : 'Additional entries'}:</strong><br>` +
+        list.map((x, i) => `<span style="color:#cbd5e1;">${i + 2}. ${escapeHtml(formatExtraDecision(x))}</span><br>`).join("");
+}
+
+// Dodatkowe pole w embedzie Discorda.
+function extraDecisionEmbedFields(list) {
+    const items = getExtraDecisions({ extraDecisions: list });
+    if (!items.length) return [];
+    return [{
+        name: currentLang === 'pl' ? "➕ Dodatkowe rubryki" : "➕ Additional entries",
+        value: dcFieldValue(items.map((x, i) => `**${i + 2}.** ${formatExtraDecision(x)}`).join("\n")),
+        inline: false
+    }];
+}
+
+// Sekcje dodatkowych rubryk na karcie werdyktu (PNG).
+function pngExtraDecisionsHtml(d) {
+    const list = getExtraDecisions(d);
+    if (!list.length) return "";
+    const box = (label, value, color) => `
+              <div style="flex:1; background:rgba(0,0,0,0.3); border-radius:6px; padding:10px 14px; text-align:center;">
+                <div style="font-size:9px; letter-spacing:1px; color:#9ca3af;">${label}</div>
+                <div style="font-size:20px; font-weight:800; color:${color}; margin-top:2px;">${escapeHtml(value)}</div>
+              </div>`;
+    const blocks = list.map((x, i) => {
+        const timeOn = x.timePenalty && !/^brak$/i.test(String(x.timePenalty).trim());
+        const ptsOn = parsePenaltyPoints(x.pointsPenalty) > 0;
+        const boxes = (timeOn ? box("KARA CZASOWA", x.timePenalty, "#fff") : "") + (ptsOn ? box("PUNKTY KARNE", x.pointsPenalty, "#ffd700") : "");
+        return `
+          <div style="margin-top:16px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.14);">
+            <div style="font-size:11px; letter-spacing:2px; color:#ffd700; margin-bottom:6px;">DODATKOWA DECYZJA ${i + 2}</div>
+            <div style="font-size:20px; font-weight:900; text-transform:uppercase; color:#fff;${boxes ? " margin-bottom:12px;" : ""}">${escapeHtml(x.decision)}</div>
+            ${boxes ? `<div style="display:flex; gap:14px;">${boxes}</div>` : ""}
+          </div>`;
+    }).join("");
+    const hasExtraPoints = list.some(x => parsePenaltyPoints(x.pointsPenalty) > 0);
+    const total = hasExtraPoints ? `
+          <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.14); text-align:right; font-size:11px; letter-spacing:2px; color:#9ca3af;">ŁĄCZNIE PUNKTÓW KARNYCH: <span style="font-size:20px; font-weight:800; color:#ffd700;">${escapeHtml(sumPenaltyPoints(d))} pkt</span></div>` : "";
+    return blocks + total;
+}
+
+// Które pola kar są potrzebne dla danej decyzji — ta sama logika co w handleDecisionChange().
+function penaltyFieldVisibility(decision) {
+    if (decision === "Anulowanie kary" || decision === "Naruszenie – dyskwalifikacja") return { time: false, points: false };
+    if (decision === "Naruszenie – Punkty Karne") return { time: false, points: true };
+    if (decision === "Naruszenie – kara czasowa") return { time: true, points: false };
+    return { time: true, points: true };
+}
+
+function extraDecisionLabels() {
+    const t = (typeof langData !== "undefined" && langData[currentLang]) || {};
+    const pl = currentLang === 'pl';
+    return {
+        decision: t.decisionLabel || (pl ? "Decyzja" : "Decision"),
+        time: t.timeLabel || (pl ? "Kara czasowa" : "Time penalty"),
+        points: t.pointsLabel || (pl ? "Punkty karne" : "Penalty points"),
+        remove: pl ? "✕ Usuń" : "✕ Remove",
+        removeTitle: pl ? "Usuń tę rubrykę" : "Remove this entry",
+        entry: pl ? "Rubryka" : "Entry",
+        max: pl ? `Maksymalna liczba dodatkowych rubryk: ${MAX_EXTRA_DECISIONS}.` : `Maximum number of additional entries: ${MAX_EXTRA_DECISIONS}.`
+    };
+}
+
+function updateExtraDecisionButton() {
+    const btn = document.getElementById("btnAddExtraDecision");
+    const box = document.getElementById("extraDecisionsBox");
+    if (btn && box) btn.disabled = box.querySelectorAll(".extra-decision").length >= MAX_EXTRA_DECISIONS;
+}
+
+function renumberExtraDecisionRows() {
+    const L = extraDecisionLabels();
+    document.querySelectorAll("#extraDecisionsBox .extra-decision").forEach((row, i) => {
+        row.querySelector(".extra-decision-title").textContent = `${L.entry} ${i + 2}`;
+    });
+}
+
+function setExtraPenaltyQuick(btn, val) {
+    const field = btn.closest(".field");
+    const input = field && field.querySelector("input");
+    if (!input) return;
+    input.value = val;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function handleExtraDecisionChange(sel) {
+    const row = sel.closest(".extra-decision");
+    if (!row) return;
+    const vis = penaltyFieldVisibility(sel.value);
+    row.querySelector(".ed-penalty-row").style.display = (vis.time || vis.points) ? "flex" : "none";
+    row.querySelector(".ed-time-field").style.display = vis.time ? "flex" : "none";
+    row.querySelector(".ed-points-field").style.display = vis.points ? "flex" : "none";
+}
+
+// data (opcjonalnie) = { decision, timePenalty, pointsPenalty } — wczytanie istniejącej rubryki do formularza.
+function addExtraDecisionRow(data) {
+    const box = document.getElementById("extraDecisionsBox");
+    const mainSel = document.getElementById("decision");
+    if (!box || !mainSel) return null;
+    const L = extraDecisionLabels();
+    if (box.querySelectorAll(".extra-decision").length >= MAX_EXTRA_DECISIONS) { alert(L.max); return null; }
+
+    const optionsHtml = [...mainSel.options].map(o => {
+        const key = o.getAttribute("data-key");
+        return `<option value="${escapeHtml(o.value)}"${key ? ` data-key="${escapeHtml(key)}"` : ""}>${escapeHtml(o.textContent)}</option>`;
+    }).join("");
+    const timePh = escapeHtml(document.getElementById("timePenalty").placeholder || "np. +5s / brak");
+    const ptsPh = escapeHtml(document.getElementById("pointsPenalty").placeholder || "np. 2 pkt");
+    const timeChips = ["+5s", "+10s", "+15s", "+30s", "brak"].map(v => `<button type="button" class="case-chip" onclick="setExtraPenaltyQuick(this,'${v}')">${v}</button>`).join("");
+    const ptsChips = ["1 pkt", "2 pkt", "3 pkt", "4 pkt"].map(v => `<button type="button" class="case-chip" onclick="setExtraPenaltyQuick(this,'${v}')">${v}</button>`).join("");
+
+    const uid = ++extraDecisionSeq;
+    const row = document.createElement("div");
+    row.className = "extra-decision";
+    row.innerHTML = `
+      <div class="extra-decision-head">
+        <span class="extra-decision-title"></span>
+        <button type="button" class="btn-secondary extra-decision-remove" title="${escapeHtml(L.removeTitle)}" onclick="removeExtraDecisionRow(this)">${escapeHtml(L.remove)}</button>
+      </div>
+      <div class="field">
+        <label for="extraDecision${uid}">${escapeHtml(L.decision)}</label>
+        <select id="extraDecision${uid}" class="ed-decision" required onchange="handleExtraDecisionChange(this)">${optionsHtml}</select>
+      </div>
+      <div class="row ed-penalty-row">
+        <div class="field ed-time-field">
+          <label for="extraTime${uid}">${escapeHtml(L.time)}</label>
+          <input id="extraTime${uid}" class="ed-time" type="text" placeholder="${timePh}">
+          <div class="quick-chips">${timeChips}</div>
+        </div>
+        <div class="field ed-points-field">
+          <label for="extraPoints${uid}">${escapeHtml(L.points)}</label>
+          <input id="extraPoints${uid}" class="ed-points" type="text" placeholder="${ptsPh}">
+          <div class="quick-chips">${ptsChips}</div>
+        </div>
+      </div>`;
+    box.appendChild(row);
+    renumberExtraDecisionRows();
+    updateExtraDecisionButton();
+
+    const sel = row.querySelector(".ed-decision");
+    if (data && data.decision) {
+        if (![...sel.options].some(o => o.value === data.decision)) sel.add(new Option(data.decision, data.decision));
+        sel.value = data.decision;
+        handleExtraDecisionChange(sel);
+        row.querySelector(".ed-time").value = /^brak$/i.test(String(data.timePenalty || "").trim()) ? "" : (data.timePenalty || "");
+        row.querySelector(".ed-points").value = /^0\s*pkt$/i.test(String(data.pointsPenalty || "").trim()) ? "" : (data.pointsPenalty || "");
+    } else {
+        try { sel.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {}
+    }
+    return row;
+}
+
+function removeExtraDecisionRow(btn) {
+    const row = btn && btn.closest(".extra-decision");
+    if (row) row.remove();
+    renumberExtraDecisionRows();
+    updateExtraDecisionButton();
+    if (typeof updateVerdictHistoryBox === "function") updateVerdictHistoryBox();
+}
+
+function clearExtraDecisionRows() {
+    const box = document.getElementById("extraDecisionsBox");
+    if (box) box.innerHTML = "";
+    updateExtraDecisionButton();
+}
+
+// Odczyt rubryk z formularza. Ukryte (niepotrzebne dla danej decyzji) pola kar nie są zapisywane.
+function collectExtraDecisions() {
+    const out = [];
+    document.querySelectorAll("#extraDecisionsBox .extra-decision").forEach(row => {
+        const decision = row.querySelector(".ed-decision").value;
+        if (!decision) return;
+        const vis = penaltyFieldVisibility(decision);
+        out.push({
+            decision: decision,
+            timePenalty: vis.time ? (row.querySelector(".ed-time").value.trim() || "brak") : "brak",
+            pointsPenalty: vis.points ? (row.querySelector(".ed-points").value.trim() || "0 pkt") : "0 pkt"
+        });
+    });
+    return out;
+}
+
+(function () {
+    const form = document.getElementById("responseForm");
+    if (form) form.addEventListener("reset", clearExtraDecisionRows);
+    const box = document.getElementById("extraDecisionsBox");
+    if (box) {
+        const refresh = () => { if (typeof updateVerdictHistoryBox === "function") updateVerdictHistoryBox(); };
+        box.addEventListener("input", refresh);
+        box.addEventListener("change", refresh);
+    }
+})();
 
 function handleDecisionChange() {
     const decision = document.getElementById("decision").value;
@@ -10196,6 +10464,7 @@ function buildVerdictPngHtml(r) {
                 <div style="font-size:20px; font-weight:800; color:#ffd700; margin-top:2px;">${escapeHtml(pointsStr)}</div>
               </div>
             </div>
+            ${pngExtraDecisionsHtml(d)}
           </div>
 
           <div style="margin-bottom:6px; font-size:11px; letter-spacing:2px; color:#6b7280;">UZASADNIENIE</div>
@@ -10340,7 +10609,7 @@ function renderStats() {
     }
 
     const guiltyIncidentsForAvg = incidents.filter(r => r.decisionData && !r.decisionData.noOneGuilty && r.decisionData.decision && r.decisionData.decision !== "Brak naruszenia");
-    const totalPtsIssued = guiltyIncidentsForAvg.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0);
+    const totalPtsIssued = guiltyIncidentsForAvg.reduce((s, r) => s + sumPenaltyPoints(r.decisionData), 0);
     const avgPts = guiltyIncidentsForAvg.length ? (totalPtsIssued / guiltyIncidentsForAvg.length).toFixed(1) : "0";
 
     const summaryGrid = document.getElementById("statsSummaryGrid");
@@ -10452,7 +10721,7 @@ function computeLeaderboard(limit) {
         const key = d.guiltyDiscordId || d.guiltyNick;
         if (!key) return;
         if (!map[key]) map[key] = { key, name: d.guiltyNick || key, id: d.guiltyDiscordId || null, seasonPoints: 0, totalPoints: 0, count: 0 };
-        const pts = parsePenaltyPoints(d.pointsPenalty);
+        const pts = sumPenaltyPoints(d);
         map[key].totalPoints += pts;
         map[key].count++;
         if ((d.issuedAt || 0) >= seasonStart) map[key].seasonPoints += pts;
@@ -10663,8 +10932,8 @@ function computeDriverPenalties(query) {
     });
 
     const seasonPenalties = penaltyIncidents.filter(r => (r.decisionData.issuedAt || 0) >= seasonStart);
-    const seasonPoints = seasonPenalties.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0);
-    const totalPoints = penaltyIncidents.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0);
+    const seasonPoints = seasonPenalties.reduce((s, r) => s + sumPenaltyPoints(r.decisionData), 0);
+    const totalPoints = penaltyIncidents.reduce((s, r) => s + sumPenaltyPoints(r.decisionData), 0);
 
     return {
         found: true,
@@ -10704,7 +10973,7 @@ function searchDriverCard(forcedQuery) {
       <div style="display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:12px;">
         <span style="color: var(--text-dim); white-space:nowrap;">${r.decisionData.issuedAt ? new Date(r.decisionData.issuedAt).toLocaleDateString() : "—"}</span>
         <span style="flex:1; color: var(--text);">${escapeHtml(r.fiaId || r.id)} — ${escapeHtml(r.decisionData.decision || "")}</span>
-        <span style="color: var(--red-text); font-weight:600; white-space:nowrap;">${escapeHtml(r.decisionData.pointsPenalty || "0 pkt")}</span>
+        <span style="color: var(--red-text); font-weight:600; white-space:nowrap;">${escapeHtml(penaltyPointsDisplay(r.decisionData))}</span>
       </div>
     `).join("") || '<div class="stat-empty-msg">Brak kar w bazie.</div>';
 
@@ -10730,7 +10999,7 @@ function searchDriverCard(forcedQuery) {
 function exportStatsCsv() {
     const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
     if (!canExport) { alert("Brak uprawnień do eksportu danych!"); return; }
-    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia"]];
+    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia","Dodatkowe rubryki","Punkty karne (łącznie z dodatkowymi rubrykami)"]];
     globalIncidents.forEach(r => {
         rows.push([
             r.fiaId || r.id || "",
@@ -10740,7 +11009,9 @@ function exportStatsCsv() {
             r.decisionData ? (r.decisionData.decision || "") : "",
             r.decisionData ? (r.decisionData.timePenalty || "") : "",
             r.decisionData ? (r.decisionData.pointsPenalty || "") : "",
-            r.decisionData ? (r.decisionData.judge || "") : ""
+            r.decisionData ? (r.decisionData.judge || "") : "",
+            r.decisionData ? extraDecisionsText(r.decisionData) : "",
+            r.decisionData ? sumPenaltyPoints(r.decisionData) : ""
         ]);
     });
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -12220,6 +12491,7 @@ function renderVerdictReadOnlyBlock(d, heading) {
             <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                 <strong>Decyzja:</strong> ${escapeHtml(d.decision || "—")}<br>
                 <strong>Kara:</strong> Czasowa: ${escapeHtml(d.timePenalty || 'brak')}, Punkty: ${escapeHtml(d.pointsPenalty || '0')}<br>
+                ${extraDecisionsHtml(d)}
                 <strong>Uzasadnienie:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(d.verdictDetails || "")}"</span><br>
                 <small style="color:#64748b;">Sędzia: ${escapeHtml(d.judge || "—")}${d.issuedAt ? ' | ' + formatTimestamp(d.issuedAt) : ''}</small>
             </div>
@@ -13325,7 +13597,7 @@ updateVerdictHistoryBox = function () {
     const target = ((document.getElementById("accusedId").value || "").trim()) || (inc && inc.accusedDiscordId) || "";
 
     // Prognoza progu punktów — tylko dla sprawy bez werdyktu (inaczej kara byłaby policzona podwójnie).
-    const add = parsePenaltyPoints(document.getElementById("pointsPenalty").value);
+    const add = parsePenaltyPoints(document.getElementById("pointsPenalty").value) + collectExtraDecisions().reduce((sum, x) => sum + parsePenaltyPoints(x.pointsPenalty), 0);
     if (inc && !inc.decisionData && add > 0 && /^\d+$/.test(target)) {
         const h = computeDriverPenalties(target);
         const base = h && h.found ? h.seasonPoints : 0;
@@ -14527,7 +14799,14 @@ const penaltyLabel = v => {
     const parts = [];
     if (v.timePenalty && !/^brak$/i.test(String(v.timePenalty).trim())) parts.push(v.timePenalty);
     if (parsePenaltyPoints(v.pointsPenalty) > 0) parts.push(v.pointsPenalty);
-    return parts.join(" + ");
+    const main = parts.join(" + ");
+    // Dodatkowe rubryki werdyktu: „ostrzeżenie | kara czasowa: +10s”
+    const extras = (typeof getExtraDecisions === "function" ? getExtraDecisions(v) : []).map(x => {
+        const p = extraDecisionPenaltyParts(x);
+        const name = String(x.decision).replace(/^Naruszenie\s*–\s*/i, "");
+        return p.length ? `${name}: ${p.join(" + ")}` : name;
+    });
+    return [main].concat(extras).filter(Boolean).join(" | ");
 };
 // Wspólne narzędzia dla kolejnych rozbudów (126+)
 window.fia125 = { penaltyLabel, myVoterKey, canReview, canManageSys, isRoot, fmtLeft, plural, wrap };
@@ -15724,7 +16003,7 @@ function renderDecisions() {
         && (kind === "ALL" || (kind === "penalty" ? isPenalty(r.decisionData) : !isPenalty(r.decisionData)))
         && (!q || [r.id, r.fiaId, r.nick, r.accusedNick, r.decisionData.guiltyNick].filter(Boolean).join(" ").toLowerCase().includes(q)));
     const pen = list.filter(r => isPenalty(r.decisionData));
-    $("decSummary").textContent = `${list.length} ${plural(list.length, "decyzja", "decyzje", "decyzji")} · kary: ${pen.length} · bez kary: ${list.length - pen.length} · łącznie punktów karnych: ${pen.reduce((s, r) => s + parsePenaltyPoints(r.decisionData.pointsPenalty), 0)}`;
+    $("decSummary").textContent = `${list.length} ${plural(list.length, "decyzja", "decyzje", "decyzji")} · kary: ${pen.length} · bez kary: ${list.length - pen.length} · łącznie punktów karnych: ${pen.reduce((s, r) => s + sumPenaltyPoints(r.decisionData), 0)}`;
     $("decList").innerHTML = list.length ? list.slice(0, decLimit).map(r => {
         const d = r.decisionData, p = penaltyLabel(d), reason = verdictReason(d);
         const penal = isPenalty(d);
@@ -15843,6 +16122,7 @@ window.printCaseDossier = function (id) {
     const verdictBlock = (d, title) => d ? `<h3>${escapeHtml(title)}</h3><table>
         <tr><th>Decyzja</th><td>${e(d.decision || "")}</td></tr>
         <tr><th>Kara</th><td>${e(d.timePenalty || "brak")} / ${e(d.pointsPenalty || "0 pkt")}</td></tr>
+        ${getExtraDecisions(d).length ? `<tr><th>Dodatkowe rubryki</th><td>${e(extraDecisionsText(d))}</td></tr>` : ""}
         <tr><th>Winny</th><td>${d.noOneGuilty ? "nikt nie jest winny" : e(d.guiltyNick || "—")}</td></tr>
         <tr><th>Sędzia</th><td>${e(d.judge || "—")}</td></tr>
         <tr><th>Wydano</th><td>${d.issuedAt ? formatTimestamp(d.issuedAt) : "—"}</td></tr>
@@ -21440,6 +21720,8 @@ window.loadPendingVerdictToForm = function (caseId) {
     handleDecisionChange();
     $("timePenalty").value = /^brak$/i.test(String(d.timePenalty || "").trim()) ? "" : (d.timePenalty || "");
     $("pointsPenalty").value = /^0\s*pkt$/i.test(String(d.pointsPenalty || "").trim()) ? "" : (d.pointsPenalty || "");
+    clearExtraDecisionRows();
+    getExtraDecisions(d).forEach(x => addExtraDecisionRow(x));
     $("verdictDetails").value = d.verdictDetails || "";
     if (d.noOneGuilty) {
         pickGuiltyParty("none");
