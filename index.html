@@ -3970,6 +3970,7 @@
               <option value="Apelacja rozpatrzona – Zmiana werdyktu" data-key="optAppealChanged">Apelacja rozpatrzona – Zmiana werdyktu</option>
               <option value="Apelacja odrzucona – Werdykt podtrzymany" data-key="optAppealMaintained">Apelacja odrzucona – Werdykt podtrzymany</option>
             </select>
+            <button type="button" id="btnAddDecisionOption" class="btn-secondary" style="display:none; width:auto; margin-top:6px; padding:5px 12px; font-size:11px;" title="Dodaj własną decyzję do tej listy (poza grupami albo w grupie)">➕ Dodaj nową decyzję do listy</button>
           </div>
   
           <div class="row" id="penaltyFields">
@@ -17901,6 +17902,8 @@ document.body.insertAdjacentHTML("beforeend", `
       <button type="button" class="btn-secondary" id="teDlgField" style="display:none;" title="Dodaj do formularza nową rubrykę (pole do wypełnienia) w tym miejscu">➕ Dodaj rubrykę pod tym miejscem</button>
       <button type="button" class="btn-secondary" id="teDlgMove" title="Przeciągnij albo przesuń strzałkami ten element (np. rubrykę, przycisk, panel) w inne miejsce">✥ Przesuń ten element</button>
       <button type="button" class="btn-secondary" id="teDlgListReset" style="display:none;" title="Przywróć oryginalną kolejność opcji i grup tej listy">↺ Oryginalna kolejność listy</button>
+      <button type="button" class="btn-secondary" id="teDlgAddOpt" style="display:none;" title="Dodaj nową opcję do tej listy — poza grupami albo w wybranej grupie">➕ Dodaj opcję do listy</button>
+      <button type="button" class="btn-secondary" id="teDlgAddGrp" style="display:none;" title="Dodaj nowy nagłówek grupy do tej listy">➕ Dodaj grupę (nagłówek)</button>
       <span style="flex:1;"></span>
       <button type="button" class="btn-secondary" id="teDlgCancel">Anuluj</button>
       <button type="button" class="btn-success" id="teDlgSave">💾 Zapisz</button>
@@ -18130,11 +18133,19 @@ function teRenderDlg(keep) {
             ? `<span class="te-mv"><button type="button" class="te-mini" data-lmove="${i}" data-dir="-1" title="${en.group ? "Przesuń całą grupę wyżej" : "Przesuń wyżej (nad nagłówek = do grupy wyżej)"}"${teListCanMove(ctx.entries, i, -1) ? "" : " disabled"}>⬆</button><button type="button" class="te-mini" data-lmove="${i}" data-dir="1" title="${en.group ? "Przesuń całą grupę niżej" : "Przesuń niżej (pod nagłówek = do grupy niżej)"}"${teListCanMove(ctx.entries, i, 1) ? "" : " disabled"}>⬇</button></span>`
             : "";
         box.innerHTML = `<div class="te-entry-head">${mv}<span class="te-kind">${esc(en.label)}</span>${en.mode === "fragment" ? '<span class="te-tag">fragment — wszędzie</span>' : ""}<span class="te-orig" title="${esc(en.orig)}">Oryginał: „${esc(short(en.orig, 140))}”</span>${arrows}<button type="button" class="te-mini" data-reset="${i}">↺ Oryginał</button></div><textarea class="te-ta" data-i="${i}" rows="${Math.min(8, Math.max(1, Math.ceil(String(cur).length / 60)))}"></textarea>`;
+        if (en.liId) {
+            const head = box.querySelector(".te-entry-head"), kindEl = head && head.querySelector(".te-kind");
+            if (kindEl) kindEl.insertAdjacentHTML("afterend", '<span class="te-tag">dodana w edytorze</span>');
+            if (head) head.insertAdjacentHTML("beforeend", `<button type="button" class="te-mini" data-li-del="${esc(en.liId)}" title="Usuń tę pozycję z listy">🗑 Usuń</button>`);
+        }
         box.querySelector("textarea").value = cur;
         list.appendChild(box);
     });
     if (keep === "reorder") list.scrollTop = scroll;
     $("teDlgListReset").style.display = canOrder && (ctx.orderChanged || teListOrders[ctx.listSel.id]) ? "" : "none";
+    const liCan = !!(ctx.listSel && typeof liOf === "function" && liOf(ctx.listSel));
+    $("teDlgAddOpt").style.display = liCan ? "" : "none";
+    $("teDlgAddGrp").style.display = liCan ? "" : "none";
     const p = ctx.el && ctx.el.parentElement;
     $("teDlgParent").style.display = p && p !== document.body && p !== document.documentElement ? "" : "none";
     $("teDlgClick").style.display = ctx.clickEl && ctx.clickEl.isConnected ? "" : "none";
@@ -18270,12 +18281,12 @@ function teCollectSelect(sel) {
     if (sel.id && !teListOrig.has(sel) && !teListOrders[sel.id] && sel.options.length) teListOrig.set(sel, teListItems(sel));
     const opt = (o, top) => {
         const k = teOptOrigText(o);
-        return { label: "Opcja listy", key: k, orig: k, mode: "exact", okey: teOptKey(o), top, pinned: o.getAttribute("value") === "" && top };
+        return { label: "Opcja listy", key: k, orig: k, mode: "exact", okey: teOptKey(o), top, pinned: o.getAttribute("value") === "" && top, liId: (o.dataset && o.dataset.liId) || "" };
     };
     Array.from(sel.children).forEach(ch => {
         if (ch.tagName === "OPTGROUP") {
             const k = norm(teOrigAttr(ch, "label") || "");
-            out.push({ label: "Nagłówek grupy listy", key: k, orig: k, mode: "exact", okey: teGroupKey(ch), group: true });
+            out.push({ label: "Nagłówek grupy listy", key: k, orig: k, mode: "exact", okey: teGroupKey(ch), group: true, liId: (ch.dataset && ch.dataset.liId) || "" });
             Array.from(ch.children).forEach(o => { if (o.tagName === "OPTION") out.push(opt(o, false)); });
         } else if (ch.tagName === "OPTION") out.push(opt(ch, true));
     });
@@ -19288,6 +19299,209 @@ database.ref(TE_LIST_PATH).on("value", snap => {
     try { localStorage.setItem(TE_LIST_CACHE, JSON.stringify(v)); } catch (e) {}
     teListSetOrders(v);
 }, err => console.warn("[128] Nie udało się wczytać kolejności list:", err && err.message));
+
+/* ============================================================
+   5c. WŁASNE POZYCJE LIST ROZWIJANYCH (settings/customListItems)
+   Do listy „Decyzja” (formularz werdyktu i edycja werdyktu apelacji) można dodać nową opcję
+   — poza grupami albo w wybranej grupie — oraz nowy nagłówek grupy. Pozycje trafiają do bazy
+   i pojawiają się na liście u wszystkich od razu; kolejność i nazwy zmienia się dalej
+   w oknie edycji listy (⬆ ⬇, przeciąganie, edycja napisu). Wartość nowej opcji = jej nazwa.
+   ============================================================ */
+const LI_PATH = "settings/customListItems", LI_CACHE = "rzCustomListItemsCache";
+const LI_LISTS = { decision: "decision", editAppealVerdictDecision: "decision" };   // id listy rozwijanej -> wspólna lista
+const LI_NAMES = { decision: "Decyzja" };
+let liItems = {};
+let liBusy = false;
+
+function liSet(v) {
+    const next = {};
+    Object.keys(v || {}).forEach(list => {
+        const node = v[list];
+        if (!node || typeof node !== "object") return;
+        const arr = Object.keys(node).map(id => {
+            const x = node[id];
+            if (!x || typeof x !== "object") return null;
+            const label = norm(x.label).slice(0, 120);
+            if (!label) return null;
+            return { id, kind: x.kind === "group" ? "group" : "option", label, group: typeof x.group === "string" ? x.group : "", at: Number(x.at) || 0 };
+        }).filter(Boolean).sort((a, b) => ((a.at - b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
+        if (arr.length) next[list] = arr;
+    });
+    liItems = next;
+}
+const liOf = sel => (sel && sel.id && LI_LISTS[sel.id]) ? LI_LISTS[sel.id] : null;
+const liFind = (sel, id) => Array.from(sel.querySelectorAll("[data-li-id]")).find(n => n.dataset.liId === id) || null;
+
+// Nakłada pozycje z bazy na listę: brakujące dodaje, usunięte zdejmuje (opcje z usuniętej grupy zostają na liście).
+function liApplySelect(sel) {
+    const list = liOf(sel);
+    if (!list || sel.tagName !== "SELECT") return;
+    const items = liItems[list] || [], want = new Set(items.map(x => x.id));
+    liBusy = true;
+    try {
+        sel.querySelectorAll("[data-li-id]").forEach(n => {
+            if (want.has(n.dataset.liId)) return;
+            if (n.tagName === "OPTGROUP") while (n.firstChild) sel.appendChild(n.firstChild);
+            n.remove();
+        });
+        items.forEach(it => {
+            if (it.kind === "group") {
+                if (!liFind(sel, it.id)) {
+                    const g = document.createElement("optgroup");
+                    g.label = it.label;
+                    g.dataset.liId = it.id;
+                    sel.appendChild(g);
+                }
+                return;
+            }
+            if (liFind(sel, it.id)) return;
+            if (Array.from(sel.options).some(o => o.value.toLowerCase() === it.label.toLowerCase())) return;   // taka pozycja już jest
+            const o = new Option(it.label, it.label);
+            o.dataset.liId = it.id;
+            const g = it.group ? Array.from(sel.querySelectorAll("optgroup")).find(x => teGroupKey(x) === it.group) : null;
+            (g || sel).appendChild(o);
+        });
+    } finally { liObs.takeRecords(); liBusy = false; }
+}
+function liApplyAll() {
+    Object.keys(LI_LISTS).forEach(id => { const s = $(id); if (s) { try { liApplySelect(s); } catch (e) { console.error("[128] pozycje list", e); } } });
+}
+// Gdyby strona zbudowała listę od nowa — pozycje dodane w edytorze wracają na swoje miejsce.
+const liObs = new MutationObserver(() => { if (!liBusy) liApplyAll(); });
+Object.keys(LI_LISTS).forEach(id => { const s = $(id); if (s) liObs.observe(s, { childList: true }); });
+
+// Odświeża otwarte okno edycji listy po dodaniu / usunięciu pozycji (wpisane teksty zostają).
+function liRefreshDlg(auto) {
+    const ctx = teDlgCtx;
+    if (!ctx || !ctx.listSel || !liOf(ctx.listSel) || !$("teDialog").classList.contains("show")) return;
+    if (auto && ctx.orderChanged) return;
+    teListStash();
+    const drafts = new Map(ctx.entries.map(en => [en.okey || ("x:" + en.key), en.draft]));
+    ctx.entries = teCollectSelect(ctx.listSel);
+    ctx.entries.forEach(en => { const d = drafts.get(en.okey || ("x:" + en.key)); if (d !== undefined) en.draft = d; });
+    ctx.orderChanged = false;
+    teRenderDlg("reorder");
+}
+
+try {
+    const cachedItems = JSON.parse(localStorage.getItem(LI_CACHE) || "null");
+    if (cachedItems && typeof cachedItems === "object") { liSet(cachedItems); liApplyAll(); }
+} catch (e) {}
+database.ref(LI_PATH).on("value", snap => {
+    const v = snap.val() || {};
+    try { localStorage.setItem(LI_CACHE, JSON.stringify(v)); } catch (e) {}
+    liSet(v);
+    liApplyAll();
+    liRefreshDlg(true);
+}, err => console.warn("[128] Nie udało się wczytać własnych pozycji list:", err && err.message));
+
+/* ---------- okno dodawania ---------- */
+document.body.insertAdjacentHTML("beforeend", `
+<div id="liDialog" class="te-modal" data-te-ui role="dialog" aria-modal="true" aria-labelledby="liDlgTitle">
+  <div class="te-box">
+    <h3 id="liDlgTitle">➕ Nowa pozycja listy „Decyzja”</h3>
+    <p class="te-hint" id="liDlgHint">Nowa pozycja od razu pojawia się na liście u wszystkich. Jej kolejność zmienisz w edytorze (⬆ ⬇ albo przeciąganie za ⠿): opcja przeniesiona pod nagłówek grupy trafia do tej grupy, a nad pierwszą grupę — poza grupy.</p>
+    <div class="field"><label for="liDlgKind">Rodzaj</label><select id="liDlgKind"><option value="option">Opcja listy (nowa decyzja)</option><option value="group">Nagłówek grupy</option></select></div>
+    <div class="field"><label for="liDlgLabel" id="liDlgLabelLbl">Nazwa decyzji</label><input type="text" id="liDlgLabel" maxlength="120" autocomplete="off" placeholder="np. Naruszenie – kara pozycyjna"></div>
+    <div class="field" id="liDlgWhereWrap"><label for="liDlgWhere">Gdzie dodać</label><select id="liDlgWhere"></select></div>
+    <div class="te-foot">
+      <span style="flex:1;"></span>
+      <button type="button" class="btn-secondary" id="liDlgCancel">Anuluj</button>
+      <button type="button" class="btn-success" id="liDlgSave">➕ Dodaj opcję</button>
+    </div>
+  </div>
+</div>`);
+
+let liDlg = null;   // { sel, list }
+function liSync() {
+    const grp = $("liDlgKind").value === "group";
+    $("liDlgWhereWrap").style.display = grp ? "none" : "";
+    $("liDlgLabelLbl").textContent = grp ? "Nazwa grupy (nagłówek)" : "Nazwa decyzji (to będzie jej wartość w werdykcie)";
+    $("liDlgLabel").placeholder = grp ? "np. Kary dodatkowe" : "np. Naruszenie – kara pozycyjna";
+    $("liDlgSave").textContent = grp ? "➕ Dodaj grupę" : "➕ Dodaj opcję";
+}
+function liCloseDialog() { $("liDialog").classList.remove("show"); liDlg = null; }
+window.liOpenDialog = function (sel, kind) {
+    if (!canEdit()) { alert("Dodawanie pozycji list wymaga roli Główny Steward / ROOT albo uprawnienia SYS."); return; }
+    const list = liOf(sel);
+    if (!list) return;
+    liDlg = { sel, list };
+    $("liDlgTitle").textContent = "➕ Nowa pozycja listy „" + (LI_NAMES[list] || list) + "”";
+    $("liDlgKind").value = kind === "group" ? "group" : "option";
+    $("liDlgLabel").value = "";
+    $("liDlgWhere").innerHTML = `<option value="">Poza grupami (na końcu listy)</option>` +
+        Array.from(sel.querySelectorAll("optgroup")).map(g => `<option value="${esc(teGroupKey(g))}">W grupie: ${esc(g.label)}</option>`).join("");
+    liSync();
+    $("liDialog").classList.add("show");
+    setTimeout(() => { try { $("liDlgLabel").focus(); } catch (e) {} }, 30);
+};
+async function liSave() {
+    if (!liDlg) return;
+    if (!canEdit()) { alert("Dodawanie pozycji list wymaga roli Główny Steward / ROOT albo uprawnienia SYS."); return; }
+    const sel = liDlg.sel, list = liDlg.list, kind = $("liDlgKind").value === "group" ? "group" : "option";
+    const label = norm($("liDlgLabel").value).slice(0, 120), low = label.toLowerCase();
+    if (!label) { alert(kind === "group" ? "Wpisz nazwę grupy." : "Wpisz nazwę decyzji."); $("liDlgLabel").focus(); return; }
+    if (kind === "option" && Array.from(sel.options).some(o => o.value.toLowerCase() === low || norm(o.textContent).toLowerCase() === low)) { alert("Taka decyzja już jest na liście."); $("liDlgLabel").focus(); return; }
+    if (kind === "group" && Array.from(sel.querySelectorAll("optgroup")).some(g => norm(g.label).toLowerCase() === low)) { alert("Taka grupa już jest na liście."); $("liDlgLabel").focus(); return; }
+    const group = kind === "option" ? $("liDlgWhere").value : "";
+    const btn = $("liDlgSave");
+    btn.disabled = true;
+    try {
+        const ref = database.ref(LI_PATH + "/" + list).push();
+        const path = LI_PATH + "/" + list + "/" + ref.key;
+        await ref.set({ kind, label, group: group || null, at: Date.now(), by: myNick() });
+        try { logAction(myNick(), "SYSTEM", "LISTY", `Edytor treści — dodano ${kind === "group" ? "grupę" : "opcję"} „${short(label, 60)}” do listy „${LI_NAMES[list] || list}”`, { items: [{ path, data: null }] }); } catch (e) {}
+        liCloseDialog();
+        liRefreshDlg();
+        toast("➕ Dodano do listy", `„${short(label, 50)}” — widzą to wszyscy odwiedzający.`);
+    } catch (err) {
+        alert("Nie udało się zapisać pozycji listy: " + (err && err.message));
+    } finally { btn.disabled = false; }
+}
+$("liDlgSave").addEventListener("click", liSave);
+$("liDlgCancel").addEventListener("click", liCloseDialog);
+$("liDlgKind").addEventListener("change", liSync);
+$("liDialog").addEventListener("click", e => { if (e.target === $("liDialog")) liCloseDialog(); });
+$("liDialog").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); liSave(); } });
+window.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("liDialog").classList.contains("show")) { e.preventDefault(); e.stopPropagation(); liCloseDialog(); }
+}, true);
+
+/* ---------- przyciski w oknie edycji listy i przy liście „Decyzja” ---------- */
+function liOpenFromDlg(kind) {
+    const ctx = teDlgCtx;
+    if (!ctx || !ctx.listSel || !liOf(ctx.listSel)) return;
+    if (ctx.orderChanged) { alert("Najpierw zapisz zmianę kolejności (💾 Zapisz) albo zamknij okno — potem dodaj nową pozycję."); return; }
+    window.liOpenDialog(ctx.listSel, kind);
+}
+$("teDlgAddOpt").addEventListener("click", () => liOpenFromDlg("option"));
+$("teDlgAddGrp").addEventListener("click", () => liOpenFromDlg("group"));
+$("teDlgList").addEventListener("click", async e => {
+    const b = e.target.closest && e.target.closest("[data-li-del]");
+    if (!b || !teDlgCtx || !teDlgCtx.listSel) return;
+    if (!canEdit()) { alert("Brak uprawnień."); return; }
+    const list = liOf(teDlgCtx.listSel), id = b.dataset.liDel;
+    const it = ((liItems[list] || []).find(x => x.id === id)) || null;
+    if (!it) return;
+    if (!confirm(`Usunąć z listy ${it.kind === "group" ? "grupę" : "opcję"} „${it.label}”?\n\nWerdykty już wydane z tą decyzją zostają bez zmian.${it.kind === "group" ? " Opcje z tej grupy zostaną na liście, ale poza grupą." : ""} Można to cofnąć w Dzienniku Akcji.`)) return;
+    const path = LI_PATH + "/" + list + "/" + id;
+    try {
+        const snap = await database.ref(path).once("value");
+        const prev = snap.val();
+        await database.ref(path).set(null);
+        try { logAction(myNick(), "SYSTEM", "LISTY", `Edytor treści — usunięto ${it.kind === "group" ? "grupę" : "opcję"} „${short(it.label, 60)}” z listy „${LI_NAMES[list] || list}”`, { items: [{ path, data: prev }] }); } catch (x) {}
+        liRefreshDlg();
+    } catch (err) { alert("Nie udało się usunąć: " + (err && err.message)); }
+});
+function liRefreshAccess() {
+    const b = $("btnAddDecisionOption");
+    if (b) b.style.display = canEdit() ? "" : "none";
+}
+const liAddBtn = $("btnAddDecisionOption");
+if (liAddBtn) liAddBtn.addEventListener("click", () => window.liOpenDialog($("decision"), "option"));
+wrap("applyStewardPermissions", liRefreshAccess);
+wrap("adminLogout", liRefreshAccess);
+liRefreshAccess();
 
 /* ============================================================
    6. ZMIANY TEKSTÓW NA ŻYWO Z BAZY (dla wszystkich odwiedzających)
