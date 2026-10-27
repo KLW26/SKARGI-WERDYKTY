@@ -2867,6 +2867,12 @@
 
     /* === ZNACZNIKI SPRAW (przypisanie / powiązane / wiek) === */
     .case-chip{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin:4px 4px 0 0;border:1px solid var(--border);white-space:nowrap;}
+    .chip-ae-wait{color:var(--amber-text);border-color:var(--amber-text);}
+    .chip-ae-ok{color:var(--green-text);border-color:var(--green-text);}
+    .chip-ae-none{color:var(--text-dim);}
+    .chip-ae-fail{color:#fff;background:#b45309;border-color:#b45309;cursor:pointer;}
+    .chip-ae-send{color:var(--text-dim);cursor:pointer;border-style:dashed;}
+    .chip-ae-send:hover{color:var(--text);border-color:var(--text-dim);}
     .chip-rel{color:var(--purple-text);cursor:pointer;}
     .chip-age-ok{color:var(--text-dim);}
     .chip-age-warn{color:var(--amber-text);border-color:var(--amber-text);}
@@ -4381,7 +4387,8 @@ const database = firebase.database();
 // ten moduł przekłada je przy zapisie na nowe węzły, a przy odczycie dokleja prywatne pola do
 // globalIncidents (stewardom wszystkie, kierowcy tylko jego własne oświadczenia).
 // pendingVerdict — werdykt czekający na akceptację Głównych Stewardów (Rozbudowa 132), też tylko dla stewardów.
-const FIA_STAFF_FIELDS = ["notes", "stewardVotes", "assignedTo", "pendingVerdict"];
+// accusedEvidence — stan prośby o dowód oskarżonego wysłanej przez bota na Discordzie (zapisuje Worker).
+const FIA_STAFF_FIELDS = ["notes", "stewardVotes", "assignedTo", "pendingVerdict", "accusedEvidence"];
 const FIA_STAFF_CHAT_KEY = "_staff";
 const fiaOrigRef = database.ref.bind(database);
 const fiaChatIndex = Object.create(null); // id wiadomości → węzeł, w którym leży ("chats/{sprawa}" albo stary "chat")
@@ -4399,7 +4406,7 @@ function fiaIsStaffSession() { try { return !!isAdminAuthenticated; } catch (e) 
 function fiaRemapPath(path) {
     if (typeof path !== "string") return path;
     const p = path.replace(/^\/+/, "");
-    let m = /^incidents\/([^\/]+)\/(notes|stewardVotes|assignedTo|pendingVerdict)(\/.*)?$/.exec(p);
+    let m = /^incidents\/([^\/]+)\/(notes|stewardVotes|assignedTo|pendingVerdict|accusedEvidence)(\/.*)?$/.exec(p);
     if (m) return "staffIncidents/" + m[1] + "/" + m[2] + (m[3] || "");
     m = /^incidents\/([^\/]+)\/statements\/([^\/]+)(\/.*)?$/.exec(p);
     if (m) return "caseStatements/" + m[2] + "/" + m[1] + (m[3] || "");
@@ -4860,6 +4867,12 @@ function guardErrorText(code, status) {
         session_expired: ["Sesja wygasła — zaloguj się ponownie.", "Session expired — log in again."],
         origin_not_allowed: ["Adres tej strony nie jest dopisany w ALLOWED_ORIGINS Workera.", "This site's address is not in the Worker's ALLOWED_ORIGINS."],
         service_account_missing: ["Worker nie ma klucza Firebase (sekret FIREBASE_SERVICE_ACCOUNT).", "The Worker has no Firebase key (FIREBASE_SERVICE_ACCOUNT)."],
+        bot_not_configured: ["Bot Discorda nie jest ustawiony w Workerze (DISCORD_BOT_TOKEN).", "The Discord bot is not configured in the Worker (DISCORD_BOT_TOKEN)."],
+        case_not_found: ["Nie znaleziono sprawy.", "Case not found."],
+        not_case_reporter: ["Prośbę o dowód może wysłać tylko zgłaszający albo steward.", "Only the reporter or a steward can request evidence."],
+        case_closed: ["Sprawa jest już zamknięta.", "The case is already closed."],
+        invalid_case_id: ["Nieprawidłowe ID sprawy.", "Invalid case ID."],
+        not_found: ["Worker nie zna tej funkcji — wdróż jego nową wersję.", "The Worker doesn't support this yet — deploy its new version."],
     };
     const t = T[code];
     if (t) return uiIsPl() ? t[0] : t[1];
@@ -5036,6 +5049,100 @@ async function postApprovalWebhook(options) {
         }
     }
     return postWebhook(NEW_REPORT_WEBHOOK, options);
+}
+
+// === DOWÓD OSKARŻONEGO PRZEZ DISCORD ===
+// Po złożeniu zgłoszenia bot ligi (Worker „fia-guard”) wysyła oskarżonemu prywatną wiadomość
+// z prośbą o dowód. Oskarżony odpowiada na Discordzie (link / opis / pliki przez /dowod), a dowód
+// trafia do sprawy jako jego oświadczenie. Stan prośby: staffIncidents/{sprawa}/accusedEvidence
+//   { status: requested | submitted | declined | dm_failed, requestedAt, deadline, override? }.
+// Dopóki oskarżony nie odpowie, a termin nie minął, nie można przyjąć zgłoszenia ani wydać werdyktu.
+async function requestAccusedEvidenceDm(caseId, opts) {
+    const user = fbAuth && fbAuth.currentUser;
+    if (!user) throw new Error(guardErrorText("login_required", 401));
+    const idToken = await user.getIdToken();
+    const res = await fetch(`${GUARD_WORKER_URL}/accused/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+        body: JSON.stringify({ caseId, resend: !!(opts && opts.resend) })
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(guardErrorText(data && data.error, res.status));
+    return data || {};
+}
+
+function accusedEvidenceInfo(r) {
+    const ae = r && r.accusedEvidence;
+    if (!ae || typeof ae !== "object" || !ae.status) return null;
+    const accId = String(r.accusedDiscordId || "");
+    const sts = r.statements && typeof r.statements === "object" ? r.statements : {};
+    const hasStatement = !!(accId && sts[accId]) || Object.values(sts).some(s => s && s.role === "accused");
+    const deadline = Number(ae.deadline) || 0;
+    const state = hasStatement ? "submitted" : ae.status;
+    const overridden = !!(ae.override && ae.override.at);
+    const waiting = state === "requested" && deadline > Date.now() && !overridden;
+    const expired = state === "requested" && deadline <= Date.now();
+    return { state, deadline, waiting, expired, overridden, error: ae.error || null };
+}
+
+function accusedEvidenceLeftText(ms) {
+    if (ms <= 0) return "0 min";
+    if (ms < 3600000) return Math.max(1, Math.ceil(ms / 60000)) + " min";
+    return Math.ceil(ms / 3600000) + " h";
+}
+
+// true = można przyjąć zgłoszenie / wydać werdykt. Główny Steward / ROOT i stewardzi z uprawnieniem
+// „Nie blokuj niczego” mogą pominąć blokadę po potwierdzeniu (zapisujemy to w sprawie i w Dzienniku akcji).
+async function accusedEvidenceAllows(r, whatLabel) {
+    const info = accusedEvidenceInfo(r);
+    if (!info || !info.waiting) return true;
+    const msg = `Oskarżony (${r.accusedNick || "?"}) dostał na Discordzie prośbę o swój dowód i ma czas do ${formatTimestamp(info.deadline)} (zostało ${accusedEvidenceLeftText(info.deadline - Date.now())}).`;
+    if (stewardLockBypass) {
+        if (!confirm(`${msg}\n\nMasz uprawnienie do pominięcia tej blokady. ${whatLabel} mimo to?`)) return false;
+        const who = loggedInSteward ? loggedInSteward.nick : "Steward";
+        try {
+            await database.ref(`incidents/${r.id}/accusedEvidence/override`).set({ by: who, at: Date.now() });
+            await logAction(who, "VERDICT", r.id, `Pominięto oczekiwanie na dowód oskarżonego (${whatLabel.toLowerCase()} przed terminem ${formatTimestamp(info.deadline)}).`);
+        } catch (e) { console.warn("Nie zapisano pominięcia blokady dowodu oskarżonego:", e); }
+        return true;
+    }
+    alert(`${msg}\n\n${whatLabel} będzie możliwe, gdy oskarżony doda dowód (albo zaznaczy, że go nie ma) lub gdy minie termin. Blokadę może pominąć Główny Steward.`);
+    return false;
+}
+
+function accusedEvidenceChipHtml(r) {
+    if (!r || !["Oczekuje", "Przyjęte"].includes(r.status)) return "";
+    const info = accusedEvidenceInfo(r);
+    const id = jsAttr(r.id);
+    if (!info) {
+        const canAsk = isAdminAuthenticated && r.status === "Oczekuje" && /^\d{15,21}$/.test(String(r.accusedDiscordId || "").trim());
+        return canAsk ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}')" title="Wyślij oskarżonemu prywatną wiadomość na Discordzie z prośbą o jego dowód">✉️ Poproś o dowód</span>` : "";
+    }
+    if (info.waiting) return `<span class="case-chip chip-ae-wait" title="Oskarżony ma czas na dowód do ${escapeHtml(formatTimestamp(info.deadline))}. Do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">⏳ Dowód oskarżonego: ${escapeHtml(accusedEvidenceLeftText(info.deadline - Date.now()))}</span>`;
+    if (info.state === "submitted") return `<span class="case-chip chip-ae-ok" title="Oskarżony dodał dowód — zobacz „Oświadczenia stron” w panelu werdyktu.">📎 Dowód oskarżonego</span>`;
+    if (info.state === "declined") return `<span class="case-chip chip-ae-none" title="Oskarżony zaznaczył na Discordzie, że nie ma dowodu.">🚫 Oskarżony: brak dowodu</span>`;
+    if (info.state === "dm_failed") return `<span class="case-chip chip-ae-fail" onclick="resendAccusedEvidenceDm('${id}')" title="Bot nie mógł wysłać wiadomości${info.error ? " (" + escapeHtml(info.error) + ")" : ""} — zwykle oskarżony ma wyłączone wiadomości prywatne. Kliknij, aby spróbować ponownie.">✉️ DM nie dotarł — ponów</span>`;
+    if (info.overridden) return `<span class="case-chip chip-ae-none" title="Blokadę pominął steward przed terminem.">⏭ Bez dowodu oskarżonego</span>`;
+    if (info.expired) return `<span class="case-chip chip-ae-none" title="Oskarżony nie odpowiedział w terminie — zgłoszenie można przyjąć.">⌛ Oskarżony nie odpowiedział</span>`;
+    return "";
+}
+
+async function resendAccusedEvidenceDm(caseId) {
+    const r = (globalIncidents || []).find(x => x.id === caseId);
+    if (!r) return;
+    const info = accusedEvidenceInfo(r);
+    const again = info ? " ponownie" : "";
+    if (!confirm(`Wysłać${again} oskarżonemu (${r.accusedNick || "?"}) prywatną wiadomość na Discordzie z prośbą o dowód w sprawie ${r.fiaId || r.id}?` +
+        (info ? "" : "\n\nDo czasu jego odpowiedzi (maks. termin z Workera, domyślnie 24 h) nie będzie można przyjąć zgłoszenia ani wydać werdyktu."))) return;
+    try {
+        const res = await requestAccusedEvidenceDm(caseId, { resend: true });
+        if (res.status === "dm_failed") showToast("✉️ DM nie dotarł", "Oskarżony prawdopodobnie ma wyłączone wiadomości prywatne.");
+        else if (res.status === "no_discord_id") showToast("✉️ Brak Discord ID", "Oskarżony nie ma poprawnego Discord ID w zgłoszeniu.");
+        else showToast("✉️ Prośba o dowód wysłana", `${r.accusedNick || "Oskarżony"} · ${r.fiaId || r.id}`);
+    } catch (err) {
+        alert("Nie udało się wysłać prośby o dowód: " + err.message);
+    }
 }
 
 const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024;
@@ -7480,6 +7587,7 @@ document.getElementById("complaintForm").addEventListener("submit", async e => {
     };
 
     postWebhook(NEW_REPORT_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: STEWARD_PING, embeds: [embed] }) }).catch(()=>{});
+    requestAccusedEvidenceDm(fiaId).catch(err => console.warn("Prośba o dowód oskarżonego (Discord):", err && err.message));
     } catch (err) {
         console.error("Błąd wysyłania zgłoszenia:", err);
         alert(friendlyWriteError(err, currentLang === 'pl' ? "Nie udało się wysłać zgłoszenia" : "Could not submit the report"));
@@ -8787,6 +8895,7 @@ async function deleteVerdict(id) {
 async function updateStatus(id, newStatus) {
     const item = globalIncidents.find(r => r.id === id);
     if (!item) return;
+    if (newStatus === "Przyjęte" && !(await accusedEvidenceAllows(item, "Przyjęcie zgłoszenia"))) return;
     let reason = "";
     if (newStatus === "Odrzucone") {
         reason = prompt(langData[currentLang].promptReject);
@@ -9413,8 +9522,26 @@ function updateBulkActionsBar() {
 }
 
 async function bulkStatusUpdate(newStatus) {
-    const selected = document.querySelectorAll(".admin-row-cb:checked");
+    let selected = Array.from(document.querySelectorAll(".admin-row-cb:checked"));
     if (selected.length === 0) return;
+    if (newStatus === "Przyjęte") {
+        const waiting = selected.map(cb => globalIncidents.find(r => r.id === cb.getAttribute("data-id"))).filter(r => r && (accusedEvidenceInfo(r) || {}).waiting);
+        if (waiting.length) {
+            const list = waiting.map(r => r.fiaId || r.id).join(", ");
+            if (stewardLockBypass) {
+                if (!confirm(`${waiting.length} z zaznaczonych zgłoszeń czeka jeszcze na dowód oskarżonego (${list}).\n\nMasz uprawnienie do pominięcia tej blokady. Przyjąć je mimo to?`)) return;
+                const who = loggedInSteward ? loggedInSteward.nick : "Steward";
+                for (const r of waiting) {
+                    try { await database.ref(`incidents/${r.id}/accusedEvidence/override`).set({ by: who, at: Date.now() }); } catch (e) { console.warn(e); }
+                }
+            } else {
+                const skip = new Set(waiting.map(r => r.id));
+                selected = selected.filter(cb => !skip.has(cb.getAttribute("data-id")));
+                alert(`Pominięto ${waiting.length} zgłoszeń, które czekają jeszcze na dowód oskarżonego: ${list}.`);
+                if (!selected.length) return;
+            }
+        }
+    }
     let reason = "";
     if (newStatus === "Odrzucone") {
         reason = prompt(langData[currentLang].promptReject) || "";
@@ -9742,6 +9869,12 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         alert(currentLang === 'pl'
             ? `Nie znaleziono sprawy o ID "${caseIdInput}" — sprawdź poprawność ID. Werdykt nie został wydany.`
             : `No case found with ID "${caseIdInput}" — check the ID. Verdict was not issued.`);
+        return;
+    }
+
+    const isAppealForEvidenceGate = /APP-\d+/i.test(caseIdInput);
+    if (!isAppealForEvidenceGate && caseForLock && !(await accusedEvidenceAllows(caseForLock, "Wydanie werdyktu"))) {
+        statusEl.textContent = "";
         return;
     }
 
@@ -14467,6 +14600,7 @@ wrap("renderAdmin", function () {
         if (!tr || !r) return;
         const idCell = tr.children[1], statusCell = tr.children[tr.children.length - 1];
         let chips = "";
+        if (typeof accusedEvidenceChipHtml === "function") chips += accusedEvidenceChipHtml(r);
         if (unread[id]) chips += `<span class="case-chip chip-unread" onclick="openCaseChatFromAdmin('${jsAttr(id)}')" title="Nieprzeczytane wiadomości od kierowcy — kliknij, aby otworzyć czat">💬 ${escapeHtml(unread[id])} nowe</span>`;
         if (chips && idCell) idCell.insertAdjacentHTML("beforeend", `<div>${chips}</div>`);
         if (r.status === WITHDRAWN && statusCell) {
@@ -15259,7 +15393,7 @@ function statementsHtml(r) {
     const list = Object.values(r.statements || {}).sort((a, b) => ts(a.ts) - ts(b.ts));
     if (!list.length) return "";
     return list.map(s => `<div class="stmt">
-        <div class="stmt-head"><span><b style="color:var(--text);">${escapeHtml(s.nick || "?")}</b><span class="stmt-role ${s.role === "accused" ? "accused" : "reporter"}">${s.role === "accused" ? "OSKARŻONY" : "ZGŁASZAJĄCY"}</span>${s.edited ? ' <em style="color:var(--text-muted); font-size:10px;">(edytowane)</em>' : ""}</span>
+        <div class="stmt-head"><span><b style="color:var(--text);">${escapeHtml(s.nick || "?")}</b><span class="stmt-role ${s.role === "accused" ? "accused" : "reporter"}">${s.role === "accused" ? "OSKARŻONY" : "ZGŁASZAJĄCY"}</span>${s.source === "discord" ? ' <span style="font-size:10px; color:#818cf8;" title="Dodane przez prywatną wiadomość z botem na Discordzie">· przez Discord</span>' : ""}${s.edited ? ' <em style="color:var(--text-muted); font-size:10px;">(edytowane)</em>' : ""}</span>
         <span style="font-size:10px; color:var(--text-muted);">${formatTimestamp(s.ts)}</span></div>
         ${s.text ? `<div class="stmt-text">${escapeHtml(s.text)}</div>` : ""}
         ${(s.evidence || asList(s.evidenceFiles).length) ? `<div style="margin-top:4px;">📎 ${renderEvidenceHtml({ ...s, evidenceFiles: asList(s.evidenceFiles) }, "Link do dowodu", "")}</div>` : ""}
@@ -18086,7 +18220,7 @@ const DB_NAMES = {
     reportWindow: "Ręczna blokada zgłoszeń", reportSchedule: "Harmonogram otwierania zgłoszeń", season: "Sezon", calendar: "Kalendarz", suspensions: "Zawieszenia",
     voting: "Głosowanie", bulletin: "Biuletyn", permissions: "Uprawnienia", statements: "Oświadczenia stron",
     customFields: "Rubryki formularzy / dodatkowe rubryki",
-    staffIncidents: "Dane wewnętrzne spraw (notatki, głosy, przydział)", caseStatements: "Oświadczenia stron (wg Discord ID)",
+    staffIncidents: "Dane wewnętrzne spraw (notatki, przydział, prośba o dowód oskarżonego)", discordBot: "Bot Discord (prośby o dowód oskarżonego)", caseStatements: "Oświadczenia stron (wg Discord ID)",
     presence: "Obecność na stronie", rate: "Znaczniki limitów"
 };
 DB_NAMES[EVIDENCE_NODE] = "Pliki dowodów";
