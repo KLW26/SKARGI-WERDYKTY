@@ -1066,8 +1066,8 @@
     .col-ap-date { width: 8%; }
     .col-ap-case { width: 9%; }
     .col-ap-driver { width: 13%; }
-    .col-ap-reason { width: 28%; }
-    .col-ap-ev { width: 10%; }
+    .col-ap-reason { width: 22%; }
+    .col-ap-ev { width: 16%; }
     .col-ap-actions { width: 22%; }
 
     .cell-wrap {
@@ -1448,6 +1448,22 @@
       max-width: 240px; max-height: 160px; border-radius: 4px;
       border: 1px solid var(--border); display: block; background: #000;
     }
+
+    /* === DWA DOWODY W APELACJI (apelujący + zgłaszający) === */
+    .appeal-ev-pair { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .appeal-ev-item {
+      border: 1px solid var(--border); border-left: 3px solid #eab308; border-radius: 3px;
+      background: var(--bg-input); padding: 5px 8px; min-width: 0;
+    }
+    .appeal-ev-label {
+      font-size: 10px; color: var(--text-dim); margin-bottom: 3px; word-break: break-word;
+    }
+    .appeal-ev-role { font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+    .appeal-ev-nick { color: var(--text); font-weight: 600; }
+    .appeal-ev-body { font-size: 12px; min-width: 0; word-break: break-word; }
+    .appeal-ev-body .evidence-gallery { margin-top: 4px; gap: 6px; }
+    .appeal-ev-body .evidence-thumb { max-width: 110px; max-height: 80px; }
+    .appeal-ev-body .evidence-video { max-width: 180px; max-height: 120px; }
 
     /* === ZAŁĄCZNIKI W CZACIE === */
     .btn-attach {
@@ -3868,7 +3884,7 @@
                 <th class="col-ap-case">ID Zgłoszenia</th>
                 <th class="col-ap-driver">Apelujący kierowca</th>
                 <th class="col-ap-reason">Uzasadnienie / Argumenty obrony</th>
-                <th class="col-ap-ev">Nowe Dowody</th>
+                <th class="col-ap-ev">Dowody (apelujący / zgłaszający)</th>
                 <th class="col-ap-actions">Decyzja Sędziowska</th>
               </tr>
             </thead>
@@ -4364,7 +4380,8 @@ const database = firebase.database();
 // Reszta kodu nadal używa starych ścieżek (incidents/X/notes, incidents/X/statements/U, chat/…):
 // ten moduł przekłada je przy zapisie na nowe węzły, a przy odczycie dokleja prywatne pola do
 // globalIncidents (stewardom wszystkie, kierowcy tylko jego własne oświadczenia).
-const FIA_STAFF_FIELDS = ["notes", "stewardVotes", "assignedTo"];
+// pendingVerdict — werdykt czekający na akceptację Głównych Stewardów (Rozbudowa 132), też tylko dla stewardów.
+const FIA_STAFF_FIELDS = ["notes", "stewardVotes", "assignedTo", "pendingVerdict"];
 const FIA_STAFF_CHAT_KEY = "_staff";
 const fiaOrigRef = database.ref.bind(database);
 const fiaChatIndex = Object.create(null); // id wiadomości → węzeł, w którym leży ("chats/{sprawa}" albo stary "chat")
@@ -4382,7 +4399,7 @@ function fiaIsStaffSession() { try { return !!isAdminAuthenticated; } catch (e) 
 function fiaRemapPath(path) {
     if (typeof path !== "string") return path;
     const p = path.replace(/^\/+/, "");
-    let m = /^incidents\/([^\/]+)\/(notes|stewardVotes|assignedTo)(\/.*)?$/.exec(p);
+    let m = /^incidents\/([^\/]+)\/(notes|stewardVotes|assignedTo|pendingVerdict)(\/.*)?$/.exec(p);
     if (m) return "staffIncidents/" + m[1] + "/" + m[2] + (m[3] || "");
     m = /^incidents\/([^\/]+)\/statements\/([^\/]+)(\/.*)?$/.exec(p);
     if (m) return "caseStatements/" + m[2] + "/" + m[1] + (m[3] || "");
@@ -4977,12 +4994,14 @@ async function describeHttpError(res) {
 //   "decisions" → WEBHOOK_DECISIONS  (przyjęte/odrzucone zgłoszenia i wyniki apelacji)
 //   "verdicts"  → WEBHOOK_VERDICTS   (werdykty z obrazkiem PNG)
 //   "bulletin"  → WEBHOOK_BULLETIN   (biuletyn rundy)
+//   "approvals" → WEBHOOK_APPROVALS  (werdykty do akceptacji i odrzucone przy akceptacji — dla Głównych Stewardów)
 // Kierowcy mogą pisać tylko na kanały stewardów (stewards / chat), z limitem; reszta tylko dla stewardów.
 const NEW_REPORT_WEBHOOK = "stewards";
 const CHAT_MESSAGE_WEBHOOK = "chat";
 const DECISION_WEBHOOK = "decisions";
 const DISCORD_WEBHOOK_URL = "verdicts";
 const BULLETIN_WEBHOOK = "bulletin";
+const APPROVAL_WEBHOOK = "approvals";
 // Ping ról stewardów wstawia Worker (STEWARD_ROLE_IDS) w miejsce tego znacznika — ID ról nie ma w kodzie strony.
 const STEWARD_PING = "{{STEWARD_PING}}";
 
@@ -4997,6 +5016,26 @@ async function postWebhook(channel, options) {
     const idToken = await user.getIdToken();
     const headers = Object.assign({}, options.headers || {}, { Authorization: "Bearer " + idToken });
     return fetch(`${GUARD_WORKER_URL}/notify/${encodeURIComponent(channel)}`, { method: "POST", headers, body: options.body });
+}
+
+// Powiadomienia o werdyktach do akceptacji idą na osobny kanał (WEBHOOK_APPROVALS w Workerze).
+// Gdy wdrożony Worker jest starszy i nie zna kanału "approvals" (404), wiadomość trafia awaryjnie
+// na kanał stewardów — żeby żadne powiadomienie nie przepadło (raz na sesję pokazujemy ostrzeżenie).
+let _approvalChannelFallbackWarned = false;
+async function postApprovalWebhook(options) {
+    const res = await postWebhook(APPROVAL_WEBHOOK, options);
+    if (res.status !== 404) return res;
+    let why = "";
+    try { why = await describeHttpError(res.clone()); } catch (e) {}
+    console.warn("[akceptacja] Kanał „approvals” niedostępny w Workerze — wysyłam na kanał stewardów.", why);
+    if (!_approvalChannelFallbackWarned) {
+        _approvalChannelFallbackWarned = true;
+        if (typeof showToast === "function") {
+            showToast("⚠️ Kanał akceptacji nie działa",
+                "Powiadomienie poszło na kanał stewardów. Wdróż nową wersję Workera (kanał „approvals”) i dodaj sekret WEBHOOK_APPROVALS." + (why ? " (" + why + ")" : ""));
+        }
+    }
+    return postWebhook(NEW_REPORT_WEBHOOK, options);
 }
 
 const MAX_EVIDENCE_TOTAL_SIZE = 1024 * 1024 * 1024;
@@ -5548,6 +5587,59 @@ function renderEvidenceHtml(record, linkLabel, emptyLabel) {
 
     if (!html) return emptyLabel !== undefined ? emptyLabel : "-";
     return html;
+}
+
+// === DWA DOWODY W APELACJI ===
+// Każda apelacja pokazuje dwa dowody: apelującego (dołączony do apelacji) oraz zgłaszającego
+// (z pierwotnego zgłoszenia sprawy). Używane w panelu admina, w podglądzie werdyktu, w historii
+// kierowcy, w aktach sprawy i w powiadomieniach na Discordzie.
+function evidenceRecordWithList(rec) {
+    if (!rec) return rec;
+    const f = rec.evidenceFiles;
+    const list = Array.isArray(f) ? f.filter(Boolean) : (f && typeof f === "object" ? Object.values(f).filter(Boolean) : []);
+    return Object.assign({}, rec, { evidenceFiles: list });
+}
+
+// Apelacja, której werdykt (z pełnego panelu werdyktu) siedzi obecnie w sprawie — najnowsza zakończona.
+function findConcludedAppealForCase(caseId) {
+    const list = (globalAppeals || []).filter(a => a && a.caseId === caseId && a.status === "Zakończona");
+    if (!list.length) return null;
+    return list.sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))[0];
+}
+
+function appealEvidenceLabels(appeal, report, lang) {
+    const pl = (lang || currentLang) === 'pl';
+    const appNick = appeal && appeal.nick ? String(appeal.nick) : "";
+    const repNick = report && report.nick ? String(report.nick) : "";
+    return {
+        appellant: (pl ? "Dowód apelującego" : "Appellant's evidence") + (appNick ? ` — ${appNick}` : ""),
+        reporter: (pl ? "Dowód zgłaszającego" : "Reporter's evidence") + (repNick ? ` — ${repNick}` : "")
+    };
+}
+
+function renderAppealEvidencePairHtml(appeal, report, linkLabel) {
+    const pl = currentLang === 'pl';
+    const none = `<span style="color:var(--text-dim);">${pl ? "Brak" : "None"}</span>`;
+    const block = (icon, role, nick, body, color) =>
+        `<div class="appeal-ev-item" style="border-left-color:${color};"><div class="appeal-ev-label">${icon} <span class="appeal-ev-role">${role}</span>${nick ? ` — <span class="appeal-ev-nick">${escapeHtml(nick)}</span>` : ""}</div><div class="appeal-ev-body">${body}</div></div>`;
+    const appellantBody = appeal ? renderEvidenceHtml(evidenceRecordWithList(appeal), linkLabel, none) : none;
+    const reporterBody = report
+        ? renderEvidenceHtml(evidenceRecordWithList(report), linkLabel, none)
+        : `<span style="color:var(--text-dim);">${pl ? "Sprawa niedostępna" : "Case unavailable"}</span>`;
+    return `<div class="appeal-ev-pair">${block("⚖️", pl ? "Dowód apelującego" : "Appellant's evidence", appeal && appeal.nick, appellantBody, "#eab308")}${block("🚩", pl ? "Dowód zgłaszającego" : "Reporter's evidence", report && report.nick, reporterBody, "#3b82f6")}</div>`;
+}
+
+// Dwa pola embeda Discorda: dowód apelującego i dowód zgłaszającego.
+async function buildAppealDiscordEvidenceFields(appeal, report, lang) {
+    const lbl = appealEvidenceLabels(appeal, report, lang);
+    const [appellantValue, reporterValue] = await Promise.all([
+        buildDiscordEvidenceValue(evidenceRecordWithList(appeal)),
+        buildDiscordEvidenceValue(evidenceRecordWithList(report))
+    ]);
+    return [
+        { name: dcFieldValue(`🎬 ${lbl.appellant}`, 256), value: dcFieldValue(appellantValue), inline: false },
+        { name: dcFieldValue(`🎬 ${lbl.reporter}`, 256), value: dcFieldValue(reporterValue), inline: false }
+    ];
 }
 
 function renderChatFilesHtml(files) {
@@ -7402,6 +7494,13 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
     if (appealEvidenceFileListEl) appealEvidenceFileListEl.innerHTML = "";
     applyDriverAuthUI();
 
+    let appealEvidenceFields = [];
+    try {
+        appealEvidenceFields = await buildAppealDiscordEvidenceFields(newAppeal, reportForDeadlineCheck, 'pl');
+    } catch (evErr) {
+        console.warn("Nie udało się przygotować dowodów apelacji dla Discorda:", evErr);
+    }
+
     const embed = {
         title: langData.pl.dcAppealTitle,
         color: 15313672,
@@ -7409,7 +7508,7 @@ document.getElementById("appealForm").addEventListener("submit", async e => {
             { name: "🆔 ID Apelacji", value: `**${appealId}**`, inline: true },
             { name: "📁 ID Sprawy Głównej", value: `**${caseId}**`, inline: true },
             { name: "👤 Apelujący kierowca", value: `${nick} (<@${discordId}>)`, inline: false }
-        ],
+        ].concat(appealEvidenceFields),
         timestamp: new Date().toISOString()
     };
 
@@ -7623,7 +7722,7 @@ function fetchAndRenderHistory(discordId) {
                 <div style="background:#1f2937; padding:8px; border-radius:6px; font-size:12px; margin-top:6px; color:#cbd5e1; border:1px solid #374151;">
                     <strong>${currentLang === 'pl' ? 'Uzasadnienie apelacji' : 'Appeal reasoning'}:</strong> ${escapeHtml(a.reason)}
                 </div>
-                ${hasEvidence(a) ? `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Dowód:</strong> ${renderEvidenceHtml(a)}</p>` : ''}
+                <div style="margin-top:8px;">${renderAppealEvidencePairHtml(a, relatedCaseForUserAppeal)}</div>
                 ${userAppVerdictBlock}
                 <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:6px;">
                     ${isAdminAuthenticated ? `<button type="button" class="btn-danger" style="padding:5px 12px; font-size:11px;" onclick="adminDeleteSingleAppeal('${jsAttr(a.id)}', '${jsAttr(discordId)}')">🗑️ ${currentLang === 'pl' ? 'Usuń (Admin)' : 'Delete (Admin)'}</button>` : ''}
@@ -8179,7 +8278,7 @@ function renderAdmin() {
                 <td><span style="color:var(--amber-text); font-weight:bold;">${escapeHtml(a.caseId)}</span></td>
                 <td><strong>${escapeHtml(a.nick)}</strong><br>ID: ${escapeHtml(a.discordId)}</td>
                 <td><div style="max-height:65px; overflow-y:auto; font-size:11px; white-space:pre-wrap;">${escapeHtml(a.reason)}</div>${appVerdictHtml}</td>
-                <td>${renderEvidenceHtml(a, t.evidenceBtn, `<span>Brak</span>`)}</td>
+                <td>${renderAppealEvidencePairHtml(a, relatedCaseForAppeal, t.evidenceBtn)}</td>
                 <td>
                     <span style="background:${escapeHtml(appBadgeBg)}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${escapeHtml(appStatusText)}</span>
                     <div class="action-btns">
@@ -8486,6 +8585,8 @@ function transferToVerdictPanel(id, accusedDiscordId) {
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
         document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
+        const lblPrevEvInc = document.getElementById("lblPreviewEvidence");
+        if (lblPrevEvInc && langData[currentLang] && langData[currentLang].lblPreviewEvidence) lblPrevEvInc.textContent = langData[currentLang].lblPreviewEvidence;
         document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session || found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
     }
     collapseList("incidentsListWrap", "btnToggleIncidents");
@@ -8508,7 +8609,9 @@ function transferAppealToVerdict(caseId, driverDiscordId, appealId) {
 
     if (foundCase && foundAppeal) {
         document.getElementById("verdictPreviewDesc").textContent = `[Pierwotne zgłoszenie]: ${foundCase.details}\n\n[Argumentacja Apelacji]: ${foundAppeal.reason}`;
-        document.getElementById("verdictPreviewEvidence").innerHTML = `Oryginalny dowód: ${renderEvidenceHtml(foundCase, "Link", "Brak")}<br>Nowy dowód: ${renderEvidenceHtml(foundAppeal, "Link", "Brak")}`;
+        document.getElementById("verdictPreviewEvidence").innerHTML = renderAppealEvidencePairHtml(foundAppeal, foundCase, "Link");
+        const lblPrevEvApp = document.getElementById("lblPreviewEvidence");
+        if (lblPrevEvApp) lblPrevEvApp.textContent = currentLang === 'pl' ? "Dowody: apelujący i zgłaszający" : "Evidence: appellant and reporter";
         document.getElementById("verdictDetails").value = `Rozpatrzenie Apelacji dla sprawy ${caseId} (Apelacja ${appealId})\n\nUzasadnienie końcowe zespołu sędziowskiego:\n`;
     }
     collapseList("appealsListWrap", "btnToggleAppeals");
@@ -8554,6 +8657,12 @@ async function resendVerdict(id) {
         // Werdykt mógł zostać wydany w wyniku rozpatrzenia apelacji dla tej sprawy —
         // wtedy w pingu zamiast "Oskarżony" powinno widnieć "Apelujący".
         const isAppealVerdict = globalAppeals.some(a => a.caseId === id && a.status === "Zakończona");
+        const resendAppealRec = isAppealVerdict ? findConcludedAppealForCase(id) : null;
+        let resendEvidenceFields = [{ name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false }];
+        if (resendAppealRec) {
+            try { resendEvidenceFields = await buildAppealDiscordEvidenceFields(resendAppealRec, report, currentLang); }
+            catch (evErr) { console.warn("Nie udało się przygotować dowodów apelacji dla Discorda:", evErr); }
+        }
 
         const embed = {
             title: t.embedTitle, color: 3447003,
@@ -8562,7 +8671,7 @@ async function resendVerdict(id) {
                 { name: t.fieldSplit, value: report.split ? report.split : "—", inline: true },
                 { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
                 { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
-                { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false },
+                ...resendEvidenceFields,
                 { name: t.fieldDecision, value: dcFieldValue(`**${d.decision}**`), inline: false },
                 { name: t.fieldTime, value: dcFieldValue(d.timePenalty || "brak"), inline: true },
                 { name: t.fieldPoints, value: dcFieldValue(d.pointsPenalty || "0 pkt"), inline: true },
@@ -9358,10 +9467,170 @@ function resetAppealIDCounter() {
     }
 }
 
+// === PUBLIKACJA WERDYKTU ===
+// Zapis w bazie (status, notatka, decisionData, zamknięcie apelacji) + karta PNG na Discordzie.
+// Wywoływana z formularza, gdy akceptacja Głównych Stewardów jest wyłączona (albo autor sam
+// ją zapewnia), oraz przez Głównego Stewarda, który oddał ostatnią wymaganą akceptację
+// (Rozbudowa 132 — „Akceptacja werdyktów”).
+// draft: { originalCaseId, appealId, isAppealVerdict, decision, timePenalty, pointsPenalty,
+//          verdictDetails, judge, accusedId, noOneGuilty, approvedBy? }
+// Zwraca { ok, saved, error } — saved = werdykt jest już w bazie (nawet jeśli Discord zawiódł).
+// Błąd zapisu do bazy jest rzucany dalej (obsługuje go wywołujący).
+async function publishVerdict(draft) {
+    const t = langData[currentLang];
+    const originalCaseId = draft.originalCaseId;
+    const isAppealVerdict = !!draft.isAppealVerdict;
+    const noOneGuilty = !!draft.noOneGuilty;
+    const accusedId = noOneGuilty ? "" : String(draft.accusedId || "").trim();
+    const decision = draft.decision;
+    const timePenalty = draft.timePenalty || "brak";
+    const pointsPenalty = draft.pointsPenalty || "0 pkt";
+    const verdictDetails = draft.verdictDetails || "";
+    const judge = draft.judge || "";
+    const approvedBy = (Array.isArray(draft.approvedBy) ? draft.approvedBy : (draft.approvedBy && typeof draft.approvedBy === "object" ? Object.values(draft.approvedBy) : []))
+        .filter(a => a && a.nick)
+        .map(a => ({ id: a.id || null, nick: a.nick, ts: Number(a.ts) || Date.now() }));
+    const approvedNames = approvedBy.map(a => a.nick).join(", ");
+
+    if (draft.appealId) await database.ref("appeals/" + draft.appealId + "/status").set("Zakończona");
+
+    const mainReport = globalIncidents.find(r => r.id === originalCaseId);
+    const unknownLabel = currentLang === 'pl' ? "Nieznany" : "Unknown";
+    // Winnym w apelacji może zostać uznany zgłaszający, a nie tylko pierwotny oskarżony —
+    // dopasowujemy nick do faktycznie wybranego Discord ID (accusedId), zamiast zakładać z góry.
+    const winnerNick = noOneGuilty ? null : resolveGuiltyPartyNick(mainReport, accusedId, unknownLabel);
+    const restoreItemsVerdict = [];
+    const decisionDataToSave = {
+        decision: decision,
+        timePenalty: timePenalty,
+        pointsPenalty: pointsPenalty,
+        verdictDetails: verdictDetails,
+        judge: judge,
+        issuedAt: Date.now(),
+        noOneGuilty: noOneGuilty,
+        guiltyDiscordId: noOneGuilty ? null : (accusedId || null),
+        guiltyNick: winnerNick
+    };
+    if (approvedBy.length) decisionDataToSave.approvedBy = approvedBy;
+    // Werdykt apelacji nadpisuje decisionData sprawy — zanim to zrobimy, zachowujemy
+    // pierwotny werdykt (i jego ewentualną wcześniejszą historię apelacji) w polu
+    // previousDecisionData, żeby po wydaniu werdyktu apelacji nadal było widać,
+    // jaka była pierwsza decyzja stewardów, a nie tylko ta ostateczna.
+    if (isAppealVerdict && mainReport && mainReport.decisionData) {
+        decisionDataToSave.previousDecisionData = mainReport.decisionData;
+    }
+    if (mainReport) {
+        restoreItemsVerdict.push(
+            { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
+            { path: `incidents/${originalCaseId}/notes`, data: mainReport.notes || null },
+            { path: `incidents/${originalCaseId}/decisionData`, data: cloneForRestore(mainReport.decisionData) }
+        );
+        await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
+        await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
+        await database.ref("incidents/" + originalCaseId + "/decisionData").set(decisionDataToSave);
+        // Werdykt jest już wydany — ewentualna wersja czekająca na akceptację przestaje być aktualna.
+        if (mainReport.pendingVerdict) {
+            try { await database.ref("incidents/" + originalCaseId + "/pendingVerdict").remove(); } catch (err) { console.warn("Nie udało się usunąć werdyktu oczekującego na akceptację:", err); }
+        }
+    }
+
+    const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
+    const authorNote = stewardName !== judge ? ` Autor: ${judge}.` : "";
+    const approvalNote = approvedNames ? ` Zatwierdzili: ${approvedNames}.` : "";
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).${authorNote}${approvalNote}`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
+
+    const mainEvidence = await buildDiscordEvidenceValue(mainReport);
+    // Werdykt apelacji: dwa dowody — apelującego i zgłaszającego — zamiast jednego.
+    const publishAppealRec = (isAppealVerdict && draft.appealId) ? (globalAppeals || []).find(a => a.appealId === draft.appealId) : null;
+    let evidenceFields = [{ name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false }];
+    if (publishAppealRec) {
+        try { evidenceFields = await buildAppealDiscordEvidenceFields(publishAppealRec, mainReport, currentLang); }
+        catch (evErr) { console.warn("Nie udało się przygotować dowodów apelacji dla Discorda:", evErr); }
+    }
+
+    const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : unknownLabel;
+    const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
+    const winnerFieldValue = noOneGuilty ? t.noOneGuiltyText : `${winnerNick || unknownLabel} (<@${accusedId}>)`;
+    const approvedField = approvedNames ? { name: currentLang === 'pl' ? "✅ Zatwierdzili" : "✅ Approved by", value: dcFieldValue(approvedNames), inline: false } : null;
+    const embed = {
+        title: t.embedTitle, color: 3447003,
+        fields: [
+            { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
+            { name: t.fieldSplit, value: (mainReport && mainReport.split) ? mainReport.split : "—", inline: true },
+            { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
+            { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
+            ...evidenceFields,
+            { name: t.fieldDecision, value: dcFieldValue(`**${decision}**`), inline: false },
+            { name: t.fieldTime, value: dcFieldValue(timePenalty), inline: true },
+            { name: t.fieldPoints, value: dcFieldValue(pointsPenalty), inline: true },
+            { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(verdictDetails, 1000)}\n\`\`\``, inline: false },
+            { name: t.fieldJudge, value: dcFieldValue(judge), inline: false }
+        ].concat(approvedField ? [approvedField] : []),
+        timestamp: new Date().toISOString()
+    };
+
+    // Wygeneruj wizualną kartę werdyktu (PNG) — ten sam styl, co przy przycisku "Pobierz jako PNG".
+    // Jeśli się powiedzie, to ona (a nie same pola tekstowe) trafi na Discorda; dowód zostaje
+    // osobnym, klikalnym polem w embedzie, bo linku w obrazku kliknąć się nie da.
+    let verdictPngBlob = null;
+    let verdictPngFilename = null;
+    try {
+        if (typeof html2canvas !== "undefined") {
+            const reportForPng = Object.assign({}, mainReport, {
+                id: originalCaseId,
+                fiaId: (mainReport && mainReport.fiaId) || originalCaseId,
+                decisionData: decisionDataToSave
+            });
+            const pngHolder = document.getElementById("verdictPngTemplate");
+            pngHolder.innerHTML = buildVerdictPngHtml(reportForPng);
+            const canvas = await html2canvas(pngHolder.firstElementChild, { backgroundColor: "#04050a", scale: 2, useCORS: true });
+            verdictPngBlob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+            verdictPngFilename = `FIA_WERDYKT_${String(originalCaseId).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
+            pngHolder.innerHTML = "";
+        }
+    } catch (err) {
+        console.error("Błąd generowania obrazu PNG werdyktu:", err);
+    }
+
+    try {
+        const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
+        const accusedPart = noOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${accusedId}>`;
+        const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
+
+        let res;
+        if (verdictPngBlob) {
+            const pngEmbed = {
+                title: t.embedTitle, color: 3447003,
+                fields: evidenceFields.concat(approvedField ? [approvedField] : []),
+                image: { url: `attachment://${verdictPngFilename}` },
+                timestamp: new Date().toISOString()
+            };
+            const formData = new FormData();
+            formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [pngEmbed] }));
+            formData.append("files[0]", verdictPngBlob, verdictPngFilename);
+            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
+        } else {
+            // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
+            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+        }
+        if (!res.ok) throw new Error(await describeHttpError(res));
+        return { ok: true, saved: !!mainReport };
+    } catch (err) {
+        console.error("Błąd wysyłania werdyktu na Discord:", err);
+        const why = (err && err.message) ? err.message : (currentLang === 'pl' ? "nieznany błąd" : "unknown error");
+        return { ok: false, saved: !!mainReport, error: why };
+    }
+}
+
 document.getElementById("responseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const t = langData[currentLang];
     const statusEl = document.getElementById("status");
+    const form = e.target;
+    // Blokada podwójnego wysłania — generowanie karty PNG trwa kilka sekund, a drugie kliknięcie
+    // w tym czasie wysłałoby werdykt (albo zgłoszenie do akceptacji) jeszcze raz.
+    if (form.dataset.fiaBusy === "1") return;
+    form.dataset.fiaBusy = "1";
     // Cała obsługa w try/catch — wcześniej błąd zapisu do bazy (np. brak uprawnień) zostawiał
     // komunikat "Wysyłanie..." na zawsze, bez żadnej informacji, co poszło nie tak.
     try { await (async () => {
@@ -9430,13 +9699,15 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
     // żeby uniemożliwić podpisanie werdyktu cudzym/nieprawdziwym nazwiskiem.
     const judge = (loggedInSteward && loggedInSteward.nick) ? loggedInSteward.nick : document.getElementById("judge").value;
 
+    // Ustalenie sprawy głównej i ewentualnej apelacji — BEZ zapisu do bazy (status apelacji
+    // zmienia się dopiero przy publikacji, czyli po akceptacji Głównych Stewardów).
     let originalCaseId = caseIdInput;
+    let appealId = null;
     let isAppealVerdict = false;
     const matchApp = caseIdInput.match(/(FIA-\d+)\s*\((APP-\d+)\)/i);
     if (matchApp) {
         originalCaseId = matchApp[1];
-        const appId = matchApp[2];
-        await database.ref("appeals/" + appId + "/status").set("Zakończona");
+        appealId = matchApp[2];
         isAppealVerdict = true;
     } else {
         const singleAppMatch = caseIdInput.match(/APP-\d+/i);
@@ -9444,140 +9715,63 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
             const foundAp = globalAppeals.find(a => a.appealId === singleAppMatch[0]);
             if (foundAp) {
                 originalCaseId = foundAp.caseId;
-                await database.ref("appeals/" + foundAp.appealId + "/status").set("Zakończona");
+                appealId = foundAp.appealId;
                 isAppealVerdict = true;
             }
         }
     }
 
-    const mainReport = globalIncidents.find(r => r.id === originalCaseId);
-    const unknownLabel = currentLang === 'pl' ? "Nieznany" : "Unknown";
-    // Winnym w apelacji może zostać uznany zgłaszający, a nie tylko pierwotny oskarżony —
-    // dopasowujemy nick do faktycznie wybranego Discord ID (accusedId), zamiast zakładać z góry.
-    const winnerNick = verdictNoOneGuilty ? null : resolveGuiltyPartyNick(mainReport, accusedId, unknownLabel);
-    const restoreItemsVerdict = [];
-    const decisionDataToSave = {
-        decision: decision,
-        timePenalty: timePenalty,
-        pointsPenalty: pointsPenalty,
-        verdictDetails: verdictDetails,
-        judge: judge,
-        issuedAt: Date.now(),
-        noOneGuilty: verdictNoOneGuilty,
-        guiltyDiscordId: verdictNoOneGuilty ? null : (accusedId || null),
-        guiltyNick: winnerNick
+    const draft = {
+        caseIdInput, originalCaseId, appealId, isAppealVerdict,
+        decision, timePenalty, pointsPenalty, verdictDetails, judge,
+        judgeId: loggedInSteward ? String(loggedInSteward.id || "") : "",
+        accusedId: verdictNoOneGuilty ? null : (accusedId || null),
+        noOneGuilty: !!verdictNoOneGuilty
     };
-    // Werdykt apelacji nadpisuje decisionData sprawy — zanim to zrobimy, zachowujemy
-    // pierwotny werdykt (i jego ewentualną wcześniejszą historię apelacji) w polu
-    // previousDecisionData, żeby po wydaniu werdyktu apelacji nadal było widać,
-    // jaka była pierwsza decyzja stewardów, a nie tylko ta ostateczna.
-    if (isAppealVerdict && mainReport && mainReport.decisionData) {
-        decisionDataToSave.previousDecisionData = mainReport.decisionData;
-    }
-    if (mainReport) {
-        restoreItemsVerdict.push(
-            { path: `incidents/${originalCaseId}/status`, data: mainReport.status || null },
-            { path: `incidents/${originalCaseId}/notes`, data: mainReport.notes || null },
-            { path: `incidents/${originalCaseId}/decisionData`, data: cloneForRestore(mainReport.decisionData) }
-        );
-        await database.ref("incidents/" + originalCaseId + "/status").set("Werdykt wydany");
-        await database.ref("incidents/" + originalCaseId + "/notes").set(`[Werdykt]: ${decision} | ${timePenalty} | Uzasadnienie: ${verdictDetails}`);
-        await database.ref("incidents/" + originalCaseId + "/decisionData").set(decisionDataToSave);
-    }
-
-    const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
-    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
-
-    const mainEvidence = await buildDiscordEvidenceValue(mainReport);
-
-    const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : unknownLabel;
-    const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
-    const winnerFieldValue = verdictNoOneGuilty ? t.noOneGuiltyText : `${winnerNick || unknownLabel} (<@${accusedId}>)`;
-    const embed = {
-        title: t.embedTitle, color: 3447003,
-        fields: [
-            { name: t.fieldCase, value: `\`${originalCaseId}\``, inline: true },
-            { name: t.fieldSplit, value: (mainReport && mainReport.split) ? mainReport.split : "—", inline: true },
-            { name: `⚖️ ${t.fieldWinner}`, value: winnerFieldValue, inline: true },
-            { name: t.dcLabelReporter, value: reporterDiscordId ? `${reporterNick} (<@${reporterDiscordId}>)` : reporterNick, inline: true },
-            { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false },
-            { name: t.fieldDecision, value: dcFieldValue(`**${decision}**`), inline: false },
-            { name: t.fieldTime, value: dcFieldValue(timePenalty), inline: true },
-            { name: t.fieldPoints, value: dcFieldValue(pointsPenalty), inline: true },
-            { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(verdictDetails, 1000)}\n\`\`\``, inline: false },
-            { name: t.fieldJudge, value: dcFieldValue(judge), inline: false }
-        ],
-        timestamp: new Date().toISOString()
-    };
-
-    // Wygeneruj wizualną kartę werdyktu (PNG) — ten sam styl, co przy przycisku "Pobierz jako PNG".
-    // Jeśli się powiedzie, to ona (a nie same pola tekstowe) trafi na Discorda; dowód zostaje
-    // osobnym, klikalnym polem w embedzie, bo linku w obrazku kliknąć się nie da.
-    let verdictPngBlob = null;
-    let verdictPngFilename = null;
-    try {
-        if (typeof html2canvas !== "undefined") {
-            const reportForPng = Object.assign({}, mainReport, {
-                id: originalCaseId,
-                fiaId: (mainReport && mainReport.fiaId) || originalCaseId,
-                decisionData: decisionDataToSave
-            });
-            const pngHolder = document.getElementById("verdictPngTemplate");
-            pngHolder.innerHTML = buildVerdictPngHtml(reportForPng);
-            const canvas = await html2canvas(pngHolder.firstElementChild, { backgroundColor: "#04050a", scale: 2, useCORS: true });
-            verdictPngBlob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-            verdictPngFilename = `FIA_WERDYKT_${String(originalCaseId).replace(/[^a-zA-Z0-9_-]/g, "_")}.png`;
-            pngHolder.innerHTML = "";
-        }
-    } catch (err) {
-        console.error("Błąd generowania obrazu PNG werdyktu:", err);
-    }
-
-    try {
-        const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
-        const accusedLabel = isAppealVerdict ? "Apelujący" : "Oskarżony";
-        const accusedPart = verdictNoOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${accusedId}>`;
-        const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
-
-        let res;
-        if (verdictPngBlob) {
-            const pngEmbed = {
-                title: t.embedTitle, color: 3447003,
-                fields: [
-                    { name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false }
-                ],
-                image: { url: `attachment://${verdictPngFilename}` },
-                timestamp: new Date().toISOString()
-            };
-            const formData = new FormData();
-            formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [pngEmbed] }));
-            formData.append("files[0]", verdictPngBlob, verdictPngFilename);
-            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
-        } else {
-            // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
-            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
-        }
-        if (!res.ok) throw new Error(await describeHttpError(res));
-        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok"; e.target.reset();
+    const resetVerdictForm = () => {
+        form.reset();
         currentVerdictAccusedId = null; currentVerdictReporterId = null; verdictNoOneGuilty = false; updateGuiltyPickerState();
-    } catch (err) {
-        console.error("Błąd wysyłania werdyktu na Discord:", err);
-        const why = (err && err.message) ? err.message : (currentLang === 'pl' ? "nieznany błąd" : "unknown error");
+    };
+
+    // Akceptacja przez Głównych Stewardów (Rozbudowa 132): werdykt trafia najpierw do akceptacji,
+    // a na Discordzie pojawia się dopiero po zatwierdzeniu przez wymaganą liczbę Głównych Stewardów.
+    const approval = window.fiaVerdictApproval;
+    if (approval && typeof approval.required === "function" && approval.required()) {
+        const q = await approval.submit(draft);
+        if (!q || q.status === "cancelled") { statusEl.textContent = ""; statusEl.className = "status-msg"; return; }
+        if (q.status === "queued") {
+            statusEl.textContent = q.message;
+            statusEl.className = "status-msg ok";
+            resetVerdictForm();
+            return;
+        }
+        // q.status === "publish" — akceptacja autora (Głównego Stewarda) wystarcza, publikujemy od razu.
+        if (q.approvedBy) draft.approvedBy = q.approvedBy;
+    }
+
+    const result = await publishVerdict(draft);
+    if (result.ok) {
+        statusEl.textContent = t.statusOk; statusEl.className = "status-msg ok";
+        resetVerdictForm();
+    } else {
         // Werdykt jest już zapisany w bazie (zapis dzieje się przed wysyłką) — da się go
         // wysłać ponownie przyciskiem "🔁 Wyślij ponownie" w tabeli zgłoszeń.
-        statusEl.textContent = mainReport
+        statusEl.textContent = result.saved
             ? (currentLang === 'pl'
-                ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${why}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
-                : `Verdict saved, but sending it to Discord failed (${why}). Use "🔁 Resend" in the reports table.`)
-            : `${t.statusErr} ${why}`;
+                ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${result.error}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
+                : `Verdict saved, but sending it to Discord failed (${result.error}). Use "🔁 Resend" in the reports table.`)
+            : `${t.statusErr} ${result.error}`;
         statusEl.className = "status-msg err";
     }
     })(); } catch (err) {
         console.error("Błąd wydawania werdyktu:", err);
         statusEl.textContent = (currentLang === 'pl' ? "Błąd wydawania werdyktu: " : "Error issuing verdict: ") + ((err && err.message) || err);
         statusEl.className = "status-msg err";
+    } finally {
+        delete form.dataset.fiaBusy;
     }
 });
+
 
 function handleDecisionChange() {
     const decision = document.getElementById("decision").value;
@@ -9619,6 +9813,8 @@ function buildVerdictPngHtml(r) {
     const eventDate = r.timestamp ? new Date(r.timestamp).toLocaleDateString("pl-PL") : "—";
     const accusedBorder = d.noOneGuilty ? "#1f2937" : "#e10600";
     const accusedTag = d.noOneGuilty ? "OSKARŻONY" : "OSKARŻONY — UZNANY WINNYM";
+    const approvedNames = (Array.isArray(d.approvedBy) ? d.approvedBy : (d.approvedBy && typeof d.approvedBy === "object" ? Object.values(d.approvedBy) : []))
+        .filter(a => a && a.nick).map(a => a.nick).join(", ");
 
     return `
       <div style="width:900px; background:#04050a; color:#e8eaf0; font-family:'Barlow Condensed',Arial,sans-serif;">
@@ -9678,7 +9874,7 @@ function buildVerdictPngHtml(r) {
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 36px; background:#0a0d16; border-top:1px solid #1f2937; font-size:11px; color:#6b7280;">
-          <div>Sędzia prowadzący: <strong style="color:#e8eaf0;">${escapeHtml(d.judge || "—")}</strong></div>
+          <div>Sędzia prowadzący: <strong style="color:#e8eaf0;">${escapeHtml(d.judge || "—")}</strong>${approvedNames ? `<br>Zatwierdzili: <strong style="color:#10b981;">${escapeHtml(approvedNames)}</strong>` : ""}</div>
           <div>Wydano: ${escapeHtml(issuedDate)}</div>
         </div>
       </div>
@@ -12820,7 +13016,9 @@ document.addEventListener("submit", e => {
         "Decyzja: " + g("decision") + "\n" +
         "Kara: " + (g("timePenalty") || "brak") + " / " + (g("pointsPenalty") || "0") + " pkt\n" +
         "Ping: " + (noOne ? "nikt (nikt nie winny)" : (g("accusedId") || "—")) + "\n\n" +
-        "Werdykt zostanie opublikowany na Discordzie.";
+        (window.fiaVerdictApproval && window.fiaVerdictApproval.required()
+            ? "Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane akceptacje: " + window.fiaVerdictApproval.need() + "). Na Discordzie pojawi się dopiero po zatwierdzeniu."
+            : "Werdykt zostanie opublikowany na Discordzie.");
     if (!confirm(msg)) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
 
@@ -15548,7 +15746,7 @@ window.printCaseDossier = function (id) {
       ${statements.length ? `<h2>Oświadczenia stron</h2>` + statements.map(s => `<h3>${e(s.nick || "?")} — ${s.role === "accused" ? "oskarżony" : "zgłaszający"} · ${formatTimestamp(s.ts)}</h3><table><tr><th>Treść</th><td class="pre">${e(s.text || "—")}</td></tr><tr><th>Dowody</th><td>${evidenceList(s)}</td></tr></table>`).join("") : ""}
       ${votes.length ? `<h2>Głosy sędziów</h2><table><tr><th>Sędzia</th><th>Etap</th><th>Decyzja</th><th>Kara</th><th>Komentarz</th><th>Czas</th></tr>` + votes.map(v => `<tr><td>${e(v.nick || "?")}</td><td>${v.scope === "main" ? "sprawa" : e(v.scope)}</td><td>${e(v.decision || "")}</td><td>${e(penaltyLabel(v) || "—")}</td><td>${e(v.comment || "")}</td><td>${formatTimestamp(v.ts)}</td></tr>`).join("") + `</table>` : ""}
       ${verdicts ? `<h2>Werdykty</h2>${verdicts}` : `<h2>Werdykt</h2><p class="muted">Werdykt nie został jeszcze wydany.</p>`}
-      ${appeals.length ? `<h2>Apelacje</h2>` + appeals.map(a => `<h3>${e(a.appealId || a.id)} — ${e(a.nick || "?")} · ${formatTimestamp(a.timestamp)} · status: ${e(a.status || "Nowa")}</h3><table><tr><th>Uzasadnienie</th><td class="pre">${e(a.reason || "")}</td></tr><tr><th>Dowody</th><td>${evidenceList(a)}</td></tr>${typeof window.cfDossierRows === "function" ? window.cfDossierRows(a, "appeal") : ""}${a.rejectReason ? `<tr><th>Powód odrzucenia</th><td class="pre">${e(a.rejectReason)}</td></tr>` : ""}</table>`).join("") : ""}
+      ${appeals.length ? `<h2>Apelacje</h2>` + appeals.map(a => `<h3>${e(a.appealId || a.id)} — ${e(a.nick || "?")} · ${formatTimestamp(a.timestamp)} · status: ${e(a.status || "Nowa")}</h3><table><tr><th>Uzasadnienie</th><td class="pre">${e(a.reason || "")}</td></tr><tr><th>Dowód apelującego</th><td>${evidenceList(a)}</td></tr><tr><th>Dowód zgłaszającego</th><td>${evidenceList(r)}</td></tr>${typeof window.cfDossierRows === "function" ? window.cfDossierRows(a, "appeal") : ""}${a.rejectReason ? `<tr><th>Powód odrzucenia</th><td class="pre">${e(a.rejectReason)}</td></tr>` : ""}</table>`).join("") : ""}
       ${logs.length ? `<h2>Dziennik akcji</h2>` + logs.map(l => `<div class="row"><span class="muted">${formatTimestamp(l.timestamp)}</span> — <b>${e(l.steward || "")}</b>: ${e(l.details || "")}</div>`).join("") : ""}
       ${chat.length ? `<h2>Transkrypt czatu (${chat.length})</h2>` + chat.map(m => `<div class="row"><span class="muted">${formatTimestamp(m.timestamp)} · ${e(m.caseId)}</span> — <b>${e(m.nick || "?")}</b>${m.role === "steward" ? " (steward)" : ""}: <span class="pre">${e(m.text || "")}</span>${asList(m.files).length ? ` <span class="muted">[📎 ${asList(m.files).length}]</span>` : ""}</div>`).join("") : ""}
       </body></html>`;
@@ -20576,6 +20774,771 @@ database.ref(LO_PATH).on("value", snap => {
     try { localStorage.setItem(LO_CACHE, JSON.stringify(v)); } catch (e) {}
     loSetRules(v, true);
 }, err => console.warn("[131] Nie udało się wczytać układu strony:", err && err.message));
+})();
+</script>
+
+<style>
+/* ============================================================
+   === ROZBUDOWA 132 — Akceptacja werdyktów (style) ===
+   ============================================================ */
+#verdictApprovalsPanel{display:none;margin:0 0 16px;padding:12px 16px;border:1px solid rgba(16,185,129,0.45);border-left:3px solid #10b981;border-radius:4px;background:var(--bg-deep);}
+#verdictApprovalInfo{display:none;margin-bottom:14px;padding:10px 14px;border:1px solid rgba(16,185,129,0.45);border-radius:4px;background:var(--bg-deep);font-size:12px;line-height:1.55;}
+#verdictApprovalHint{display:none;margin-top:8px;font-size:11px;line-height:1.5;color:var(--text-dim);text-align:center;}
+.va-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+.va-title{font-weight:800;color:var(--green-text);letter-spacing:.3px;font-size:14px;}
+.va-sub{font-size:11px;color:var(--text-dim);}
+.va-item{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;padding:10px 0;border-top:1px dashed var(--border);}
+#verdictApprovalInfo .va-item{border-top:none;padding-bottom:0;}
+.va-main{flex:1;min-width:240px;font-size:12px;line-height:1.55;color:var(--text-dim);}
+.va-case{font-weight:800;color:var(--text);font-size:13px;}
+.va-dec{color:var(--text);font-weight:700;}
+.va-meta{font-size:11px;color:var(--text-muted);}
+.va-why{margin-top:4px;}
+.va-why summary{cursor:pointer;font-size:11px;color:var(--text-dim);}
+.va-why div{white-space:pre-wrap;max-height:160px;overflow-y:auto;margin-top:4px;padding:6px 10px;border-left:2px solid var(--border);color:var(--text);}
+.va-evidence{margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-left:3px solid #3b82f6;border-radius:3px;background:var(--bg-input);}
+.va-ev{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:3px 0;}
+.va-ev + .va-ev{border-top:1px dashed var(--border);padding-top:6px;margin-top:3px;}
+.va-ev-label{min-width:150px;font-size:11px;font-weight:700;color:#60a5fa;letter-spacing:.3px;}
+.va-ev-body{flex:1;min-width:200px;font-size:12px;word-break:break-all;}
+.va-ev-body .evidence-gallery{margin-top:4px;}
+.va-steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.va-step{font-size:11px;border:1px solid var(--border);border-radius:3px;padding:1px 7px;color:var(--text-dim);}
+.va-step.ok{border-color:#10b981;color:var(--green-text);}
+.va-step.wait{border-style:dashed;color:var(--text-muted);}
+.va-step.no{border-color:#ef4444;color:var(--red-text);}
+.va-step.busy{border-color:#f59e0b;color:var(--amber-text);}
+.va-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end;}
+.va-actions button{padding:6px 12px;font-size:11px;margin:0;width:auto;}
+.va-note{font-size:11px;color:var(--text-dim);}
+.va-rejected{margin-top:4px;color:var(--red-text);}
+.case-chip.chip-approval{color:#10b981;border-color:#10b981;}
+.case-chip.chip-approval-rej{color:#ef4444;border-color:#ef4444;}
+</style>
+
+<script>
+/* ============================================================
+   === ROZBUDOWA 132 — AKCEPTACJA WERDYKTÓW PRZEZ GŁÓWNYCH STEWARDÓW ===
+   Po kliknięciu „Wyślij decyzję” werdykt nie trafia od razu na Discorda, tylko do akceptacji
+   Głównych Stewardów (domyślnie wymagane 2 akceptacje). Ostatnia akceptacja publikuje werdykt
+   dokładnie tak, jak wcześniej robił to formularz (baza + karta PNG na Discordzie) —
+   funkcja publishVerdict().
+   - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja.
+   - Akceptować i odrzucać mogą WYŁĄCZNIE dwaj wyznaczeni Główni Stewardzi (APPROVER_IDS
+     poniżej — Discord ID). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
+   - Jeśli któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.
+   - Każdy z nich może werdykt odrzucić z powodem — autor widzi powód, może poprawić
+     decyzję („Popraw w formularzu”) i wysłać ją ponownie.
+   - Strona sprawy (konflikt interesów) nie może akceptować ani odrzucać.
+   - Powiadomienia: ping Głównych Stewardów na kanale stewardów (Discord) + dzwonek w panelu.
+   Dane: staffIncidents/{sprawa}/pendingVerdict (prywatne pole spraw — widzą je tylko stewardzi;
+         kod nadal używa ścieżki incidents/{sprawa}/pendingVerdict, przekładanej automatycznie),
+         settings/verdictApproval { enabled, required } — zmieniają tylko ci dwaj Główni Stewardzi.
+   ============================================================ */
+(function () {
+"use strict";
+const F = window.fia125;
+if (!F) { console.error("[132] Brak modułu 125 — akceptacja werdyktów nieaktywna."); return; }
+const { wrap, plural, penaltyLabel, myVoterKey } = F;
+const $ = id => document.getElementById(id);
+const ts = v => Number(v) || 0;
+// Jedyni Główni Stewardzi, którzy akceptują werdykty (Discord ID).
+const APPROVER_IDS = ["511295717457920010", "698503713932836955"];
+const isApprover = () => !!loggedInSteward && APPROVER_IDS.includes(String(loggedInSteward.id));
+const PUBLISH_STALE_MS = 2 * 60000;          // po tylu ms niedokończona publikacja uznawana jest za porzuconą
+const clean = o => JSON.parse(JSON.stringify(o)); // Firebase nie przyjmuje wartości undefined
+const norm = x => String(x || "").trim().replace(/^#/, "").toUpperCase();
+const isDiscordId = s => /^\d{15,21}$/.test(String(s || ""));
+
+/* ============================================================
+   1. ZASADY (settings/verdictApproval)
+   ============================================================ */
+const DEFAULT_RULES = { enabled: true, required: 2 };
+let rules = Object.assign({}, DEFAULT_RULES);
+let rulesRaw = null;
+const clampReq = v => Math.min(APPROVER_IDS.length, Math.max(1, parseInt(v, 10) || DEFAULT_RULES.required));
+database.ref("settings/verdictApproval").on("value", s => {
+    rulesRaw = s.val();
+    rules = rulesRaw && typeof rulesRaw === "object"
+        ? { enabled: rulesRaw.enabled !== false, required: clampReq(rulesRaw.required) }
+        : Object.assign({}, DEFAULT_RULES);
+    renderRulesBox(); renderHint(); renderAll();
+}, err => console.warn("[132] Brak dostępu do settings/verdictApproval:", err && (err.code || err.message)));
+
+/* ============================================================
+   2. POMOCNICZE
+   ============================================================ */
+const me = () => loggedInSteward ? { key: myVoterKey(), id: String(loggedInSteward.id || ""), nick: loggedInSteward.nick || "?" } : null;
+// Akceptujący (dwaj wyznaczeni Główni Stewardzi) — nick z listy stewardów, a gdy go brak: Discord ID.
+const leadStewards = () => APPROVER_IDS.map(id => {
+    const s = (globalStewards || []).find(x => x && String(x.id) === id);
+    const self = loggedInSteward && String(loggedInSteward.id) === id ? loggedInSteward.nick : null;
+    return { id, nick: (s && s.nick) || self || id };
+});
+const approvalsOf = pv => Object.entries((pv && pv.approvals) || {}).filter(([, a]) => a && typeof a === "object")
+    .map(([key, a]) => Object.assign({ key }, a)).sort((a, b) => ts(a.ts) - ts(b.ts));
+const needOf = pv => Math.max(1, parseInt(pv && pv.required, 10) || rules.required);
+const isMineOf = pv => !!loggedInSteward && !!pv && !!pv.submittedBy && String(pv.submittedBy.id) === String(loggedInSteward.id);
+const publishingNow = pv => !!(pv && pv.publishing && Date.now() - ts(pv.publishing.ts) < PUBLISH_STALE_MS);
+const publishingStale = pv => !!(pv && pv.publishing && !publishingNow(pv));
+const findInc = id => (globalIncidents || []).find(r => r.id === id) || null;
+const resolveInc = id => findInc(id) || (globalIncidents || []).find(r => norm(r.id) === norm(id) || norm(r.fiaId) === norm(id)) || null;
+const hasPending = r => !!(r && r.pendingVerdict && r.pendingVerdict.draft && r.pendingVerdict.submittedAt);
+const caseLabel = (r, pv) => { const d = (pv && pv.draft) || {}; return d.appealId ? `${r.id} / ${d.appealId}` : r.id; };
+const penaltyText = d => {
+    const p = penaltyLabel(d || {});
+    if (p) return p;
+    const dec = String((d && d.decision) || "");
+    if (/dyskwalifikacja/i.test(dec)) return "dyskwalifikacja";
+    if (/ostrzeżenie/i.test(dec)) return "ostrzeżenie";
+    return "bez kary";
+};
+const isConflict = r => typeof conflictOf === "function" && !!conflictOf(r);
+// Firebase zwraca listy jako tablice, ale rzadkie/edytowane mogą wrócić jako obiekt — normalizujemy.
+const asList = v => Array.isArray(v) ? v.filter(Boolean) : (v && typeof v === "object" ? Object.values(v).filter(Boolean) : []);
+const withFileList = rec => rec ? Object.assign({}, rec, { evidenceFiles: asList(rec.evidenceFiles) }) : rec;
+const appealOf = d => d && d.appealId ? ((globalAppeals || []).find(a => a.appealId === d.appealId) || null) : null;
+// Dowody w sprawie do podglądu przy akceptacji: dowód zgłoszenia, nowy dowód z apelacji
+// (gdy werdykt dotyczy apelacji) i dowody dołączone przez strony do oświadczeń.
+function evidenceHtml(r, d) {
+    const row = (label, body) => `<div class="va-ev"><span class="va-ev-label">${label}</span><div class="va-ev-body">${body}</div></div>`;
+    const none = `<span class="va-meta">brak dowodu</span>`;
+    const rows = [];
+    const main = withFileList(r);
+    const ap = appealOf(d);
+    if (d && d.appealId) {
+        // Apelacja: dwa dowody — najpierw apelującego, potem zgłaszającego.
+        const apRec = withFileList(ap);
+        const apNick = ap && ap.nick ? ` — ${escapeHtml(ap.nick)}` : "";
+        const repNick = r && r.nick ? ` — ${escapeHtml(r.nick)}` : "";
+        rows.push(row(`⚖️ Dowód apelującego${apNick} (${escapeHtml(d.appealId)})`, ap && hasEvidence(apRec) ? renderEvidenceHtml(apRec, null, none) : none));
+        rows.push(row(`🚩 Dowód zgłaszającego${repNick}`, hasEvidence(main) ? renderEvidenceHtml(main, null, none) : none));
+    } else {
+        rows.push(row("🎥 Dowód zgłoszenia", hasEvidence(main) ? renderEvidenceHtml(main, null, none) : none));
+    }
+    const sts = r && r.statements && typeof r.statements === "object" ? Object.values(r.statements) : [];
+    sts.forEach(st => {
+        if (!st || typeof st !== "object") return;
+        const rec = { evidence: st.evidence || null, evidenceFiles: asList(st.evidenceFiles) };
+        if (!hasEvidence(rec)) return;
+        const who = `${escapeHtml(st.nick || "?")} (${st.role === "accused" ? "oskarżony" : "zgłaszający"})`;
+        rows.push(row(`📝 Dowód strony: ${who}`, renderEvidenceHtml(rec, null, none)));
+    });
+    return `<div class="va-evidence">${rows.join("")}</div>`;
+}
+function guiltyLabel(r, d) {
+    if (d.noOneGuilty) return "nikt nie winny";
+    const nick = resolveGuiltyPartyNick(r, d.accusedId, "");
+    return (nick ? nick + " · " : "") + (d.accusedId || "—");
+}
+// Samo uzasadnienie (bez szablonu „Sprawa … / Opis zdarzenia …” z formularza).
+function reasonText(d) {
+    const raw = String((d && d.verdictDetails) || "");
+    const tail = raw.split(/Werdykt sędziowski:|Uzasadnienie końcowe zespołu sędziowskiego:/).pop().trim();
+    return tail || raw.trim();
+}
+// Akceptujący, którzy nie są stroną sprawy.
+function eligibleApprovers(r) {
+    const parties = [String(r.discordId || ""), String(r.accusedDiscordId || "")];
+    return leadStewards().filter(s => !parties.includes(String(s.id)));
+}
+// Akceptujący, których trzeba jeszcze powiadomić (bez autora i bez stron sprawy).
+function approverCandidates(r, authorId) {
+    return eligibleApprovers(r).filter(s => String(s.id) !== String(authorId || ""));
+}
+const keyOfId = id => String(id || "").replace(/[.#$\[\]\/]/g, "_");
+// Czy ta sprawa czeka na decyzję zalogowanego Głównego Stewarda?
+function awaitingMe(r) {
+    const pv = r.pendingVerdict, who = me();
+    return !!who && pv.status === "pending" && isApprover() && !isConflict(r) && !publishingNow(pv) && !approvalsOf(pv).some(a => a.key === who.key);
+}
+
+/* ============================================================
+   3. WYSŁANIE DO AKCEPTACJI (wywoływane z formularza werdyktu)
+   ============================================================ */
+async function submit(draft) {
+    const who = me();
+    if (!who) { alert("Sesja stewarda wygasła — zaloguj się ponownie."); return { status: "cancelled" }; }
+    const inc = resolveInc(draft.originalCaseId);
+    if (!inc) {
+        alert(`Nie znaleziono sprawy „${draft.originalCaseId}” — werdykt nie może trafić do akceptacji. Sprawdź ID sprawy.`);
+        return { status: "cancelled" };
+    }
+    draft.originalCaseId = inc.id;
+    const eligible = eligibleApprovers(inc);
+    if (!eligible.length) {
+        alert(`Obaj Główni Stewardzi akceptujący werdykty są stronami sprawy ${inc.id} — nikt nie może zaakceptować tego werdyktu.`);
+        return { status: "cancelled" };
+    }
+    // Gdy jeden z akceptujących jest stroną sprawy, wystarcza akceptacja drugiego.
+    const need = Math.max(1, Math.min(rules.required, eligible.length));
+    const prev = hasPending(inc) ? inc.pendingVerdict : null;
+    if (prev && prev.status === "pending") {
+        if (publishingNow(prev)) {
+            alert(`Werdykt w sprawie ${inc.id} jest właśnie publikowany (${prev.publishing.by || "Główny Steward"}) — poczekaj chwilę.`);
+            return { status: "cancelled" };
+        }
+        if (!confirm(`Sprawa ${inc.id} ma już werdykt czekający na akceptację:\n„${prev.draft.decision}” (${penaltyText(prev.draft)}), autor: ${(prev.submittedBy && prev.submittedBy.nick) || "?"}, akceptacje ${approvalsOf(prev).length}/${needOf(prev)}.\n\nNowa decyzja go ZASTĄPI, a dotychczasowe akceptacje zostaną wyzerowane. Kontynuować?`)) {
+            return { status: "cancelled" };
+        }
+    }
+
+    const now = Date.now();
+    const approvals = {};
+    // Autor będący Głównym Stewardem / ROOT = pierwsza akceptacja.
+    if (isApprover() && !isConflict(inc) && who.key) approvals[who.key] = { id: who.id, nick: who.nick, ts: now, author: true };
+    const have = Object.keys(approvals).length;
+    if (have >= need) {
+        return { status: "publish", approvedBy: Object.values(approvals).map(a => ({ id: a.id, nick: a.nick, ts: a.ts })) };
+    }
+
+    const pv = clean({
+        status: "pending", caseId: inc.id, draft, required: need,
+        submittedAt: now, submittedBy: { id: who.id, nick: who.nick },
+        approvals: have ? approvals : null,
+        requiredNote: need < rules.required ? `${leadStewards().filter(s => !eligible.some(e => e.id === s.id)).map(s => s.nick).join(", ")} jest stroną sprawy` : null
+    });
+    const path = `incidents/${inc.id}/pendingVerdict`;
+    try {
+        await database.ref(path).set(pv);
+    } catch (err) {
+        const msg = (err && (err.code || err.message)) || String(err);
+        throw new Error(`nie udało się zapisać werdyktu do akceptacji (${msg})` +
+            (/permission/i.test(msg) ? ". Reguły bazy muszą pozwalać stewardom zapisywać staffIncidents/{sprawa}/pendingVerdict." : ""));
+    }
+    try {
+        await logAction(who.nick, "VERDICT", inc.id, `Werdykt wysłany do akceptacji Głównych Stewardów: ${draft.decision} (${draft.timePenalty}, ${draft.pointsPenalty}). Akceptacje: ${have}/${need}.`,
+            { items: [{ path, data: prev ? clean(prev) : null }] });
+    } catch (e) { console.warn("[132] logAction:", e); }
+    notifyQueued(inc, pv).catch(err => console.warn("[132] Powiadomienie Discord (do akceptacji):", err && err.message));
+    renderAll();
+    return {
+        status: "queued",
+        message: `⏳ Werdykt wysłany do akceptacji Głównych Stewardów (${have}/${need}). Pojawi się na Discordzie po zatwierdzeniu — status widać w panelu „Werdykty do akceptacji”.`
+    };
+}
+
+/* ============================================================
+   4. AKCEPTACJA / PUBLIKACJA
+   ============================================================ */
+window.approvePendingVerdict = async function (caseId) {
+    const r = findInc(caseId), pv = r && r.pendingVerdict, who = me();
+    if (!hasPending(r) || !who || pv.status !== "pending") return;
+    if (!isApprover()) return alert(`Akceptować werdykty mogą tylko wyznaczeni Główni Stewardzi: ${leadStewards().map(s => s.nick).join(", ")}.`);
+    if (isConflict(r)) return alert("Konflikt interesów: jesteś stroną tej sprawy — nie możesz akceptować werdyktu.");
+    if (publishingNow(pv)) return alert(`Ten werdykt jest właśnie publikowany (${pv.publishing.by || "?"}).`);
+    const stale = publishingStale(pv);
+    const already = approvalsOf(pv).some(a => a.key === who.key);
+    if (already && !stale) return alert("Ten werdykt ma już Twoją akceptację — czeka na pozostałych Głównych Stewardów.");
+    const d = pv.draft, need = needOf(pv);
+    const n = approvalsOf(pv).length + (already ? 0 : 1);
+    const last = n >= need;
+    let msg = (stale
+        ? `Publikacja werdyktu ${caseLabel(r, pv)} nie została dokończona (${pv.publishing.by || "?"}). Dokończyć ją teraz?\n\n`
+        : `Zaakceptować werdykt w sprawie ${caseLabel(r, pv)}?\n\n`) +
+        `Decyzja: ${d.decision}\nKara: ${penaltyText(d)}\nWinny: ${guiltyLabel(r, d)}\nAutor: ${(pv.submittedBy && pv.submittedBy.nick) || "?"}\n\n` +
+        (last ? "To ostatnia wymagana akceptacja — werdykt zostanie od razu opublikowany na Discordzie." : `Po Twojej akceptacji: ${n}/${need}.`);
+    if (last && r.decisionData && !d.appealId && ts(r.decisionData.issuedAt) > ts(pv.submittedAt)) {
+        msg += `\n\n⚠️ Po wysłaniu tego werdyktu do akceptacji sprawa dostała już inny werdykt („${r.decisionData.decision}”, sędzia: ${r.decisionData.judge || "?"}). Publikacja go ZASTĄPI.`;
+    }
+    if (!confirm(msg)) return;
+
+    const token = who.key + ":" + Date.now() + ":" + Math.random().toString(36).slice(2, 7);
+    const sub = pv.submittedAt;
+    let result;
+    try {
+        result = await database.ref(`incidents/${r.id}/pendingVerdict`).transaction(cur => {
+            if (cur === null) return null; // brak w pamięci podręcznej — Firebase powtórzy z wartością z serwera
+            if (!cur || cur.status !== "pending" || cur.submittedAt !== sub) return; // przerwij
+            if (cur.publishing && Date.now() - ts(cur.publishing.ts) < PUBLISH_STALE_MS) return;
+            cur.approvals = cur.approvals || {};
+            if (!cur.approvals[who.key]) cur.approvals[who.key] = { id: who.id, nick: who.nick, ts: Date.now() };
+            const need2 = Math.max(1, parseInt(cur.required, 10) || rules.required);
+            if (Object.keys(cur.approvals).length >= need2) cur.publishing = { by: who.nick, token, ts: Date.now() };
+            return cur;
+        }, undefined, false);
+    } catch (err) {
+        return alert("Nie udało się zapisać akceptacji: " + ((err && (err.code || err.message)) || err));
+    }
+    const val = result && result.snapshot ? result.snapshot.val() : null;
+    if (!result || !result.committed || !val || val.submittedAt !== sub || val.status !== "pending") {
+        return alert("Ten werdykt nie czeka już na akceptację (został zmieniony, odrzucony albo opublikowany).");
+    }
+    const nowN = approvalsOf(val).length;
+    if (!(val.publishing && val.publishing.token === token)) {
+        try {
+            await logAction(who.nick, "VERDICT", r.id, `Zaakceptowano werdykt (${nowN}/${needOf(val)}): ${d.decision}${penaltyLabel(d) ? " · " + penaltyLabel(d) : ""}. Autor: ${(val.submittedBy && val.submittedBy.nick) || "?"}.`,
+                { items: [{ path: `incidents/${r.id}/pendingVerdict/approvals/${who.key}`, data: null }] });
+        } catch (e) { console.warn("[132] logAction:", e); }
+        showToast("✅ Akceptacja zapisana", `${caseLabel(r, val)}: ${nowN}/${needOf(val)}`);
+        return;
+    }
+    await finalizePublish(r.id, val, token);
+};
+
+async function finalizePublish(caseId, val, token) {
+    const who = me();
+    const approvedBy = approvalsOf(val).map(a => ({ id: a.id || a.key, nick: a.nick || "?", ts: ts(a.ts) }));
+    const draft = Object.assign({}, val.draft, { originalCaseId: caseId, approvedBy });
+    showToast("⏳ Publikacja werdyktu", `${caseId} — generowanie karty i wysyłka na Discord…`);
+    let res;
+    try {
+        res = await publishVerdict(draft);
+    } catch (err) {
+        console.error("[132] Publikacja werdyktu:", err);
+        try {
+            await database.ref(`incidents/${caseId}/pendingVerdict/publishing`).transaction(p => (p && p.token === token) ? null : p);
+        } catch (e) {}
+        alert("Nie udało się opublikować werdyktu: " + ((err && (err.code || err.message)) || err) + "\n\nWerdykt nadal czeka w kolejce — spróbuj ponownie.");
+        return;
+    }
+    try { await database.ref(`incidents/${caseId}/pendingVerdict`).remove(); } catch (e) {}
+    if (res.ok) {
+        showToast("✅ Werdykt opublikowany", `${caseId}: ${draft.decision} · zatwierdzili: ${approvedBy.map(a => a.nick).join(", ")}`);
+    } else {
+        alert(res.saved
+            ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${res.error}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
+            : `Błąd publikacji werdyktu: ${res.error}`);
+    }
+    renderAll();
+}
+
+/* ============================================================
+   5. ODRZUCENIE / WYCOFANIE / POPRAWA
+   ============================================================ */
+window.rejectPendingVerdict = async function (caseId) {
+    const r = findInc(caseId), pv = r && r.pendingVerdict, who = me();
+    if (!hasPending(r) || !who || pv.status !== "pending") return;
+    if (!isApprover()) return alert(`Odrzucać werdykty mogą tylko wyznaczeni Główni Stewardzi: ${leadStewards().map(s => s.nick).join(", ")}.`);
+    if (isConflict(r)) return alert("Konflikt interesów: jesteś stroną tej sprawy — nie możesz odrzucić werdyktu.");
+    if (publishingNow(pv)) return alert(`Ten werdykt jest właśnie publikowany (${pv.publishing.by || "?"}).`);
+    const reason = prompt(`Odrzucić werdykt w sprawie ${caseLabel(r, pv)} („${pv.draft.decision}”, autor: ${(pv.submittedBy && pv.submittedBy.nick) || "?"})?\n\nPodaj powód — autor zobaczy go w panelu i będzie mógł poprawić decyzję:`, "");
+    if (reason === null) return;
+    const why = reason.trim().slice(0, 500);
+    if (!why) return alert("Podaj powód odrzucenia.");
+    const sub = pv.submittedAt, prevCopy = clean(pv);
+    let result;
+    try {
+        result = await database.ref(`incidents/${r.id}/pendingVerdict`).transaction(cur => {
+            if (cur === null) return null;
+            if (!cur || cur.status !== "pending" || cur.submittedAt !== sub) return;
+            if (cur.publishing && Date.now() - ts(cur.publishing.ts) < PUBLISH_STALE_MS) return;
+            cur.status = "rejected";
+            delete cur.publishing;
+            cur.rejectedBy = { id: who.id, nick: who.nick };
+            cur.rejectedAt = Date.now();
+            cur.rejectReason = why;
+            return cur;
+        }, undefined, false);
+    } catch (err) {
+        return alert("Nie udało się odrzucić werdyktu: " + ((err && (err.code || err.message)) || err));
+    }
+    const val = result && result.snapshot ? result.snapshot.val() : null;
+    if (!result || !result.committed || !val || val.submittedAt !== sub || val.status !== "rejected") {
+        return alert("Ten werdykt nie czeka już na akceptację (został zmieniony albo opublikowany).");
+    }
+    try {
+        await logAction(who.nick, "VERDICT", r.id, `Odrzucono werdykt czekający na akceptację („${pv.draft.decision}”, autor: ${(pv.submittedBy && pv.submittedBy.nick) || "?"}). Powód: ${why}`,
+            { items: [{ path: `incidents/${r.id}/pendingVerdict`, data: prevCopy }] });
+    } catch (e) { console.warn("[132] logAction:", e); }
+    showToast("❌ Werdykt odrzucony", `${caseLabel(r, val)} — autor zobaczy powód w panelu.`);
+    notifyRejected(r, val).catch(err => console.warn("[132] Powiadomienie Discord (odrzucenie):", err && err.message));
+};
+
+window.withdrawPendingVerdict = async function (caseId) {
+    const r = findInc(caseId), pv = r && r.pendingVerdict, who = me();
+    if (!hasPending(r) || !who) return;
+    if (!isMineOf(pv) && !isApprover()) return alert("Wycofać werdykt może jego autor albo jeden z Głównych Stewardów akceptujących werdykty.");
+    if (publishingNow(pv)) return alert(`Ten werdykt jest właśnie publikowany (${pv.publishing.by || "?"}).`);
+    const rejected = pv.status === "rejected";
+    if (!confirm(rejected
+        ? `Usunąć odrzucony werdykt w sprawie ${caseLabel(r, pv)} z listy?`
+        : `Wycofać werdykt w sprawie ${caseLabel(r, pv)} z akceptacji? Dotychczasowe akceptacje przepadną.`)) return;
+    const path = `incidents/${r.id}/pendingVerdict`, sub = pv.submittedAt, prevCopy = clean(pv);
+    let result;
+    try {
+        result = await database.ref(path).transaction(cur => {
+            if (cur === null) return null;
+            if (!cur || cur.submittedAt !== sub) return;
+            if (cur.publishing && Date.now() - ts(cur.publishing.ts) < PUBLISH_STALE_MS) return;
+            return null;
+        }, undefined, false);
+    } catch (err) {
+        return alert("Nie udało się wycofać werdyktu: " + ((err && (err.code || err.message)) || err));
+    }
+    if (!result || !result.committed) return alert("Nie udało się wycofać — werdykt właśnie się zmienił. Odśwież i spróbuj ponownie.");
+    try {
+        await logAction(who.nick, "VERDICT", r.id, rejected ? "Usunięto odrzucony werdykt z listy akceptacji." : `Wycofano werdykt z akceptacji („${pv.draft.decision}”, autor: ${(pv.submittedBy && pv.submittedBy.nick) || "?"}).`,
+            { items: [{ path, data: prevCopy }] });
+    } catch (e) { console.warn("[132] logAction:", e); }
+    renderAll();
+};
+
+// Wczytuje werdykt z kolejki do formularza — do poprawienia i ponownego wysłania.
+window.loadPendingVerdictToForm = function (caseId) {
+    const r = findInc(caseId), pv = r && r.pendingVerdict;
+    if (!hasPending(r)) return;
+    const d = pv.draft;
+    if (d.appealId) {
+        const ap = (globalAppeals || []).find(a => a.appealId === d.appealId);
+        transferAppealToVerdict(r.id, (ap && ap.discordId) || d.accusedId || "", d.appealId);
+    } else {
+        transferToVerdictPanel(r.id, r.accusedDiscordId || "");
+    }
+    const dec = $("decision");
+    if (dec && [...dec.options].some(o => o.value === d.decision)) dec.value = d.decision;
+    handleDecisionChange();
+    $("timePenalty").value = /^brak$/i.test(String(d.timePenalty || "").trim()) ? "" : (d.timePenalty || "");
+    $("pointsPenalty").value = /^0\s*pkt$/i.test(String(d.pointsPenalty || "").trim()) ? "" : (d.pointsPenalty || "");
+    $("verdictDetails").value = d.verdictDetails || "";
+    if (d.noOneGuilty) {
+        pickGuiltyParty("none");
+    } else {
+        verdictNoOneGuilty = false;
+        $("accusedId").value = d.accusedId || "";
+        updateGuiltyPickerState();
+    }
+    updateVerdictHistoryBox();
+    showToast("✏️ Werdykt wczytany do formularza", `${caseLabel(r, pv)} — popraw i kliknij „Wyślij decyzję”.`);
+};
+
+window.scrollToVerdictApprovals = function () {
+    const box = $("verdictApprovalsPanel");
+    if (box && box.style.display !== "none") box.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+/* ============================================================
+   6. POWIADOMIENIA DISCORD (kanał akceptacji: "approvals" → WEBHOOK_APPROVALS)
+   ============================================================ */
+async function notifyQueued(r, pv) {
+    const d = pv.draft || {};
+    const ids = approverCandidates(r, pv.submittedBy && pv.submittedBy.id)
+        .filter(s => !((pv.approvals || {})[keyOfId(s.id)]))
+        .map(s => String(s.id)).filter(isDiscordId);
+    const appr = approvalsOf(pv), n = appr.length, need = needOf(pv);
+    const content = (ids.length ? ids.map(id => `<@${id}>`).join(" ") + " — " : "") +
+        `⏳ Werdykt w sprawie **${caseLabel(r, pv)}** czeka na akceptację Głównych Stewardów (${n}/${need}).`;
+    const embed = {
+        title: "⏳ WERDYKT DO AKCEPTACJI", color: 15105570, timestamp: new Date().toISOString(),
+        fields: [
+            { name: "🆔 Sprawa", value: `**${caseLabel(r, pv)}**`, inline: true },
+            { name: "🏁 Tor / Split", value: dcFieldValue(`${r.track || "—"}${r.split ? " · " + r.split : ""}`), inline: true },
+            { name: "✍️ Autor", value: dcFieldValue(pv.submittedBy && pv.submittedBy.nick), inline: true },
+            { name: "⚖️ Decyzja", value: dcFieldValue(`**${d.decision || "—"}**`), inline: false },
+            { name: "⏱ Kara", value: dcFieldValue(penaltyText(d)), inline: true },
+            { name: "🚩 Winny", value: dcFieldValue(guiltyLabel(r, d)), inline: true },
+            { name: "📝 Uzasadnienie", value: dcFieldValue(reasonText(d), 1000), inline: false },
+            { name: "✅ Akceptacje", value: dcFieldValue(`${n}/${need}${n ? " — " + appr.map(a => a.nick).join(", ") : ""}`), inline: false }
+        ],
+        footer: { text: "Zaakceptuj albo odrzuć w panelu stewarda → „Werdykty do akceptacji”" }
+    };
+    const res = await postApprovalWebhook({ method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, allowed_mentions: { parse: [], users: ids }, embeds: [embed] }) });
+    if (!res.ok) throw new Error(await describeHttpError(res));
+}
+
+async function notifyRejected(r, pv) {
+    const d = pv.draft || {};
+    const aid = String((pv.submittedBy && pv.submittedBy.id) || "");
+    const ping = isDiscordId(aid) ? [aid] : [];
+    const res = await postApprovalWebhook({ method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            content: (ping.length ? `<@${aid}> — ` : "") + `❌ Werdykt w sprawie **${caseLabel(r, pv)}** został odrzucony przy akceptacji.`,
+            allowed_mentions: { parse: [], users: ping },
+            embeds: [{
+                title: "❌ WERDYKT ODRZUCONY", color: 15158332, timestamp: new Date().toISOString(),
+                fields: [
+                    { name: "🆔 Sprawa", value: `**${caseLabel(r, pv)}**`, inline: true },
+                    { name: "⚖️ Decyzja", value: dcFieldValue(`${d.decision || "—"}${penaltyLabel(d) ? " · " + penaltyLabel(d) : ""}`), inline: true },
+                    { name: "🛑 Odrzucił", value: dcFieldValue(pv.rejectedBy && pv.rejectedBy.nick), inline: true },
+                    { name: "💬 Powód", value: dcFieldValue(pv.rejectReason, 1000), inline: false }
+                ],
+                footer: { text: "Popraw decyzję w panelu stewarda → „Werdykty do akceptacji” → „Popraw w formularzu”" }
+            }]
+        }) });
+    if (!res.ok) throw new Error(await describeHttpError(res));
+}
+
+/* ============================================================
+   7. WIDOK: panel kolejki, informacja w panelu werdyktu, podpowiedź, znaczniki w tabeli
+   ============================================================ */
+const adminSec = $("adminSection");
+const firstGrid = adminSec && adminSec.querySelector(".stats-container-grid");
+if (firstGrid) firstGrid.insertAdjacentHTML("beforebegin", `<div id="verdictApprovalsPanel" role="region" aria-label="Werdykty do akceptacji"></div>`);
+const respForm = $("responseForm");
+if (respForm) respForm.insertAdjacentHTML("beforebegin", `<div id="verdictApprovalInfo"></div>`);
+const sendBtn = respForm && respForm.querySelector('button[type="submit"]');
+if (sendBtn) sendBtn.insertAdjacentHTML("afterend", `<div id="verdictApprovalHint"></div>`);
+
+function itemHtml(r, pv, opts) {
+    opts = opts || {};
+    const d = pv.draft || {}, who = me();
+    const appr = approvalsOf(pv), n = appr.length, need = needOf(pv);
+    const mine = isMineOf(pv), lead = isApprover(), conflict = isConflict(r);
+    const iApproved = !!who && appr.some(a => a.key === who.key);
+    const busy = publishingNow(pv), stale = publishingStale(pv);
+    const pending = pv.status === "pending", rejected = pv.status === "rejected";
+    const id = jsAttr(r.id);
+
+    let steps = appr.map(a => `<span class="va-step ok" title="${escapeHtml(formatTimestamp(a.ts))}">✔ ${escapeHtml(a.nick || "?")}${a.author ? " (autor)" : ""}</span>`).join("");
+    if (pending) for (let i = n; i < need; i++) steps += `<span class="va-step wait">○ czeka na akceptację</span>`;
+    if (busy) steps += `<span class="va-step busy">⏳ publikuje: ${escapeHtml(pv.publishing.by || "?")}</span>`;
+    if (pending && stale) steps += `<span class="va-step busy">⚠️ publikacja niedokończona</span>`;
+    if (rejected) steps += `<span class="va-step no">✖ odrzucił: ${escapeHtml((pv.rejectedBy && pv.rejectedBy.nick) || "?")}</span>`;
+
+    const actions = [], notes = [];
+    if (pending && lead && !busy) {
+        if (conflict) notes.push("Jesteś stroną tej sprawy — nie możesz jej akceptować.");
+        else {
+            if (stale) actions.push(`<button type="button" class="btn-success" onclick="approvePendingVerdict('${id}')">⚠️ Dokończ publikację</button>`);
+            else if (!iApproved) actions.push(`<button type="button" class="btn-success" onclick="approvePendingVerdict('${id}')">✅ Akceptuj${n + 1 >= need ? " i opublikuj" : ""}</button>`);
+            else notes.push("✔ Zaakceptowałeś — czeka na pozostałych.");
+            if (!stale) actions.push(`<button type="button" class="btn-danger" onclick="rejectPendingVerdict('${id}')">❌ Odrzuć</button>`);
+        }
+    }
+    if ((mine || lead) && !busy) {
+        actions.push(`<button type="button" class="btn-secondary" onclick="loadPendingVerdictToForm('${id}')">✏️ ${rejected ? "Popraw w formularzu" : "Wczytaj do formularza"}</button>`);
+        actions.push(`<button type="button" class="btn-secondary" onclick="withdrawPendingVerdict('${id}')">${rejected ? "✕ Usuń z listy" : "↩ Wycofaj"}</button>`);
+    }
+    if (pending && !lead && mine && !busy) notes.push(`Czeka na ${need - n} ${plural(need - n, "akceptację", "akceptacje", "akceptacji")} Głównych Stewardów.`);
+    if (pending && pv.requiredNote) notes.push(`Wymagana ${need} ${plural(need, "akceptacja", "akceptacje", "akceptacji")} (${pv.requiredNote}).`);
+
+    return `<div class="va-item">
+      <div class="va-main">
+        <div><span class="va-case">${escapeHtml(caseLabel(r, pv))}</span> <span class="va-meta">· ${escapeHtml(r.track || "—")}${r.split ? " · " + escapeHtml(r.split) : ""} · ${escapeHtml(r.nick || "?")} → ${escapeHtml(r.accusedNick || "?")}</span></div>
+        <div style="margin-top:2px;"><span class="va-dec">${escapeHtml(d.decision || "—")}</span>${penaltyLabel(d) ? " · " + escapeHtml(penaltyLabel(d)) : ""} · winny: ${escapeHtml(guiltyLabel(r, d))}</div>
+        <div class="va-meta">✍️ ${escapeHtml((pv.submittedBy && pv.submittedBy.nick) || "?")} · wysłano ${escapeHtml(formatTimestamp(pv.submittedAt))}</div>
+        ${opts.noEvidence ? "" : evidenceHtml(r, d)}
+        <details class="va-why"><summary>Uzasadnienie</summary><div>${escapeHtml(d.verdictDetails || "—")}</div></details>
+        ${rejected ? `<div class="va-rejected">❌ Odrzucił <b>${escapeHtml((pv.rejectedBy && pv.rejectedBy.nick) || "?")}</b> (${escapeHtml(formatTimestamp(pv.rejectedAt))}): „${escapeHtml(pv.rejectReason || "—")}”</div>` : ""}
+        <div class="va-steps">${steps}</div>
+        ${notes.length ? `<div class="va-note" style="margin-top:4px;">${notes.map(escapeHtml).join(" ")}</div>` : ""}
+      </div>
+      <div class="va-actions">${actions.join("")}</div>
+    </div>`;
+}
+
+// Co widzi zalogowany steward: oczekujące — wszyscy (oprócz stron sprawy); odrzucone — autor i Główni Stewardzi.
+function visibleItems() {
+    if (!isAdminAuthenticated || !loggedInSteward) return [];
+    return (globalIncidents || []).filter(hasPending).filter(r => {
+        const pv = r.pendingVerdict, mine = isMineOf(pv);
+        if (!mine && isConflict(r)) return false;
+        if (pv.status === "rejected") return mine || isApprover();
+        return pv.status === "pending";
+    }).sort((a, b) => {
+        const wa = awaitingMe(a) ? 0 : 1, wb = awaitingMe(b) ? 0 : 1;
+        if (wa !== wb) return wa - wb;
+        return ts(a.pendingVerdict.submittedAt) - ts(b.pendingVerdict.submittedAt);
+    });
+}
+
+let lastPanelHtml = "", lastInfoHtml = "";
+function renderPanel() {
+    const box = $("verdictApprovalsPanel");
+    if (!box) return;
+    const items = visibleItems();
+    if (!items.length) { box.style.display = "none"; box.innerHTML = ""; lastPanelHtml = ""; return; }
+    const pend = items.filter(r => r.pendingVerdict.status === "pending").length;
+    const rej = items.length - pend;
+    const forMe = items.filter(awaitingMe).length;
+    const leads = leadStewards().map(s => s.nick || s.id);
+    const html = `<div class="va-head">
+        <span class="va-title">✅ Werdykty do akceptacji Głównych Stewardów (${pend})${rej ? ` <span class="case-chip chip-approval-rej">odrzucone: ${rej}</span>` : ""}${forMe ? ` <span class="case-chip chip-approval">czeka na Ciebie: ${forMe}</span>` : ""}</span>
+        <span class="va-sub">${rules.enabled ? `Wymagane akceptacje: ${escapeHtml(rules.required)}` : "Akceptacja wyłączona — nowe werdykty trafiają od razu na Discord"}${leads.length ? " · Główni Stewardzi: " + escapeHtml(leads.join(", ")) : ""}</span>
+      </div>` + items.map(r => itemHtml(r, r.pendingVerdict)).join("");
+    // Bez zmian w treści nie przerysowujemy — inaczej odświeżenie danych zatrzymywałoby
+    // oglądane wideo z dowodem i zwijało rozwinięte uzasadnienie.
+    if (html !== lastPanelHtml || box.style.display !== "block") { box.innerHTML = html; lastPanelHtml = html; }
+    box.style.display = "block";
+}
+
+function renderInfo() {
+    const box = $("verdictApprovalInfo");
+    if (!box) return;
+    const inc = isAdminAuthenticated && typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
+    const pv = inc && inc.pendingVerdict;
+    const show = hasPending(inc) && (isMineOf(pv) || !isConflict(inc)) && (pv.status === "pending" || isMineOf(pv) || isApprover());
+    if (!show) { box.style.display = "none"; box.innerHTML = ""; lastInfoHtml = ""; return; }
+    // Dowody tej sprawy są już w podglądzie nad formularzem — tu ich nie powtarzamy.
+    const html = `<strong style="color:${pv.status === "rejected" ? "var(--red-text)" : "var(--green-text)"};">${pv.status === "rejected"
+        ? "❌ Werdykt w tej sprawie został odrzucony przy akceptacji — popraw go i wyślij ponownie"
+        : "⏳ Ta sprawa ma już werdykt czekający na akceptację — wysłanie nowej decyzji go zastąpi"}</strong>` + itemHtml(inc, pv, { noEvidence: true });
+    if (html !== lastInfoHtml || box.style.display !== "block") { box.innerHTML = html; lastInfoHtml = html; }
+    box.style.display = "block";
+}
+
+function renderHint() {
+    const el = $("verdictApprovalHint");
+    if (!el) return;
+    if (!rules.enabled || !isAdminAuthenticated) { el.style.display = "none"; return; }
+    const lead = isApprover();
+    el.textContent = lead && rules.required <= 1
+        ? "ℹ️ Akceptacja werdyktów jest włączona, ale wymaga 1 akceptacji — Twoja decyzja jako Głównego Stewarda wystarcza, werdykt zostanie opublikowany od razu."
+        : `ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane: ${rules.required}) — na Discordzie pojawi się dopiero po zatwierdzeniu.` +
+          (lead ? " Twoja decyzja jako Głównego Stewarda liczy się jako pierwsza akceptacja." : "");
+    el.style.display = "block";
+}
+
+function decorateTable() {
+    if (!isAdminAuthenticated) return;
+    document.querySelectorAll("#adminTableBody .admin-row-cb").forEach(cb => {
+        const r = findInc(cb.dataset.id);
+        if (!hasPending(r)) return;
+        const pv = r.pendingVerdict, mine = isMineOf(pv);
+        if (!mine && isConflict(r)) return;
+        if (pv.status === "rejected" && !(mine || isApprover())) return;
+        const tr = cb.closest("tr"), cell = tr && tr.children[tr.children.length - 1];
+        if (!cell || cell.querySelector(".chip-approval, .chip-approval-rej")) return;
+        cell.insertAdjacentHTML("beforeend", pv.status === "rejected"
+            ? `<div><span class="case-chip chip-approval-rej" style="cursor:pointer;" onclick="scrollToVerdictApprovals()" title="${escapeHtml("Odrzucił: " + ((pv.rejectedBy && pv.rejectedBy.nick) || "?") + " — " + (pv.rejectReason || ""))}">❌ Werdykt odrzucony</span></div>`
+            : `<div><span class="case-chip chip-approval" style="cursor:pointer;" onclick="scrollToVerdictApprovals()" title="Werdykt czeka na akceptację Głównych Stewardów — kliknij, aby przejść do listy">⏳ Akceptacja ${escapeHtml(approvalsOf(pv).length)}/${escapeHtml(needOf(pv))}</span></div>`);
+    });
+}
+
+function renderAll() {
+    try { renderPanel(); } catch (e) { console.error("[132] panel:", e); }
+    try { renderInfo(); } catch (e) { console.error("[132] info:", e); }
+}
+
+/* ============================================================
+   8. POWIADOMIENIA W PANELU (dzwonek)
+   ============================================================ */
+let seen = null; // sprawa → { submittedAt, status, n, mine }
+const staffDataReady = () => {
+    try { return fiaPriv.mode === "staff" && fiaPriv.subs.has("staffIncidents") && !fiaPriv.pending.has("staffIncidents"); }
+    catch (e) { return false; }
+};
+function scanForNotifications() {
+    if (!isAdminAuthenticated || !loggedInSteward) { seen = null; return; }
+    if (!staffDataReady()) return;
+    const cur = new Map();
+    (globalIncidents || []).filter(hasPending).forEach(r => {
+        const pv = r.pendingVerdict;
+        cur.set(r.id, { r, pv, sig: { submittedAt: ts(pv.submittedAt), status: pv.status, n: approvalsOf(pv).length, mine: isMineOf(pv) } });
+    });
+    const snapshot = () => { const m = new Map(); cur.forEach((v, k) => m.set(k, v.sig)); return m; };
+    if (seen === null) {
+        seen = snapshot();
+        const forMe = [...cur.values()].filter(x => awaitingMe(x.r)).length;
+        if (forMe) showToast("⏳ Werdykty do akceptacji", `Czeka na Ciebie: ${forMe}. Lista jest na górze panelu zgłoszeń.`);
+        return;
+    }
+    const who = me();
+    cur.forEach(({ r, pv, sig }, id) => {
+        const prev = seen.get(id);
+        const fresh = !prev || prev.submittedAt !== sig.submittedAt;
+        const d = pv.draft || {};
+        const author = (pv.submittedBy && pv.submittedBy.nick) || "?";
+        if (sig.status === "pending" && fresh && !sig.mine && awaitingMe(r)) {
+            pushAdminNotification("verdictApproval", "⏳ Werdykt do akceptacji", `${caseLabel(r, pv)}: ${d.decision} (${penaltyText(d)}) — autor: ${author}.`, r.id);
+        } else if (sig.status === "rejected" && sig.mine && (fresh || prev.status !== "rejected")) {
+            pushAdminNotification("verdictApproval", "❌ Twój werdykt odrzucono", `${caseLabel(r, pv)} — ${(pv.rejectedBy && pv.rejectedBy.nick) || "?"}: ${pv.rejectReason || ""}`, r.id);
+        } else if (sig.status === "pending" && sig.mine && !fresh && sig.n > prev.n) {
+            const lastA = approvalsOf(pv).pop();
+            if (!who || !lastA || lastA.key !== who.key) pushAdminNotification("verdictApproval", "✅ Akceptacja Twojego werdyktu", `${caseLabel(r, pv)}: ${lastA ? lastA.nick : "?"} zaakceptował (${sig.n}/${needOf(pv)}).`, r.id);
+        }
+    });
+    seen.forEach((prev, id) => {
+        if (cur.has(id) || !prev.mine || prev.status !== "pending") return;
+        const r = findInc(id);
+        if (r && r.decisionData && ts(r.decisionData.issuedAt) >= prev.submittedAt) {
+            pushAdminNotification("incident", "✅ Twój werdykt opublikowano", `${id}: ${r.decisionData.decision} — zatwierdzony przez Głównych Stewardów.`, id);
+        }
+    });
+    seen = snapshot();
+}
+
+const origOpenNotif = window.openNotifItem;
+if (typeof origOpenNotif === "function") {
+    window.openNotifItem = function (nid) {
+        let item = null;
+        try { item = (adminNotifCenter || []).find(n => n.id === nid) || null; } catch (e) {}
+        const res = origOpenNotif.apply(this, arguments);
+        if (item && item.type === "verdictApproval") setTimeout(() => { renderAll(); window.scrollToVerdictApprovals(); }, 80);
+        return res;
+    };
+}
+
+/* ============================================================
+   9. USTAWIENIA W PANELU (tylko dwaj akceptujący Główni Stewardzi)
+   ============================================================ */
+const rulesAnchor = $("votingRulesBox") || $("announcementAdminBox") || $("reportScheduleBox");
+if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
+  <div id="verdictApprovalRulesBox" class="stats-group-box" style="display:none; border-color: rgba(16,185,129,0.5); margin-bottom: 14px;">
+    <div class="stats-group-title" style="color:var(--green-text);">✅ Akceptacja werdyktów przez Głównych Stewardów</div>
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+      <div style="min-width:280px; flex:1;"><label for="vaEnabled">Tryb</label>
+        <select id="vaEnabled">
+          <option value="1">Włączona — werdykt czeka na akceptację przed publikacją</option>
+          <option value="0">Wyłączona — werdykt publikowany od razu</option>
+        </select></div>
+      <div style="min-width:170px;"><label for="vaRequired">Wymagane akceptacje</label>
+        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich</option><option value="2">2 — obaj</option></select></div>
+      <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="saveVerdictApprovalRules()">💾 ZAPISZ ZASADY</button>
+    </div>
+    <div id="vaRulesStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim); line-height:1.6;"></div>
+  </div>`);
+
+function renderRulesBox() {
+    const sel = $("vaEnabled"), req = $("vaRequired"), st = $("vaRulesStatus");
+    if (!sel || !req || !st) return;
+    if (document.activeElement !== sel) sel.value = rules.enabled ? "1" : "0";
+    if (document.activeElement !== req) req.value = String(rules.required);
+    const leads = leadStewards();
+    st.innerHTML = (rules.enabled
+        ? `✅ Włączona: werdykt z formularza publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. Autor będący Głównym Stewardem liczy się jako jedna akceptacja.`
+        : "⏸ Wyłączona: werdykty z formularza są publikowane od razu.") +
+        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.`;
+}
+window.saveVerdictApprovalRules = async function () {
+    if (!isApprover()) return alert(`Zasady akceptacji werdyktów mogą zmienić tylko: ${leadStewards().map(s => s.nick).join(", ")}.`);
+    const next = { enabled: $("vaEnabled").value === "1", required: clampReq($("vaRequired").value) };
+    const prev = rulesRaw ? clean(rulesRaw) : null;
+    try {
+        await database.ref("settings/verdictApproval").set(next);
+    } catch (err) {
+        return alert("Nie udało się zapisać zasad: " + ((err && (err.code || err.message)) || err));
+    }
+    try {
+        await logAction(loggedInSteward.nick, "SYSTEM", "AKCEPTACJA", `Zmieniono zasady akceptacji werdyktów: ${next.enabled ? `włączona, wymagane akceptacje: ${next.required}` : "wyłączona"}.`,
+            { items: [{ path: "settings/verdictApproval", data: prev }] });
+    } catch (e) { console.warn("[132] logAction:", e); }
+    const waiting = (globalIncidents || []).filter(r => hasPending(r) && r.pendingVerdict.status === "pending").length;
+    showToast("✅ Zasady zapisane", (next.enabled ? `Wymagane akceptacje: ${next.required}` : "Akceptacja wyłączona") +
+        (waiting ? ` · ${waiting} ${plural(waiting, "werdykt nadal czeka", "werdykty nadal czekają", "werdyktów nadal czeka")} w kolejce` : ""));
+};
+
+/* ============================================================
+   10. PODPIĘCIE
+   ============================================================ */
+window.fiaVerdictApproval = {
+    required: () => !!rules.enabled,
+    need: () => rules.required,
+    submit
+};
+
+wrap("applyStewardPermissions", function () {
+    const box = $("verdictApprovalRulesBox");
+    if (box) box.style.display = isApprover() ? "block" : "none";
+    renderRulesBox(); renderHint(); renderAll();
+});
+wrap("renderAdmin", function () {
+    renderAll();
+    decorateTable();
+    scanForNotifications();
+});
+wrap("renderStewardsTable", function () { renderRulesBox(); renderPanel(); });
+wrap("updateVerdictHistoryBox", renderInfo);
+if ($("caseId")) $("caseId").addEventListener("input", renderInfo);
+wrap("adminLogout", function () {
+    if (isAdminAuthenticated) return; // wylogowanie anulowane
+    seen = null;
+    ["verdictApprovalsPanel", "verdictApprovalInfo", "verdictApprovalHint", "verdictApprovalRulesBox"].forEach(id => { const el = $(id); if (el) el.style.display = "none"; });
+});
+// Odświeżanie stanu „publikuje…” (blokada wygasa po 2 min, jeśli publikujący zamknął kartę).
+setInterval(() => { if (isAdminAuthenticated && (globalIncidents || []).some(r => hasPending(r) && r.pendingVerdict.publishing)) renderAll(); }, 30000);
+renderHint();
 })();
 </script>
 
