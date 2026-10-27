@@ -3376,7 +3376,6 @@
 
           <button type="button" class="theme-btn" id="elementPickerBtn" onclick="toggleElementPickerMode()" title="Kliknij dowolny element na stronie, aby ustawić jego przezroczystość">🎯 KLIKNIJ ELEMENT</button>
 
-          <button class="lang-btn" onclick="toggleLang()">PL / EN</button>
         </div>
       </div>
     </div>
@@ -3971,6 +3970,7 @@
               <option value="Apelacja odrzucona – Werdykt podtrzymany" data-key="optAppealMaintained">Apelacja odrzucona – Werdykt podtrzymany</option>
             </select>
             <button type="button" id="btnAddDecisionOption" class="btn-secondary" style="display:none; width:auto; margin-top:6px; padding:5px 12px; font-size:11px;" title="Dodaj własną decyzję do tej listy (poza grupami albo w grupie)">➕ Dodaj nową decyzję do listy</button>
+            <button type="button" id="btnManageDecisionList" class="btn-secondary" style="display:none; width:auto; margin-top:6px; margin-left:6px; padding:5px 12px; font-size:11px;" title="Usuń pozycje z listy, zmień ich kolejność albo przywróć usunięte">🗑 Usuń / zarządzaj listą</button>
           </div>
   
           <div class="row" id="penaltyFields">
@@ -6036,7 +6036,7 @@ function knownDiscordAvatar(id) {
     } catch (e) {}
     return discordDefaultAvatar(id);
 }
-let currentLang = 'pl';
+const currentLang = 'pl';   // język angielski usunięty — strona jest tylko po polsku
 let currentlyEditedReportId = null;
 let isUsersAuth = false;
 
@@ -6105,49 +6105,6 @@ const langData = {
         alertCaseNotFound: "Nie znaleziono zgłoszenia.", dcAppealTitle: "⚖️ NOWA APELACJA",
         btnSend: "Wyślij", btnBack: "Powrót", chatPlaceholder: "Napisz wiadomość na czacie...",
         siteLockTitle: "Zgłoszenia są obecnie zamknięte"
-    },
-    en: {
-        adminPanel: "FIA Panel", adminPass: "Admin Password", loginBtn: "Login", cancelBtn: "Cancel",
-        discordLoginBtn: "Login with Discord", discordLoggedInAs: "Driver:", discordLogoutBtn: "Logout", orDivider: "OR",
-        manualBadge: "MANUAL", manualNoteLocked: "⚠️ Entered manually — not verified through Discord.",
-        formLockedMsg: "You must log in with Discord before submitting a report. This lets us verify your identity as a driver.",
-        historyVerifiedByDiscord: "Verified via Discord — showing the history linked to your account.",
-        historyRecommendDiscord: "Recommended: log in with Discord to securely and automatically see your history.",
-        historyPinFallback: "Alternatively, if you can't use Discord: generate an access code manually (less secure method).",
-        mainTitle: "FIA Reporting System", mainSubtitle: "Racing incident management",
-        navNew: "New Report", navHistory: "Global History", navAdmin: "Admin Panel", navAppeal: "Submit Appeal",
-        secDetails: "Incident Details", labelNick: "Your Nick", labelDiscord: "Your Discord ID",
-        labelCategory: "Category", labelTrack: "Race Track", labelSplit: "Split", optSplit1: "Split 1", optSplit2: "Split 2", splitTabAll: "All", labelSession: "Session Type",
-        labelAccusedNick: "Accused Nickname", labelAccusedDiscord: "Accused Discord ID", labelDesc: "Incident Description", labelEvidence: "Evidence (Link)",
-        labelEvidenceFile: "Evidence (File from computer)", labelAppealEvidenceFile: "New or additional evidence (File from computer)",
-        evidenceFileHint: "You can attach several files at once — screenshots, video clips, or other files (max 5 files, totaling up to 1GB). Link and files are both optional — provide one, the other, or both.",
-        evidenceFileTooBig: "You can add a maximum of 5 files, totaling up to 1GB.",
-        btnSubmit: "Submit Report", chatTitle: "Live Chat", btnOpenChat: "OPEN STEWARDS CHAT",
-        adminSecTitle: "Report Management", btnResetId: "RESET ID",
-        thReporter: "Reporter", thTrack: "Track / Session", thAccused: "Accused (Nick / ID)", thStatus: "Status", thActions: "Actions",
-        btnAccept: "Accept", btnReject: "Reject", btnDelete: "Delete",
-        statusPending: "Pending", statusAccepted: "Accepted", statusRejected: "Rejected", statusAppeal: "In Appeal", statusVerdictIssued: "Verdict issued",
-        promptReject: "Enter rejection reason:", alertSent: "Report sent!", confirmDelete: "Delete?", confirmReset: "Reset counter?",
-        optChooseTrack: "Choose track...", optChooseCat: "Choose violation...",
-        optChooseAppealCase: "Choose case...", optNoAppealCases: "No cases available for appeal",
-        appealCaseHint: "You don't currently have any cases with an issued verdict that you can appeal.",
-        appealNoCasesMsg: "No reports with an issued verdict were found on your account. Appeals are unavailable until such a case exists on your account.",
-        sessions: ["Main Race", "Sprint", "Qualifying", "Practice"],
-        dcReportTitle: "🚩 NEW REPORT", dcDecisionTitle: "📢 REPORT STATUS",
-        dcLabelReporter: "👤 Reporter", dcLabelAgainst: "🏎️ Against",
-        dcMsgDecision: "Your report has been", evidenceNone: "None", evidenceBtn: "Link 🔗",
-        btnPickNone: "🤝 Nobody guilty", noOneGuiltyText: "Nobody is guilty",
-        verdictMainTitle: "Stewards Decision", caseIdLabel: "Case ID", accusedIdLabel: "Discord ID",
-        decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt3c: "Time penalty and points", opt4: "Disqualification",
-        optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
-        timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
-        addExtraBtn: "➕ Add another decision", sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
-        embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Guilty", fieldEvidence: "🎬 Evidence", fieldSplit: "🏁 Split",
-        fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
-        lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
-        alertCaseNotFound: "Report not found.", dcAppealTitle: "⚖️ NEW APPEAL",
-        btnSend: "Send", btnBack: "Back", chatPlaceholder: "Type chat message...",
-        siteLockTitle: "Reports are currently closed"
     }
 };
 
@@ -6183,36 +6140,6 @@ const categoriesStructure = {
         ],
         "Odwołanie od Kary": [
             "Kara nadana przez grę"
-        ]
-    },
-    en: {
-        "Racing Incidents": [
-            "Brake check",
-            "Causing a collision",
-            "Pushing off track",
-            "Aggressive divebomb",
-            "Disrespecting overlap",
-            "Dangerous re-entry",
-            "Dangerous line change",
-            "Blocking in qualifying",
-            "Weaving on the straight during the race"
-        ],
-        "Procedures & VSC/SC": [
-            "VSC/SC Delta",
-            "Restart procedure",
-            "Causing SC",
-            "Pit line violation"
-        ],
-        "Unsporting Behavior": [
-            "Reset to track",
-            "Intentional crash",
-            "Retirement",
-            "AI driving",
-            "Unapproved start",
-            "Absence"
-        ],
-        "Penalty Appeal": [
-            "Issued by game"
         ]
     }
 };
@@ -6910,50 +6837,6 @@ function removeCustomBackground(sync = true) {
     }
 }
 
-
-function toggleLang() {
-    currentLang = currentLang === 'pl' ? 'en' : 'pl';
-    document.documentElement.lang = currentLang;
-    
-    document.querySelectorAll("[data-key]").forEach(el => {
-        const key = el.getAttribute("data-key");
-        if (langData[currentLang][key]) { el.textContent = langData[currentLang][key]; }
-    });
-    updateSiteReportWindowLock();
-    updateReportWindowUI();
-
-    const adminPassInput = document.getElementById("adminPass");
-    if (adminPassInput) adminPassInput.placeholder = currentLang === 'pl' ? "Hasło..." : "Password...";
-
-    const searchInput = document.getElementById("adminSearch");
-    if (searchInput) searchInput.placeholder = currentLang === 'pl' ? "Szukaj po nicku, oskarżonym, torze..." : "Search by nickname, accused, track...";
-
-    const filterStatus = document.getElementById("adminFilterStatus");
-    if (filterStatus) {
-        filterStatus.options[0].textContent = currentLang === 'pl' ? "Status: Wszystkie" : "Status: All";
-        filterStatus.options[1].textContent = currentLang === 'pl' ? "Oczekujące" : "Pending";
-        filterStatus.options[2].textContent = currentLang === 'pl' ? "Przyjęte" : "Accepted";
-        filterStatus.options[3].textContent = currentLang === 'pl' ? "Odrzucone" : "Rejected";
-    }
-
-    const decisionSelect = document.getElementById("decision");
-    if (decisionSelect) {
-        decisionSelect.options[0].textContent = langData[currentLang].optDefault;
-        decisionSelect.options[1].textContent = langData[currentLang].opt1;
-        decisionSelect.options[2].textContent = langData[currentLang].opt2;
-        decisionSelect.options[3].textContent = langData[currentLang].opt3;
-        decisionSelect.options[4].textContent = langData[currentLang].opt4;
-        decisionSelect.options[5].textContent = currentLang === 'pl' ? "Apelacja rozpatrzona – Zmiana werdyktu" : "Appeal resolved – Verdict changed";
-        decisionSelect.options[6].textContent = currentLang === 'pl' ? "Apelacja odrzucona – Werdykt podtrzymany" : "Appeal dismissed – Verdict maintained";
-    }
-
-    initFormDropdowns();
-    initAdminTrackFilter();
-    initCollapsibleLists();
-    
-    if (isAdminAuthenticated) { renderAdmin(); }
-    if (authorizedHistoryDiscordId) { fetchAndRenderHistory(authorizedHistoryDiscordId); }
-}
 
 function showSection(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -9357,6 +9240,11 @@ function openAppealVerdictEditModal(caseId, appealId) {
 
     currentlyEditedAppealVerdictCaseId = caseId;
     document.getElementById("appealVerdictEditModalTitle").textContent = `${currentLang === 'pl' ? 'Werdykt apelacji' : 'Appeal verdict'} ${appealId} (${caseId})`;
+    (function () {
+        const s = document.getElementById("editAppealVerdictDecision"), v = relatedCase.decisionData.decision || "";
+        Array.from(s.querySelectorAll("option[data-li-temp]")).forEach(o => o.remove());
+        if (v && !Array.from(s.options).some(o => o.value === v)) { const o = new Option(v + " (usunięta z listy)", v); o.dataset.liTemp = "1"; s.add(o); }
+    })();
     document.getElementById("editAppealVerdictDecision").value = relatedCase.decisionData.decision || "";
     document.getElementById("editAppealVerdictTime").value = relatedCase.decisionData.timePenalty || "";
     document.getElementById("editAppealVerdictPoints").value = relatedCase.decisionData.pointsPenalty || "";
@@ -17337,7 +17225,7 @@ after("renderAdmin", () => decorateAdminRows(true));
 ["openDescModal", "closeDescModal", "toggleEditMode", "transferToVerdictPanel", "transferAppealToVerdict",
  "openAppealEditModal", "closeAppealEditModal", "openAppealVerdictEditModal", "closeAppealVerdictEditModal",
  "selectPlayerChatCase", "deselectPlayerChatCase", "handleStewardChatSelection", "openReportPreview", "closeReportPreview",
- "adminLogout", "logoutDiscordDriver", "finalizeAutoLogin", "toggleLang"].forEach(n => after(n, () => { kick(); if (n === "toggleLang") renderLive(); }));
+ "adminLogout", "logoutDiscordDriver", "finalizeAutoLogin"].forEach(n => after(n, () => { kick(); }));
 document.addEventListener("focusin", e => { if (e.target && e.target.id === "modalNotesField") kick(); });
 document.addEventListener("focusout", e => { if (e.target && e.target.id === "modalNotesField") setTimeout(kick, 50); });
 
@@ -18120,6 +18008,7 @@ function teRenderDlg(keep) {
     list.innerHTML = "";
     if (!ctx.entries.length) list.innerHTML = '<div class="te-empty">Brak tekstu w tym miejscu — kliknij „Większy fragment”.</div>';
     const canOrder = !!ctx.listSel;
+    const liManage = !!(ctx.listSel && typeof liOf === "function" && liOf(ctx.listSel));
     if (canOrder) teListIndent(ctx.entries);
     ctx.entries.forEach((en, i) => {
         const cur = en.draft !== undefined ? en.draft : keep && keep.has(en.key) ? keep.get(en.key) : teCurrentValue(en);
@@ -18133,14 +18022,15 @@ function teRenderDlg(keep) {
             ? `<span class="te-mv"><button type="button" class="te-mini" data-lmove="${i}" data-dir="-1" title="${en.group ? "Przesuń całą grupę wyżej" : "Przesuń wyżej (nad nagłówek = do grupy wyżej)"}"${teListCanMove(ctx.entries, i, -1) ? "" : " disabled"}>⬆</button><button type="button" class="te-mini" data-lmove="${i}" data-dir="1" title="${en.group ? "Przesuń całą grupę niżej" : "Przesuń niżej (pod nagłówek = do grupy niżej)"}"${teListCanMove(ctx.entries, i, 1) ? "" : " disabled"}>⬇</button></span>`
             : "";
         box.innerHTML = `<div class="te-entry-head">${mv}<span class="te-kind">${esc(en.label)}</span>${en.mode === "fragment" ? '<span class="te-tag">fragment — wszędzie</span>' : ""}<span class="te-orig" title="${esc(en.orig)}">Oryginał: „${esc(short(en.orig, 140))}”</span>${arrows}<button type="button" class="te-mini" data-reset="${i}">↺ Oryginał</button></div><textarea class="te-ta" data-i="${i}" rows="${Math.min(8, Math.max(1, Math.ceil(String(cur).length / 60)))}"></textarea>`;
-        if (en.liId) {
+        if (liManage && en.okey && !en.pinned) {
             const head = box.querySelector(".te-entry-head"), kindEl = head && head.querySelector(".te-kind");
-            if (kindEl) kindEl.insertAdjacentHTML("afterend", '<span class="te-tag">dodana w edytorze</span>');
-            if (head) head.insertAdjacentHTML("beforeend", `<button type="button" class="te-mini" data-li-del="${esc(en.liId)}" title="Usuń tę pozycję z listy">🗑 Usuń</button>`);
+            if (en.liId && kindEl) kindEl.insertAdjacentHTML("afterend", '<span class="te-tag">dodana w edytorze</span>');
+            if (head) head.insertAdjacentHTML("beforeend", `<button type="button" class="te-mini" data-li-rm="${i}" title="${en.group ? "Usuń tę grupę z listy" : "Usuń tę opcję z listy"}">🗑 Usuń</button>`);
         }
         box.querySelector("textarea").value = cur;
         list.appendChild(box);
     });
+    if (typeof liRenderHidden === "function") liRenderHidden(ctx, list);
     if (keep === "reorder") list.scrollTop = scroll;
     $("teDlgListReset").style.display = canOrder && (ctx.orderChanged || teListOrders[ctx.listSel.id]) ? "" : "none";
     const liCan = !!(ctx.listSel && typeof liOf === "function" && liOf(ctx.listSel));
@@ -18475,6 +18365,15 @@ const sectionHtml = `
       <button type="button" class="btn-warning" id="teStartBtn" style="margin:0;">✏️ Edytuj klikając na stronie</button>
     </div>
 
+    <div class="te-panel" id="teListsPanel">
+      <div class="te-panel-title">Listy rozwijane — dodawanie i usuwanie pozycji</div>
+      <p class="te-hint" style="margin-bottom:12px;">Dodasz nową pozycję (poza grupami albo w wybranej grupie), nową grupę, usuniesz dowolną pozycję lub grupę (także wbudowaną), zmienisz kolejność i przywrócisz usunięte. Zmiany od razu widzą wszyscy odwiedzający.</p>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        <button type="button" class="btn-warning" data-li-open="category" style="margin:0;">📋 Lista przewinień (formularz zgłoszenia)</button>
+        <button type="button" class="btn-warning" data-li-open="decision" style="margin:0;">⚖️ Lista Decyzja (formularz werdyktu)</button>
+      </div>
+    </div>
+
     <div class="te-panel">
       <div class="te-panel-title">Znajdź i zamień</div>
       <div class="te-row">
@@ -18749,7 +18648,7 @@ function teScan(includeData) {
         if (key && !map.has(key)) map.set(key, { key, kind, count: 0, places: new Set([place]) });
     };
     try {
-        ["pl", "en"].forEach(lang => {
+        ["pl"].forEach(lang => {
             const place = lang === "pl" ? "Tłumaczenia PL (teraz niewidoczne)" : "Tłumaczenia EN (po przełączeniu języka)";
             Object.values((typeof langData !== "undefined" && langData[lang]) || {}).forEach(v => {
                 if (Array.isArray(v)) v.forEach(x => addHidden(x, "Opcja listy", place));
@@ -18758,7 +18657,7 @@ function teScan(includeData) {
         });
     } catch (e) {}
     try {
-        ["pl", "en"].forEach(lang => {
+        ["pl"].forEach(lang => {
             const st = (typeof categoriesStructure !== "undefined" && categoriesStructure[lang]) || {};
             const place = lang === "pl" ? "Lista przewinień PL" : "Lista przewinień EN (po przełączeniu języka)";
             Object.keys(st).forEach(g => {
@@ -19308,26 +19207,56 @@ database.ref(TE_LIST_PATH).on("value", snap => {
    w oknie edycji listy (⬆ ⬇, przeciąganie, edycja napisu). Wartość nowej opcji = jej nazwa.
    ============================================================ */
 const LI_PATH = "settings/customListItems", LI_CACHE = "rzCustomListItemsCache";
-const LI_LISTS = { decision: "decision", editAppealVerdictDecision: "decision" };   // id listy rozwijanej -> wspólna lista
-const LI_NAMES = { decision: "Decyzja" };
-let liItems = {};
+const LI_LISTS = { decision: "decision", editAppealVerdictDecision: "decision", category: "category" };   // id listy rozwijanej -> wspólna lista
+const LI_NAMES = { decision: "Decyzja", category: "Lista przewinień" };
+const LI_TXT = {
+    decision: { opt: "Opcja listy (nowa decyzja)", name: "Nazwa decyzji (to będzie jej wartość w werdykcie)", ph: "np. Naruszenie – kara pozycyjna", gph: "np. Kary dodatkowe", needOpt: "Wpisz nazwę decyzji.", dup: "Taka decyzja już jest na liście.",
+        delWhere: "Zniknie z listy u wszystkich — także z edycji werdyktu apelacji.", delNote: "Werdykty już wydane z tą decyzją zostają bez zmian." },
+    category: { opt: "Opcja listy (nowe przewinienie)", name: "Nazwa przewinienia (to będzie jego wartość w zgłoszeniu)", ph: "np. Niedozwolone użycie skrótu toru", gph: "np. Naruszenia techniczne", needOpt: "Wpisz nazwę przewinienia.", dup: "Takie przewinienie już jest na liście.",
+        delWhere: "Zniknie z listy przewinień w formularzu zgłoszenia.", delNote: "Zgłoszenia już złożone z tym przewinieniem zostają bez zmian." }
+};
+const liTx = list => LI_TXT[list] || LI_TXT.decision;
+let liItems = {};     // list -> pozycje dodane w edytorze (opcje / grupy)
+let liHidden = {};    // list -> pozycje usunięte z listy (także wbudowane): { id, key, label, group, at }
+let liRaw = {};       // ostatnia znana zawartość settings/customListItems
 let liBusy = false;
 
 function liSet(v) {
-    const next = {};
-    Object.keys(v || {}).forEach(list => {
-        const node = v[list];
+    const next = {}, hid = {};
+    liRaw = (v && typeof v === "object") ? v : {};
+    Object.keys(liRaw).forEach(list => {
+        const node = liRaw[list];
         if (!node || typeof node !== "object") return;
-        const arr = Object.keys(node).map(id => {
+        const arr = [], hh = [];
+        Object.keys(node).forEach(id => {
             const x = node[id];
-            if (!x || typeof x !== "object") return null;
+            if (!x || typeof x !== "object") return;
+            if (x.kind === "hide") {
+                // usunięcie wbudowanej opcji / grupy: zapamiętujemy jej stały klucz (o:wartość albo g:nagłówek)
+                const key = typeof x.key === "string" ? x.key : "";
+                if (key && key !== "o:") hh.push({ id, key, label: norm(x.label || key.slice(2)).slice(0, 120), group: key.slice(0, 2) === "g:", at: Number(x.at) || 0 });
+                return;
+            }
             const label = norm(x.label).slice(0, 120);
-            if (!label) return null;
-            return { id, kind: x.kind === "group" ? "group" : "option", label, group: typeof x.group === "string" ? x.group : "", at: Number(x.at) || 0 };
-        }).filter(Boolean).sort((a, b) => ((a.at - b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
+            if (!label) return;
+            arr.push({ id, kind: x.kind === "group" ? "group" : "option", label, group: typeof x.group === "string" ? x.group : "", at: Number(x.at) || 0 });
+        });
+        const byAt = (a, b) => ((a.at - b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        arr.sort(byAt); hh.sort(byAt);
         if (arr.length) next[list] = arr;
+        if (hh.length) hid[list] = hh;
     });
     liItems = next;
+    liHidden = hid;
+}
+// Lokalne odzwierciedlenie zapisu (działa od razu, także zanim wróci zdarzenie z bazy).
+function liLocal(list, updates) {
+    const base = Object.assign({}, (liRaw && liRaw[list]) || {});
+    Object.keys(updates).forEach(id => { if (updates[id] === null) delete base[id]; else base[id] = updates[id]; });
+    const raw = Object.assign({}, liRaw);
+    raw[list] = base;
+    liSet(raw);
+    liApplyAll();
 }
 const liOf = sel => (sel && sel.id && LI_LISTS[sel.id]) ? LI_LISTS[sel.id] : null;
 const liFind = (sel, id) => Array.from(sel.querySelectorAll("[data-li-id]")).find(n => n.dataset.liId === id) || null;
@@ -19337,6 +19266,7 @@ function liApplySelect(sel) {
     const list = liOf(sel);
     if (!list || sel.tagName !== "SELECT") return;
     const items = liItems[list] || [], want = new Set(items.map(x => x.id));
+    const before = sel.value;
     liBusy = true;
     try {
         sel.querySelectorAll("[data-li-id]").forEach(n => {
@@ -19359,9 +19289,64 @@ function liApplySelect(sel) {
             const o = new Option(it.label, it.label);
             o.dataset.liId = it.id;
             const g = it.group ? Array.from(sel.querySelectorAll("optgroup")).find(x => teGroupKey(x) === it.group) : null;
-            (g || sel).appendChild(o);
+            if (g) g.appendChild(o);
+            else {
+                // Opcje poza grupami stoją nad pierwszą grupą (tak działa kolejność listy w edytorze).
+                const firstGroup = Array.from(sel.children).find(c => c.tagName === "OPTGROUP");
+                if (firstGroup) sel.insertBefore(o, firstGroup); else sel.appendChild(o);
+            }
         });
+        liApplyHidden(sel, list);
     } finally { liObs.takeRecords(); liBusy = false; }
+    if (sel.value !== before) { try { sel.dispatchEvent(new Event("change", { bubbles: true })); } catch (e) {} }
+}
+
+// Usunięte pozycje (także wbudowane) znikają z listy; zdjęte elementy czekają w pamięci, żeby dało się je przywrócić na to samo miejsce.
+const liStash = new WeakMap();   // lista -> Map(klucz -> { node, marker, kids })
+function liApplyHidden(sel, list) {
+    let st = liStash.get(sel);
+    if (!st) { st = new Map(); liStash.set(sel, st); }
+    const want = new Map((liHidden[list] || []).map(h => [h.key, h]));
+    let changed = false;
+    // Lista zbudowana od nowa przez stronę — stare znaczniki są nieaktualne.
+    st.forEach((rec, key) => { if (!sel.contains(rec.marker)) st.delete(key); });
+    // Przywracanie pozycji, których już nie ma w bazie jako „usunięte”.
+    st.forEach((rec, key) => {
+        if (want.has(key)) return;
+        rec.marker.parentNode.insertBefore(rec.node, rec.marker);
+        if (rec.kids) rec.kids.forEach(k => { if (k.parentNode === sel) rec.node.appendChild(k); });   // opcje wracają do grupy
+        // Pojedyncza opcja wraca na miejsce — grupy, które pamiętały jej znacznik, pamiętają znów ją samą.
+        st.forEach(r2 => { if (r2.kids) { const ix = r2.kids.indexOf(rec.marker); if (ix >= 0) r2.kids[ix] = rec.node; } });
+        rec.marker.remove();
+        st.delete(key);
+        changed = true;
+    });
+    // Zdejmowanie nowych — najpierw opcje, potem grupy (żeby znaczniki opcji wyszły z grupą i wróciły razem z nią).
+    Array.from(want.keys()).sort((a, b) => (a.slice(0, 2) === "g:") - (b.slice(0, 2) === "g:")).forEach(key => {
+        if (st.has(key)) return;
+        const isGroup = key.slice(0, 2) === "g:";
+        const node = isGroup
+            ? Array.from(sel.children).find(c => c.tagName === "OPTGROUP" && teGroupKey(c) === key)
+            : Array.from(sel.options).find(o => o.getAttribute("value") !== "" && teOptKey(o) === key);
+        if (!node || !node.parentNode) return;
+        const marker = document.createComment("li-usunieto:" + key);
+        node.parentNode.insertBefore(marker, node);
+        let kids = null;
+        if (isGroup) {
+            // Usunięcie samego nagłówka: jego opcje zostają na liście, poza grupą (na miejscu grupy).
+            kids = Array.from(node.childNodes);
+            kids.forEach(k => sel.insertBefore(k, node));
+        }
+        node.remove();
+        // Opcja zdejmowana, gdy jej grupa jest już zdjęta: grupa ma pamiętać znacznik zamiast opcji.
+        if (!isGroup) st.forEach(r2 => { if (r2.kids) { const ix = r2.kids.indexOf(node); if (ix >= 0) r2.kids[ix] = marker; } });
+        st.set(key, { node, marker, kids });
+        changed = true;
+    });
+    if (changed) {
+        teListOrig.delete(sel);
+        if (teListOrders[sel.id]) { try { teListApply(sel); } catch (e) { console.error("[128] kolejność listy", e); } }
+    }
 }
 function liApplyAll() {
     Object.keys(LI_LISTS).forEach(id => { const s = $(id); if (s) { try { liApplySelect(s); } catch (e) { console.error("[128] pozycje list", e); } } });
@@ -19378,7 +19363,8 @@ function liRefreshDlg(auto) {
     teListStash();
     const drafts = new Map(ctx.entries.map(en => [en.okey || ("x:" + en.key), en.draft]));
     ctx.entries = teCollectSelect(ctx.listSel);
-    ctx.entries.forEach(en => { const d = drafts.get(en.okey || ("x:" + en.key)); if (d !== undefined) en.draft = d; });
+    // Nowe pozycje (dodane / przywrócone) też dostają wersję roboczą — teRenderDlg("reorder") jej wymaga.
+    ctx.entries.forEach(en => { const d = drafts.get(en.okey || ("x:" + en.key)); en.draft = d !== undefined ? d : teCurrentValue(en); });
     ctx.orderChanged = false;
     teRenderDlg("reorder");
 }
@@ -19414,10 +19400,11 @@ document.body.insertAdjacentHTML("beforeend", `
 
 let liDlg = null;   // { sel, list }
 function liSync() {
-    const grp = $("liDlgKind").value === "group";
+    const grp = $("liDlgKind").value === "group", tx = liTx(liDlg && liDlg.list);
     $("liDlgWhereWrap").style.display = grp ? "none" : "";
-    $("liDlgLabelLbl").textContent = grp ? "Nazwa grupy (nagłówek)" : "Nazwa decyzji (to będzie jej wartość w werdykcie)";
-    $("liDlgLabel").placeholder = grp ? "np. Kary dodatkowe" : "np. Naruszenie – kara pozycyjna";
+    $("liDlgKind").options[0].textContent = tx.opt;
+    $("liDlgLabelLbl").textContent = grp ? "Nazwa grupy (nagłówek)" : tx.name;
+    $("liDlgLabel").placeholder = grp ? tx.gph : tx.ph;
     $("liDlgSave").textContent = grp ? "➕ Dodaj grupę" : "➕ Dodaj opcję";
 }
 function liCloseDialog() { $("liDialog").classList.remove("show"); liDlg = null; }
@@ -19429,7 +19416,7 @@ window.liOpenDialog = function (sel, kind) {
     $("liDlgTitle").textContent = "➕ Nowa pozycja listy „" + (LI_NAMES[list] || list) + "”";
     $("liDlgKind").value = kind === "group" ? "group" : "option";
     $("liDlgLabel").value = "";
-    $("liDlgWhere").innerHTML = `<option value="">Poza grupami (na końcu listy)</option>` +
+    $("liDlgWhere").innerHTML = `<option value="">${sel.querySelector("optgroup") ? "Poza grupami (nad grupami)" : "Poza grupami (na końcu listy)"}</option>` +
         Array.from(sel.querySelectorAll("optgroup")).map(g => `<option value="${esc(teGroupKey(g))}">W grupie: ${esc(g.label)}</option>`).join("");
     liSync();
     $("liDialog").classList.add("show");
@@ -19440,8 +19427,9 @@ async function liSave() {
     if (!canEdit()) { alert("Dodawanie pozycji list wymaga roli Główny Steward / ROOT albo uprawnienia SYS."); return; }
     const sel = liDlg.sel, list = liDlg.list, kind = $("liDlgKind").value === "group" ? "group" : "option";
     const label = norm($("liDlgLabel").value).slice(0, 120), low = label.toLowerCase();
-    if (!label) { alert(kind === "group" ? "Wpisz nazwę grupy." : "Wpisz nazwę decyzji."); $("liDlgLabel").focus(); return; }
-    if (kind === "option" && Array.from(sel.options).some(o => o.value.toLowerCase() === low || norm(o.textContent).toLowerCase() === low)) { alert("Taka decyzja już jest na liście."); $("liDlgLabel").focus(); return; }
+    const tx = liTx(list);
+    if (!label) { alert(kind === "group" ? "Wpisz nazwę grupy." : tx.needOpt); $("liDlgLabel").focus(); return; }
+    if (kind === "option" && Array.from(sel.options).some(o => o.value.toLowerCase() === low || norm(o.textContent).toLowerCase() === low)) { alert(tx.dup); $("liDlgLabel").focus(); return; }
     if (kind === "group" && Array.from(sel.querySelectorAll("optgroup")).some(g => norm(g.label).toLowerCase() === low)) { alert("Taka grupa już jest na liście."); $("liDlgLabel").focus(); return; }
     const group = kind === "option" ? $("liDlgWhere").value : "";
     const btn = $("liDlgSave");
@@ -19449,7 +19437,9 @@ async function liSave() {
     try {
         const ref = database.ref(LI_PATH + "/" + list).push();
         const path = LI_PATH + "/" + list + "/" + ref.key;
-        await ref.set({ kind, label, group: group || null, at: Date.now(), by: myNick() });
+        const rec = { kind, label, group: group || null, at: Date.now(), by: myNick() };
+        await ref.set(rec);
+        liLocal(list, { [ref.key]: rec });
         try { logAction(myNick(), "SYSTEM", "LISTY", `Edytor treści — dodano ${kind === "group" ? "grupę" : "opcję"} „${short(label, 60)}” do listy „${LI_NAMES[list] || list}”`, { items: [{ path, data: null }] }); } catch (e) {}
         liCloseDialog();
         liRefreshDlg();
@@ -19476,29 +19466,153 @@ function liOpenFromDlg(kind) {
 }
 $("teDlgAddOpt").addEventListener("click", () => liOpenFromDlg("option"));
 $("teDlgAddGrp").addEventListener("click", () => liOpenFromDlg("group"));
-$("teDlgList").addEventListener("click", async e => {
-    const b = e.target.closest && e.target.closest("[data-li-del]");
-    if (!b || !teDlgCtx || !teDlgCtx.listSel) return;
+
+/* ---------- usuwanie KAŻDEJ pozycji listy (opcji i grup — także wbudowanych) ---------- */
+document.head.insertAdjacentHTML("beforeend", `<style>
+.li-hidden-box { border: 1px dashed var(--border); border-radius: 4px; padding: 10px 12px; margin-top: 4px; background: rgba(255,255,255,0.02); }
+.li-hidden-title { font-size: 11px; font-weight: 700; color: var(--text-dim); margin-bottom: 8px; letter-spacing: .3px; }
+.li-hidden-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.li-hidden-row .li-hidden-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 12px; }
+#liDelModes { display: none; flex-direction: column; gap: 8px; margin: 10px 0; }
+#liDelModes label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); line-height: 1.4; }
+#liDelModes input { margin-top: 2px; width: auto; flex: none; }
+</style>`);
+document.body.insertAdjacentHTML("beforeend", `
+<div id="liDelDialog" class="te-modal" data-te-ui role="dialog" aria-modal="true" aria-labelledby="liDelTitle">
+  <div class="te-box">
+    <h3 id="liDelTitle">🗑 Usunąć pozycję z listy?</h3>
+    <p class="te-hint" id="liDelMsg"></p>
+    <div id="liDelModes">
+      <label><input type="radio" name="liDelMode" value="keep" checked><span id="liDelKeepTxt"></span></label>
+      <label><input type="radio" name="liDelMode" value="all"><span id="liDelAllTxt"></span></label>
+    </div>
+    <p class="te-hint" id="liDelNote"></p>
+    <div class="te-foot">
+      <span style="flex:1;"></span>
+      <button type="button" class="btn-secondary" id="liDelCancel">Anuluj</button>
+      <button type="button" class="btn-danger" id="liDelOk">🗑 Usuń</button>
+    </div>
+  </div>
+</div>`);
+
+let liDel = null;   // { sel, list, en, kids, isGroup }
+const liEntryName = en => norm(typeof teCurrentValue === "function" ? teCurrentValue(en) : "") || norm(en.orig) || "(bez nazwy)";
+function liCloseDel() { $("liDelDialog").classList.remove("show"); liDel = null; }
+function liAskRemove(sel, i) {
+    const ctx = teDlgCtx;
+    if (!ctx || !ctx.entries[i]) return;
+    if (!canEdit()) { alert("Usuwanie pozycji list wymaga roli Główny Steward / ROOT albo uprawnienia SYS."); return; }
+    if (ctx.orderChanged) { alert("Najpierw zapisz zmianę kolejności (💾 Zapisz) albo zamknij okno — potem usuń pozycję."); return; }
+    const list = liOf(sel), E = ctx.entries, en = E[i], isGroup = !!en.group;
+    // Opcje należące do grupy: kolejne pozycje, które w liście stoją w jej środku (nie na poziomie głównym).
+    const kids = [];
+    if (isGroup) for (let j = i + 1; j < E.length && E[j].okey && !E[j].group && E[j].top === false; j++) kids.push(E[j]);
+    liDel = { sel, list, en, kids, isGroup };
+    const nm = liEntryName(en);
+    $("liDelTitle").textContent = isGroup ? "🗑 Usunąć grupę z listy?" : "🗑 Usunąć opcję z listy?";
+    $("liDelMsg").textContent = (isGroup ? "Grupa: „" : "Opcja: „") + nm + "” (lista „" + (LI_NAMES[list] || list) + "”). " + liTx(list).delWhere;
+    $("liDelNote").textContent = liTx(list).delNote + " Usuniętą pozycję przywrócisz na dole okna edycji listy („Usunięte pozycje”) albo w Dzienniku Akcji.";
+    $("liDelModes").style.display = kids.length ? "flex" : "none";
+    if (kids.length) {
+        $("liDelKeepTxt").textContent = "Usuń tylko nagłówek grupy — jej opcje (" + kids.length + ") zostają na liście, poza grupą";
+        $("liDelAllTxt").textContent = "Usuń grupę razem z jej opcjami (" + kids.length + ")";
+        document.querySelector('input[name="liDelMode"][value="keep"]').checked = true;
+    }
+    $("liDelOk").disabled = false;
+    $("liDelDialog").classList.add("show");
+    setTimeout(() => { try { $("liDelOk").focus(); } catch (e) {} }, 30);
+}
+async function liDoRemove() {
+    const d = liDel;
+    if (!d) return;
     if (!canEdit()) { alert("Brak uprawnień."); return; }
-    const list = liOf(teDlgCtx.listSel), id = b.dataset.liDel;
-    const it = ((liItems[list] || []).find(x => x.id === id)) || null;
-    if (!it) return;
-    if (!confirm(`Usunąć z listy ${it.kind === "group" ? "grupę" : "opcję"} „${it.label}”?\n\nWerdykty już wydane z tą decyzją zostają bez zmian.${it.kind === "group" ? " Opcje z tej grupy zostaną na liście, ale poza grupą." : ""} Można to cofnąć w Dzienniku Akcji.`)) return;
-    const path = LI_PATH + "/" + list + "/" + id;
+    const mode = d.kids.length ? ((document.querySelector('input[name="liDelMode"]:checked') || {}).value || "keep") : "keep";
+    const targets = [d.en].concat(d.isGroup && mode === "all" ? d.kids : []);
+    const base = LI_PATH + "/" + d.list, now = Date.now(), who = myNick();
+    $("liDelOk").disabled = true;
     try {
-        const snap = await database.ref(path).once("value");
-        const prev = snap.val();
-        await database.ref(path).set(null);
-        try { logAction(myNick(), "SYSTEM", "LISTY", `Edytor treści — usunięto ${it.kind === "group" ? "grupę" : "opcję"} „${short(it.label, 60)}” z listy „${LI_NAMES[list] || list}”`, { items: [{ path, data: prev }] }); } catch (x) {}
+        const snap = await database.ref(base).once("value");
+        const cur = snap.val() || {};
+        const updates = {}, undo = [];
+        targets.forEach(t => {
+            if (t.liId) {
+                // pozycja dodana w edytorze — kasujemy jej wpis
+                updates[t.liId] = null;
+                undo.push({ path: base + "/" + t.liId, data: cur[t.liId] || null });
+            } else {
+                // pozycja wbudowana — zapisujemy znacznik „usunięta” (klucz jest stały, więc działa po zmianie nazwy)
+                const id = database.ref(base).push().key;
+                updates[id] = { kind: "hide", key: t.okey, label: liEntryName(t).slice(0, 120), at: now, by: who };
+                undo.push({ path: base + "/" + id, data: null });
+            }
+        });
+        await database.ref(base).update(updates);
+        liLocal(d.list, updates);
+        const what = d.isGroup ? "grupę" : "opcję", nm = liEntryName(d.en);
+        try { logAction(who, "SYSTEM", "LISTY", `Edytor treści — usunięto ${what} „${short(nm, 60)}”${targets.length > 1 ? " razem z " + (targets.length - 1) + " opcjami" : ""} z listy „${LI_NAMES[d.list] || d.list}”`, { items: undo }); } catch (x) {}
+        liCloseDel();
         liRefreshDlg();
-    } catch (err) { alert("Nie udało się usunąć: " + (err && err.message)); }
+        toast("🗑 Usunięto z listy", `„${short(nm, 50)}” — zniknęło u wszystkich odwiedzających.`);
+    } catch (err) {
+        $("liDelOk").disabled = false;
+        alert("Nie udało się usunąć: " + (err && err.message));
+    }
+}
+$("liDelOk").addEventListener("click", liDoRemove);
+$("liDelCancel").addEventListener("click", liCloseDel);
+$("liDelDialog").addEventListener("click", e => { if (e.target === $("liDelDialog")) liCloseDel(); });
+window.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("liDelDialog").classList.contains("show")) { e.preventDefault(); e.stopPropagation(); liCloseDel(); }
+}, true);
+
+// Sekcja „Usunięte pozycje” na dole okna edycji listy (wywoływana z teRenderDlg).
+function liRenderHidden(ctx, box) {
+    const sel = ctx && ctx.listSel, list = sel && liOf(sel);
+    if (!list) return;
+    const hid = liHidden[list] || [];
+    if (!hid.length) return;
+    const wrapEl = document.createElement("div");
+    wrapEl.className = "li-hidden-box";
+    wrapEl.innerHTML = `<div class="li-hidden-title">🗑 Usunięte pozycje (${hid.length}) — można przywrócić</div>` +
+        hid.map(h => `<div class="li-hidden-row"><span class="te-tag">${h.group ? "grupa" : "opcja"}</span><span class="li-hidden-label" title="${esc(h.label)}">${esc(h.label)}</span><button type="button" class="te-mini" data-li-restore="${esc(h.id)}">↩ Przywróć</button></div>`).join("");
+    box.appendChild(wrapEl);
+}
+
+$("teDlgList").addEventListener("click", async e => {
+    const rm = e.target.closest && e.target.closest("[data-li-rm]");
+    if (rm && teDlgCtx && teDlgCtx.listSel && liOf(teDlgCtx.listSel)) { liAskRemove(teDlgCtx.listSel, +rm.dataset.liRm); return; }
+    const b = e.target.closest && e.target.closest("[data-li-restore]");
+    if (!b || !teDlgCtx || !teDlgCtx.listSel || !liOf(teDlgCtx.listSel)) return;
+    if (!canEdit()) { alert("Brak uprawnień."); return; }
+    if (teDlgCtx.orderChanged) { alert("Najpierw zapisz zmianę kolejności (💾 Zapisz) albo zamknij okno — potem przywróć pozycję."); return; }
+    const list = liOf(teDlgCtx.listSel), id = b.dataset.liRestore;
+    const h = (liHidden[list] || []).find(x => x.id === id);
+    if (!h) return;
+    const path = LI_PATH + "/" + list + "/" + id;
+    b.disabled = true;
+    try {
+        const prev = (liRaw[list] || {})[id] || null;
+        await database.ref(path).set(null);
+        liLocal(list, { [id]: null });
+        try { logAction(myNick(), "SYSTEM", "LISTY", `Edytor treści — przywrócono ${h.group ? "grupę" : "opcję"} „${short(h.label, 60)}” na liście „${LI_NAMES[list] || list}”`, { items: [{ path, data: prev }] }); } catch (x) {}
+        liRefreshDlg();
+        toast("↩ Przywrócono", `„${short(h.label, 50)}” wróciło na listę.`);
+    } catch (err) { b.disabled = false; alert("Nie udało się przywrócić: " + (err && err.message)); }
 });
 function liRefreshAccess() {
-    const b = $("btnAddDecisionOption");
-    if (b) b.style.display = canEdit() ? "" : "none";
+    ["btnAddDecisionOption", "btnManageDecisionList"].forEach(id => { const b = $(id); if (b) b.style.display = canEdit() ? "" : "none"; });
 }
 const liAddBtn = $("btnAddDecisionOption");
 if (liAddBtn) liAddBtn.addEventListener("click", () => window.liOpenDialog($("decision"), "option"));
+const liManageBtn = $("btnManageDecisionList");
+if (liManageBtn) liManageBtn.addEventListener("click", () => { if (typeof window.teOpenSelect === "function") window.teOpenSelect($("decision")); });
+// Panel „Listy rozwijane” w Edytorze treści (formularz zgłoszenia jest dla stewarda zablokowany, więc listę przewinień otwieramy stąd).
+document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("[data-li-open]");
+    if (!b) return;
+    const sel = $(b.dataset.liOpen);
+    if (sel && typeof window.teOpenSelect === "function") window.teOpenSelect(sel);
+});
 wrap("applyStewardPermissions", liRefreshAccess);
 wrap("adminLogout", liRefreshAccess);
 liRefreshAccess();
@@ -20339,7 +20453,6 @@ wrap("fetchAndRenderHistory", function () {
     });
 });
 
-wrap("toggleLang", function () { cfRenderAll(true); cfRenderDescView(); });
 
 /* ============================================================
    4. OKNO DODAWANIA / EDYCJI RUBRYKI
