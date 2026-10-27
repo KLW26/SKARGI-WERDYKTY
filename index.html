@@ -21634,7 +21634,7 @@ renderHint();
        na „obaj”.
      • Strona NIE podaje Workerowi ID odbiorców ani treści — Worker sam czyta wiadomość i strony
        sprawy z bazy i sprawdza, że wysyła steward. Ta sama wiadomość nie pójdzie dwa razy,
-       a kolejne wiadomości w krótkim odstępie (domyślnie 3 min) nie zasypują kierowcy PV.
+       PV idzie przy każdej wiadomości (przerwę można włączyć w Workerze: CHAT_DM_COOLDOWN_SEC).
      • Przycisk w PV prowadzi na adres strony z ?czat=<ID sprawy> — po zalogowaniu kierowcy
        otwiera się od razu czat tej sprawy (także po drodze przez logowanie Discordem).
    Wymaga wersji Workera „fia-guard” z endpointem /chat/dm.
@@ -21763,7 +21763,7 @@ function reportDmResult(caseId, data) {
     const parts = [];
     if (sent.length) parts.push("Wysłano: " + sent.join(", "));
     if (failed.length) parts.push("Nie dotarło: " + failed.join("; "));
-    if (cooldown.length) parts.push(`Pominięto — dostał PV o tej sprawie przed chwilą (przerwa 3 min): ${cooldown.join(", ")}`);
+    if (cooldown.length) parts.push(`Pominięto — dostał PV o tej sprawie przed chwilą (przerwa CHAT_DM_COOLDOWN_SEC w Workerze): ${cooldown.join(", ")}`);
     if (self.length) parts.push(`Pominięto — to Ty (sam sobie PV nie wyślesz; do testu napisz w sprawie innego kierowcy)`);
     if (noId.length) parts.push(`Brak Discord ID: ${noId.join(", ")}`);
     if (!parts.length) parts.push("brak odbiorców");
