@@ -3986,7 +3986,7 @@
           </div>
   
           <div id="extraDecisionsBox"></div>
-          <button type="button" id="btnAddExtraDecision" class="btn-secondary" data-key="addExtraBtn" onclick="addExtraDecisionRow()">➕ Dodaj kolejną rubrykę</button>
+          <button type="button" id="btnAddExtraDecision" class="btn-secondary" data-key="addExtraBtn" onclick="addExtraDecisionRow()">➕ Dodaj kolejną decyzję</button>
 
           <div class="field">
             <label for="verdictDetails" data-key="detailsLabel">Uzasadnienie</label>
@@ -6097,7 +6097,7 @@ const langData = {
         decisionLabel: "Decyzja", optDefault: "Wybierz...", opt1: "Brak naruszenia", opt2: "Ostrzeżenie", opt3: "Kara czasowa", opt3b: "Punkty karne", opt3c: "Kara czasowa i punkty karne", opt4: "Dyskwalifikacja",
         optAppealChanged: "Apelacja – Zmiana werdyktu", optAppealMaintained: "Apelacja – Werdykt podtrzymany",
         timeLabel: "Kara czasowa", pointsLabel: "Punkty karne", detailsLabel: "Uzasadnienie", judgeLabel: "Sędzia",
-        addExtraBtn: "➕ Dodaj kolejną rubrykę", sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
+        addExtraBtn: "➕ Dodaj kolejną decyzję", sendBtn: "Wyślij decyzję", statusSending: "Wysyłanie...", statusOk: "Decyzja wysłana.", statusErr: "Błąd.",
         embedTitle: "⚖️ Werdykt Sędziowski", fieldCase: "ID sprawy", fieldWinner: "Winny", fieldEvidence: "🎬 Dowód", fieldSplit: "🏁 Split",
         fieldDecision: "Decyzja", fieldTime: "Kara", fieldPoints: "Punkty", fieldDetails: "Uzasadnienie", fieldJudge: "Sędzia",
         lblPreviewDesc: "Podgląd opisu", lblPreviewEvidence: "Link do dowodu", alertAppealSent: "Apelacja wysłana!",
@@ -6140,7 +6140,7 @@ const langData = {
         decisionLabel: "Decision", optDefault: "Select...", opt1: "No violation", opt2: "Warning", opt3: "Time penalty", opt3b: "Points penalty", opt3c: "Time penalty and points", opt4: "Disqualification",
         optAppealChanged: "Appeal resolved", optAppealMaintained: "Appeal dismissed",
         timeLabel: "Time penalty", pointsLabel: "Penalty points", detailsLabel: "Reasoning", judgeLabel: "Steward",
-        addExtraBtn: "➕ Add another entry", sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
+        addExtraBtn: "➕ Add another decision", sendBtn: "Send decision", statusSending: "Sending...", statusOk: "Decision sent.", statusErr: "Error.",
         embedTitle: "⚖️ Stewards Verdict", fieldCase: "Case ID", fieldWinner: "Guilty", fieldEvidence: "🎬 Evidence", fieldSplit: "🏁 Split",
         fieldDecision: "Decision", fieldTime: "Penalty", fieldPoints: "Points", fieldDetails: "Reasoning", fieldJudge: "Steward",
         lblPreviewDesc: "Description preview", lblPreviewEvidence: "Evidence preview", alertAppealSent: "Appeal submitted!",
@@ -7875,7 +7875,7 @@ function renderOriginalVerdictBox(decisionData, caseId) {
             <div style="margin-top:4px;">
                 ${escapeHtml(orig.decision || "")}<br>
                 <strong>${escapeHtml(penaltyLabel)}:</strong> ${escapeHtml(orig.timePenalty || 'brak')} / ${escapeHtml(orig.pointsPenalty || '0 pkt')}<br>
-                ${extraDecisionsHtml(orig)}
+                ${extraDecisionsHtml(orig)}${verdictCustomHtml(orig)}
                 <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(orig.verdictDetails || "")}"</span><br>
                 <small style="color:#64748b;">${escapeHtml(judgeLabel)}: ${escapeHtml(orig.judge || "—")}${orig.issuedAt ? ' | ' + formatTimestamp(orig.issuedAt) : ''}</small>
             </div>
@@ -7937,7 +7937,7 @@ function fetchAndRenderHistory(discordId) {
                     <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                         <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${escapeHtml(r.decisionData.decision)}<br>
                         <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${escapeHtml(r.decisionData.timePenalty || 'brak')}, Punkty: ${escapeHtml(r.decisionData.pointsPenalty || '0')}<br>
-                        ${extraDecisionsHtml(r.decisionData)}
+                        ${extraDecisionsHtml(r.decisionData)}${verdictCustomHtml(r.decisionData)}
                         <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(r.decisionData.verdictDetails)}"</span><br>
                         ${hasEvidence(r) ? `<strong>${currentLang === 'pl' ? 'Dowód' : 'Evidence'}:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                         <small style="color:#64748b;">Sędzia: ${escapeHtml(r.decisionData.judge)}</small>
@@ -8005,7 +8005,7 @@ function fetchAndRenderHistory(discordId) {
                         <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                             <strong>${currentLang === 'pl' ? 'Decyzja' : 'Decision'}:</strong> ${escapeHtml(dv.decision)}<br>
                             <strong>${currentLang === 'pl' ? 'Kara' : 'Penalty'}:</strong> Czasowa: ${escapeHtml(dv.timePenalty || 'brak')}, Punkty: ${escapeHtml(dv.pointsPenalty || '0')}<br>
-                            ${extraDecisionsHtml(dv)}
+                            ${extraDecisionsHtml(dv)}${verdictCustomHtml(dv)}
                             <strong>${currentLang === 'pl' ? 'Uzasadnienie' : 'Reasoning'}:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(dv.verdictDetails)}"</span><br>
                             <small style="color:#64748b;">Sędzia: ${escapeHtml(dv.judge)}</small>
                             ${renderOriginalVerdictBox(dv, a.caseId)}
@@ -8490,7 +8490,7 @@ function renderAdmin() {
                             </div>
                             ${escapeHtml(r.decisionData.decision)}<br>
                             <strong>Kara:</strong> ${escapeHtml(r.decisionData.timePenalty || 'brak')} / ${escapeHtml(r.decisionData.pointsPenalty || '0')} pkt<br>
-                            ${extraDecisionsHtml(r.decisionData)}
+                            ${extraDecisionsHtml(r.decisionData)}${verdictCustomHtml(r.decisionData)}
                             <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(r.decisionData.verdictDetails)}"</span><br>
                             ${hasEvidence(r) ? `<strong>Dowód:</strong> ${renderEvidenceHtml(r)}<br>` : ''}
                             <small style="color:#64748b;">Sędzia: ${escapeHtml(r.decisionData.judge)}</small>
@@ -8554,7 +8554,7 @@ function renderAdmin() {
                         </div>
                         ${escapeHtml(dv.decision)}<br>
                         <strong>Kara:</strong> ${escapeHtml(dv.timePenalty || 'brak')} / ${escapeHtml(dv.pointsPenalty || '0')} pkt<br>
-                        ${extraDecisionsHtml(dv)}
+                        ${extraDecisionsHtml(dv)}${verdictCustomHtml(dv)}
                         <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(dv.verdictDetails)}"</span><br>
                         <small style="color:#64748b;">Sędzia: ${escapeHtml(dv.judge)}</small>
                         ${renderOriginalVerdictBox(dv, a.caseId)}
@@ -8981,6 +8981,7 @@ async function resendVerdict(id) {
                 { name: t.fieldTime, value: dcFieldValue(d.timePenalty || "brak"), inline: true },
                 { name: t.fieldPoints, value: dcFieldValue(d.pointsPenalty || "0 pkt"), inline: true },
                 ...extraDecisionEmbedFields(d.extraDecisions),
+                ...verdictCustomEmbedFields(d),
                 { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(d.verdictDetails, 1000)}\n\`\`\``, inline: false },
                 { name: t.fieldJudge, value: dcFieldValue(d.judge), inline: false }
             ],
@@ -9833,6 +9834,7 @@ async function publishVerdict(draft) {
     const verdictDetails = draft.verdictDetails || "";
     const judge = draft.judge || "";
     const extraDecisions = getExtraDecisions({ extraDecisions: draft.extraDecisions });
+    const customFields = sanitizeVerdictCustomFields(draft.customFields);
     const approvedBy = (Array.isArray(draft.approvedBy) ? draft.approvedBy : (draft.approvedBy && typeof draft.approvedBy === "object" ? Object.values(draft.approvedBy) : []))
         .filter(a => a && a.nick)
         .map(a => ({ id: a.id || null, nick: a.nick, ts: Number(a.ts) || Date.now() }));
@@ -9859,6 +9861,7 @@ async function publishVerdict(draft) {
     };
     if (approvedBy.length) decisionDataToSave.approvedBy = approvedBy;
     if (extraDecisions.length) decisionDataToSave.extraDecisions = extraDecisions;
+    if (Object.keys(customFields).length) decisionDataToSave.customFields = customFields;
     // Werdykt apelacji nadpisuje decisionData sprawy — zanim to zrobimy, zachowujemy
     // pierwotny werdykt (i jego ewentualną wcześniejszą historię apelacji) w polu
     // previousDecisionData, żeby po wydaniu werdyktu apelacji nadal było widać,
@@ -9884,7 +9887,7 @@ async function publishVerdict(draft) {
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
     const authorNote = stewardName !== judge ? ` Autor: ${judge}.` : "";
     const approvalNote = approvedNames ? ` Zatwierdzili: ${approvedNames}.` : "";
-    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty})${extraDecisions.length ? ` + ${extraDecisions.length} dodatk. rubr.: ${extraDecisionsText({ extraDecisions })}` : ""}.${authorNote}${approvalNote}`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
+    await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty})${extraDecisions.length ? ` + ${extraDecisions.length} dodatk. decyzji: ${extraDecisionsText({ extraDecisions })}` : ""}.${authorNote}${approvalNote}`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
     // Dwa pola z dowodami: zgłaszającego i oskarżonego. W werdykcie apelacji dowód z apelacji
@@ -9910,6 +9913,7 @@ async function publishVerdict(draft) {
             { name: t.fieldTime, value: dcFieldValue(timePenalty), inline: true },
             { name: t.fieldPoints, value: dcFieldValue(pointsPenalty), inline: true },
             ...extraDecisionEmbedFields(extraDecisions),
+            ...verdictCustomEmbedFields(decisionDataToSave),
             { name: t.fieldDetails, value: `\`\`\`text\n${dcFieldValue(verdictDetails, 1000)}\n\`\`\``, inline: false },
             { name: t.fieldJudge, value: dcFieldValue(judge), inline: false }
         ].concat(approvedField ? [approvedField] : []),
@@ -10078,6 +10082,7 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
         caseIdInput, originalCaseId, appealId, isAppealVerdict,
         decision, timePenalty, pointsPenalty, verdictDetails, judge,
         extraDecisions: collectExtraDecisions(),
+        customFields: (typeof window.cfCollect === "function" ? window.cfCollect("verdict") : {}),
         judgeId: loggedInSteward ? String(loggedInSteward.id || "") : "",
         accusedId: verdictNoOneGuilty ? null : (accusedId || null),
         noOneGuilty: !!verdictNoOneGuilty
@@ -10127,11 +10132,11 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 });
 
 
-/* === KOLEJNE RUBRYKI DECYZJI W WERDYKCIE ===
-   Pierwsza rubryka (Decyzja / Kara czasowa / Punkty karne) działa jak dotąd i trafia do
+/* === KOLEJNE DECYZJE W WERDYKCIE (dodatkowe zestawy Decyzja / Kara czasowa / Punkty karne) ===
+   Pierwszy zestaw (Decyzja / Kara czasowa / Punkty karne) działa jak dotąd i trafia do
    decisionData.decision / timePenalty / pointsPenalty — dzięki temu statystyki, ranking punktów,
-   karta kierowcy i apelacje nadal z niej korzystają. Każda kolejna rubryka (przycisk „Dodaj kolejną
-   rubrykę”) trafia do decisionData.extraDecisions[] jako { decision, timePenalty, pointsPenalty }. */
+   karta kierowcy i apelacje nadal z niej korzystają. Każdy kolejny zestaw (przycisk „Dodaj kolejną
+   decyzję”) trafia do decisionData.extraDecisions[] jako { decision, timePenalty, pointsPenalty }. */
 const MAX_EXTRA_DECISIONS = 6;
 let extraDecisionSeq = 0;
 
@@ -10180,7 +10185,7 @@ function extraDecisionsHtml(d) {
     const list = getExtraDecisions(d);
     if (!list.length) return "";
     const pl = currentLang === 'pl';
-    return `<strong>${pl ? 'Dodatkowe rubryki' : 'Additional entries'}:</strong><br>` +
+    return `<strong>${pl ? 'Dodatkowe decyzje' : 'Additional decisions'}:</strong><br>` +
         list.map((x, i) => `<span style="color:#cbd5e1;">${i + 2}. ${escapeHtml(formatExtraDecision(x))}</span><br>`).join("");
 }
 
@@ -10189,7 +10194,7 @@ function extraDecisionEmbedFields(list) {
     const items = getExtraDecisions({ extraDecisions: list });
     if (!items.length) return [];
     return [{
-        name: currentLang === 'pl' ? "➕ Dodatkowe rubryki" : "➕ Additional entries",
+        name: currentLang === 'pl' ? "➕ Dodatkowe decyzje" : "➕ Additional decisions",
         value: dcFieldValue(items.map((x, i) => `**${i + 2}.** ${formatExtraDecision(x)}`).join("\n")),
         inline: false
     }];
@@ -10237,9 +10242,9 @@ function extraDecisionLabels() {
         time: t.timeLabel || (pl ? "Kara czasowa" : "Time penalty"),
         points: t.pointsLabel || (pl ? "Punkty karne" : "Penalty points"),
         remove: pl ? "✕ Usuń" : "✕ Remove",
-        removeTitle: pl ? "Usuń tę rubrykę" : "Remove this entry",
-        entry: pl ? "Rubryka" : "Entry",
-        max: pl ? `Maksymalna liczba dodatkowych rubryk: ${MAX_EXTRA_DECISIONS}.` : `Maximum number of additional entries: ${MAX_EXTRA_DECISIONS}.`
+        removeTitle: pl ? "Usuń tę decyzję" : "Remove this decision",
+        entry: pl ? "Decyzja" : "Decision",
+        max: pl ? `Maksymalna liczba dodatkowych decyzji: ${MAX_EXTRA_DECISIONS}.` : `Maximum number of additional decisions: ${MAX_EXTRA_DECISIONS}.`
     };
 }
 
@@ -10372,6 +10377,69 @@ function collectExtraDecisions() {
     }
 })();
 
+/* === WŁASNE RUBRYKI FORMULARZA WERDYKTU (moduł „Rubryki formularzy”, rozbudowa 130) ===
+   Odpowiedzi z rubryk dodanych do formularza werdyktu trafiają do decisionData.customFields
+   ({ id: { label, type, value } } — ten sam kształt co w zgłoszeniach i apelacjach). */
+function sanitizeVerdictCustomFields(src) {
+    const out = {};
+    if (!src || typeof src !== "object") return out;
+    Object.keys(src).forEach(k => {
+        const v = src[k];
+        if (!v || typeof v !== "object" || v.value === undefined || v.value === null || v.value === "") return;
+        const type = String(v.type || "text");
+        out[k] = {
+            label: String(v.label || k).slice(0, 200),
+            type: type,
+            value: (type === "checkbox" || typeof v.value === "boolean") ? !!v.value : String(v.value).slice(0, 2000)
+        };
+    });
+    return out;
+}
+
+// [{ id, label, type, text, html }] — posortowane tak, jak rubryki stoją w formularzu.
+function verdictCustomLines(d) {
+    try { if (typeof window.cfVerdictLines === "function") return window.cfVerdictLines(d); } catch (e) {}
+    const cf = d && d.customFields && typeof d.customFields === "object" ? d.customFields : {};
+    return Object.keys(cf).map(k => ({ k, v: cf[k] })).filter(x => x.v && typeof x.v === "object" && x.v.value !== undefined && x.v.value !== null && x.v.value !== "")
+        .map(x => {
+            const text = x.v.type === "checkbox" ? (x.v.value ? "Tak" : "Nie") : String(x.v.value);
+            return { id: x.k, label: String(x.v.label || x.k), type: String(x.v.type || "text"), text, html: escapeHtml(text) };
+        });
+}
+
+// Blok HTML do kart werdyktu (kończy się <br>, jak extraDecisionsHtml).
+function verdictCustomHtml(d) {
+    const lines = verdictCustomLines(d);
+    if (!lines.length) return "";
+    const pl = currentLang === 'pl';
+    return `<strong>${pl ? 'Dodatkowe rubryki' : 'Additional fields'}:</strong><br>` +
+        lines.map(x => `<span style="color:#cbd5e1;">${escapeHtml(x.label)}: ${x.html}</span><br>`).join("");
+}
+
+function verdictCustomEmbedFields(d) {
+    const lines = verdictCustomLines(d);
+    if (!lines.length) return [];
+    return [{
+        name: currentLang === 'pl' ? "🧩 Dodatkowe rubryki" : "🧩 Additional fields",
+        value: dcFieldValue(lines.map(x => `**${x.label}:** ${x.text}`).join("\n")),
+        inline: false
+    }];
+}
+
+function pngCustomFieldsHtml(d) {
+    const lines = verdictCustomLines(d);
+    if (!lines.length) return "";
+    return `
+          <div style="margin-top:20px; margin-bottom:6px; font-size:11px; letter-spacing:2px; color:#6b7280;">DODATKOWE INFORMACJE</div>
+          <div style="background:#0d1220; border:1px solid #1f2937; border-radius:6px; padding:4px 18px;">` +
+        lines.map((x, i) => `
+            <div style="display:flex; gap:16px; padding:9px 0;${i ? " border-top:1px solid #1f2937;" : ""} font-size:14px;">
+              <div style="flex:0 0 220px; color:#9ca3af;">${escapeHtml(x.label)}</div>
+              <div style="flex:1; color:#e8eaf0; white-space:pre-wrap;">${escapeHtml(x.text)}</div>
+            </div>`).join("") + `
+          </div>`;
+}
+
 function handleDecisionChange() {
     const decision = document.getElementById("decision").value;
     const penaltyFields = document.getElementById("penaltyFields");
@@ -10471,6 +10539,7 @@ function buildVerdictPngHtml(r) {
           <div style="font-size:14px; line-height:1.6; color:#d1d5db; font-style:italic; background:#0d1220; border-left:3px solid #e10600; padding:14px 18px; border-radius:4px;">
             "${escapeHtml(d.verdictDetails || "—")}"
           </div>
+          ${pngCustomFieldsHtml(d)}
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 36px; background:#0a0d16; border-top:1px solid #1f2937; font-size:11px; color:#6b7280;">
@@ -10999,7 +11068,7 @@ function searchDriverCard(forcedQuery) {
 function exportStatsCsv() {
     const canExport = loggedInSteward && (loggedInSteward.role === "ROOT" || loggedInSteward.role === "Główny Steward" || (loggedInSteward.permissions && loggedInSteward.permissions.manage_settings));
     if (!canExport) { alert("Brak uprawnień do eksportu danych!"); return; }
-    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia","Dodatkowe rubryki","Punkty karne (łącznie z dodatkowymi rubrykami)"]];
+    const rows = [["ID","Data","Zgłaszający","Discord ID zgłaszającego","Tor","Split","Kategoria","Sesja","Oskarżony","Discord ID oskarżonego","Status","Decyzja","Kara czasowa","Punkty karne","Sędzia","Dodatkowe decyzje","Punkty karne (łącznie z dodatkowymi decyzjami)","Rubryki werdyktu"]];
     globalIncidents.forEach(r => {
         rows.push([
             r.fiaId || r.id || "",
@@ -11011,7 +11080,8 @@ function exportStatsCsv() {
             r.decisionData ? (r.decisionData.pointsPenalty || "") : "",
             r.decisionData ? (r.decisionData.judge || "") : "",
             r.decisionData ? extraDecisionsText(r.decisionData) : "",
-            r.decisionData ? sumPenaltyPoints(r.decisionData) : ""
+            r.decisionData ? sumPenaltyPoints(r.decisionData) : "",
+            r.decisionData ? verdictCustomLines(r.decisionData).map(x => x.label + ": " + x.text).join("; ") : ""
         ]);
     });
     const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -12491,7 +12561,7 @@ function renderVerdictReadOnlyBlock(d, heading) {
             <div style="font-size:12px; margin-top:4px; color:#cbd5e1;">
                 <strong>Decyzja:</strong> ${escapeHtml(d.decision || "—")}<br>
                 <strong>Kara:</strong> Czasowa: ${escapeHtml(d.timePenalty || 'brak')}, Punkty: ${escapeHtml(d.pointsPenalty || '0')}<br>
-                ${extraDecisionsHtml(d)}
+                ${extraDecisionsHtml(d)}${verdictCustomHtml(d)}
                 <strong>Uzasadnienie:</strong> <span style="font-style:italic; color:#94a3b8;">"${escapeHtml(d.verdictDetails || "")}"</span><br>
                 <small style="color:#64748b;">Sędzia: ${escapeHtml(d.judge || "—")}${d.issuedAt ? ' | ' + formatTimestamp(d.issuedAt) : ''}</small>
             </div>
@@ -16122,7 +16192,7 @@ window.printCaseDossier = function (id) {
     const verdictBlock = (d, title) => d ? `<h3>${escapeHtml(title)}</h3><table>
         <tr><th>Decyzja</th><td>${e(d.decision || "")}</td></tr>
         <tr><th>Kara</th><td>${e(d.timePenalty || "brak")} / ${e(d.pointsPenalty || "0 pkt")}</td></tr>
-        ${getExtraDecisions(d).length ? `<tr><th>Dodatkowe rubryki</th><td>${e(extraDecisionsText(d))}</td></tr>` : ""}
+        ${getExtraDecisions(d).length ? `<tr><th>Dodatkowe decyzje</th><td>${e(extraDecisionsText(d))}</td></tr>` : ""}${typeof window.cfDossierRows === "function" ? window.cfDossierRows(d, "verdict") : ""}
         <tr><th>Winny</th><td>${d.noOneGuilty ? "nikt nie jest winny" : e(d.guiltyNick || "—")}</td></tr>
         <tr><th>Sędzia</th><td>${e(d.judge || "—")}</td></tr>
         <tr><th>Wydano</th><td>${d.issuedAt ? formatTimestamp(d.issuedAt) : "—"}</td></tr>
@@ -19337,7 +19407,8 @@ const CF_CACHE = "rzCustomFieldsCache";
 const CF_DRAFT = "rzCustomFieldsDraft";
 const FORMS = {
     report: { formId: "complaintForm", section: "formSection", name: "Formularz zgłoszenia", tab: "📝 Formularz zgłoszenia" },
-    appeal: { formId: "appealForm", section: "appealSection", name: "Formularz apelacji", tab: "⚖️ Formularz apelacji" }
+    appeal: { formId: "appealForm", section: "appealSection", name: "Formularz apelacji", tab: "⚖️ Formularz apelacji" },
+    verdict: { formId: "responseForm", section: "adminSection", name: "Formularz werdyktu", tab: "⚖️ Formularz werdyktu" }
 };
 const TYPES = {
     text: "Krótki tekst", textarea: "Długi tekst", number: "Liczba", select: "Lista wyboru",
@@ -19771,6 +19842,24 @@ function cfMiniHtml(entries) {
     const shown = entries.slice(0, 4).map(e => `<b>${esc(short(e.label, 30))}:</b> ${esc(short(cfFmtText(e), 50))}`);
     return `<div class="cf-mini" title="Dodatkowe rubryki">🧩 ${shown.join(" · ")}${entries.length > 4 ? ` · +${entries.length - 4}` : ""}</div>`;
 }
+window.cfCollect = cfCollect;
+// Wypełnia rubryki formularza zapisanymi odpowiedziami (np. „Popraw w formularzu” dla werdyktu z kolejki akceptacji).
+window.cfFillForm = function (formKey, values) {
+    const f = FORMS[formKey] && $(FORMS[formKey].formId);
+    if (!f) return;
+    f.querySelectorAll(".cf-field [data-cf-input]").forEach(el => {
+        const d = defs[el.dataset.cfInput];
+        if (!d) return;
+        const v = values && typeof values === "object" ? values[d.id] : null;
+        if (v && typeof v === "object" && v.value !== undefined && v.value !== null) cfSetValue(el, d.type, v.value);
+        else cfSetValue(el, d.type, d.type === "checkbox" ? false : "");
+    });
+};
+// Odpowiedzi z rubryk werdyktu: [{ id, label, type, text, html }] w kolejności formularza.
+window.cfVerdictLines = function (rec) {
+    try { return cfEntries(rec, "verdict").map(e => ({ id: e.id, label: e.label, type: e.type, text: cfFmtText(e), html: cfFmtHtml(e) })); }
+    catch (err) { return []; }
+};
 window.cfDossierRows = function (rec, formKey) {
     try { return cfEntries(rec, formKey).map(e => `<tr><th>${esc(e.label)}</th><td class="pre">${cfFmtHtml(e)}</td></tr>`).join(""); }
     catch (e) { return ""; }
@@ -20059,7 +20148,7 @@ document.body.insertAdjacentHTML("beforeend", `
         <label class="te-checkbox" id="cfDlgReqWrap"><input type="checkbox" id="cfDlgReq"> <span id="cfDlgReqTxt">Wymagana</span></label>
         <label class="te-checkbox"><input type="checkbox" id="cfDlgActive"> Widoczna w formularzu</label>
       </div>
-      <div class="cf-prev-wrap"><div class="cf-prev-title">Podgląd — tak zobaczy to kierowca</div><div id="cfDlgPreview"></div></div>
+      <div class="cf-prev-wrap"><div class="cf-prev-title" id="cfDlgPrevTitle">Podgląd — tak zobaczy to kierowca</div><div id="cfDlgPreview"></div></div>
     </div>
     <div class="te-foot">
       <button type="button" class="btn-danger" id="cfDlgDel">🗑 Usuń rubrykę</button>
@@ -20097,6 +20186,8 @@ function cfFillPositions(formKey, selected) {
 }
 function cfDlgSync() {
     const t = $("cfDlgType").value;
+    const cfWho = $("cfDlgForm").value === "verdict" ? "steward" : "kierowca";
+    $("cfDlgPrevTitle").textContent = "Podgląd — tak zobaczy to " + cfWho;
     $("cfDlgOptionsWrap").style.display = t === "select" ? "" : "none";
     $("cfDlgPhWrap").style.display = ["text", "textarea", "number", "url", "select"].indexOf(t) !== -1 ? "" : "none";
     $("cfDlgPhLbl").textContent = t === "select" ? "Napis przed wyborem (opcjonalnie, domyślnie „— wybierz —”)" : "Podpowiedź w polu (opcjonalnie)";
@@ -20104,7 +20195,7 @@ function cfDlgSync() {
     $("cfDlgLabel").placeholder = t === "info" ? "np. Zanim wyślesz zgłoszenie" : t === "checkbox" ? "np. Potwierdzam, że opis jest zgodny z prawdą" : "np. Numer okrążenia";
     $("cfDlgHelpLbl").textContent = t === "info" ? "Treść informacji" : "Opis pod rubryką (opcjonalnie)";
     $("cfDlgReqWrap").style.display = t === "info" ? "none" : "";
-    $("cfDlgReqTxt").textContent = t === "checkbox" ? "Wymagana — kierowca musi zaznaczyć pole, żeby wysłać formularz" : "Wymagana — bez wypełnienia nie da się wysłać formularza";
+    $("cfDlgReqTxt").textContent = t === "checkbox" ? "Wymagana — " + cfWho + " musi zaznaczyć pole, żeby wysłać formularz" : "Wymagana — bez wypełnienia nie da się wysłać formularza";
     const d = cfDlgDef();
     $("cfDlgPreview").innerHTML = `<div class="field cf-field${d.type === "info" ? " cf-info" : ""}" style="margin:0;">${cfFieldInner(d, "cfprev_field", "data-cf-prev", false)}</div>`;
 }
@@ -20223,9 +20314,11 @@ window.addEventListener("keydown", e => {
 // Tryb edycji kliknięciem: co jest pod kursorem w formularzu → gdzie wstawić nową rubrykę.
 window.cfAnchorFor = function (el) {
     if (!el || !el.closest) return null;
-    const f = el.closest("#complaintForm, #appealForm");
-    if (!f) return null;
-    const formKey = f.id === "complaintForm" ? "report" : "appeal";
+    const f = el.closest("#complaintForm, #appealForm, #responseForm");
+    // Panel werdyktu poza samym formularzem (podgląd sprawy, nagłówek) — nowa rubryka na samej górze formularza werdyktu.
+    if (!f) return el.closest("#verdictPanel") ? { form: "verdict", after: "start" } : null;
+    const formKey = Object.keys(FORMS).find(k => FORMS[k].formId === f.id);
+    if (!formKey) return null;
     const cfEl = el.closest(".cf-field");
     if (cfEl && f.contains(cfEl) && defs[cfEl.dataset.cfId]) return { form: formKey, editId: cfEl.dataset.cfId };
     const seq = cfSeq(formKey);
@@ -20235,7 +20328,13 @@ window.cfAnchorFor = function (el) {
     if (!blk || el === f) return { form: formKey, after: last };
     if (blk.classList.contains("progress-container")) return { form: formKey, after: "start" };
     const b = seq.find(it => it.kind === "b" && it.el === blk);
-    return { form: formKey, after: b ? b.key : last };
+    if (b) return { form: formKey, after: b.key };
+    // Element spoza rubryk (np. przycisk, blok dodatkowych decyzji): miejsce = najbliższa rubryka nad nim.
+    for (let p = blk.previousElementSibling; p; p = p.previousElementSibling) {
+        const k = typeof window.cfKeyForEl === "function" ? window.cfKeyForEl(p) : null;
+        if (k) return { form: formKey, after: k };
+    }
+    return { form: formKey, after: last };
 };
 
 /* ============================================================
@@ -20246,7 +20345,7 @@ if (host) {
     host.innerHTML = `
 <div class="te-panel">
   <div class="te-panel-title">Rubryki formularzy</div>
-  <p class="te-hint" style="margin-bottom:12px;">Dodawaj kolejne rubryki do formularza zgłoszenia i formularza apelacji: krótki lub długi tekst, liczbę, listę wyboru, pole tak/nie, datę, link albo sam tekst informacyjny. Nowa rubryka od razu pojawia się w formularzu u wszystkich. Odpowiedzi kierowców zapisują się w zgłoszeniu lub apelacji — stewardzi widzą je w „Zobacz / Notatki”, w tabelach panelu, w panelu werdyktu i w aktach sprawy, a kierowca w swojej historii. W „Trybie edycji zgłoszenia” i w „Edycji apelacji” można poprawić odpowiedzi albo dopisać rubrykę tylko do jednej sprawy. Wszystkie rubryki — także wbudowane — przesuwasz strzałkami ⬆ ⬇ albo przeciągasz myszką na formularzu („✥ Przeciągaj rubryki na formularzu”), również z jednego wiersza do drugiego.</p>
+  <p class="te-hint" style="margin-bottom:12px;">Dodawaj kolejne rubryki do formularza zgłoszenia, formularza apelacji i formularza werdyktu (panel stewarda): krótki lub długi tekst, liczbę, listę wyboru, pole tak/nie, datę, link albo sam tekst informacyjny. Nowa rubryka od razu pojawia się w formularzu u wszystkich. Odpowiedzi kierowców zapisują się w zgłoszeniu lub apelacji — stewardzi widzą je w „Zobacz / Notatki”, w tabelach panelu, w panelu werdyktu i w aktach sprawy, a kierowca w swojej historii. W „Trybie edycji zgłoszenia” i w „Edycji apelacji” można poprawić odpowiedzi albo dopisać rubrykę tylko do jednej sprawy. Wszystkie rubryki — także wbudowane — przesuwasz strzałkami ⬆ ⬇ albo przeciągasz myszką na formularzu („✥ Przeciągaj rubryki na formularzu”), również z jednego wiersza do drugiego.</p>
   <div class="split-tabs" id="cfFormTabs">${Object.keys(FORMS).map(k => `<button type="button" class="split-tab-btn" data-cf-form="${k}">${esc(FORMS[k].tab)} (<span data-cf-count="${k}">0</span>)</button>`).join("")}</div>
   <div class="cf-outline" id="cfOutline"></div>
   <div class="te-foot" style="margin-top:12px;">
@@ -20751,7 +20850,7 @@ async function loSaveContainer(P, what) {
 }
 
 function loCfForm(el) {
-    const f = el && el.closest ? el.closest("#complaintForm, #appealForm") : null;
+    const f = el && el.closest ? el.closest("#complaintForm, #appealForm, #responseForm") : null;
     return f;
 }
 
@@ -21722,6 +21821,7 @@ window.loadPendingVerdictToForm = function (caseId) {
     $("pointsPenalty").value = /^0\s*pkt$/i.test(String(d.pointsPenalty || "").trim()) ? "" : (d.pointsPenalty || "");
     clearExtraDecisionRows();
     getExtraDecisions(d).forEach(x => addExtraDecisionRow(x));
+    if (typeof window.cfFillForm === "function") window.cfFillForm("verdict", d.customFields);
     $("verdictDetails").value = d.verdictDetails || "";
     if (d.noOneGuilty) {
         pickGuiltyParty("none");
@@ -21759,6 +21859,7 @@ async function notifyQueued(r, pv) {
             { name: "⚖️ Decyzja", value: dcFieldValue(`**${d.decision || "—"}**`), inline: false },
             { name: "⏱ Kara", value: dcFieldValue(penaltyText(d)), inline: true },
             { name: "🚩 Winny", value: dcFieldValue(guiltyLabel(r, d)), inline: true },
+            ...verdictCustomEmbedFields(d),
             { name: "📝 Uzasadnienie", value: dcFieldValue(reasonText(d), 1000), inline: false },
             { name: "✅ Akceptacje", value: dcFieldValue(`${n}/${need}${n ? " — " + appr.map(a => a.nick).join(", ") : ""}`), inline: false }
         ],
@@ -21839,6 +21940,7 @@ function itemHtml(r, pv, opts) {
       <div class="va-main">
         <div><span class="va-case">${escapeHtml(caseLabel(r, pv))}</span> <span class="va-meta">· ${escapeHtml(r.track || "—")}${r.split ? " · " + escapeHtml(r.split) : ""} · ${escapeHtml(r.nick || "?")} → ${escapeHtml(r.accusedNick || "?")}</span></div>
         <div style="margin-top:2px;"><span class="va-dec">${escapeHtml(d.decision || "—")}</span>${penaltyLabel(d) ? " · " + escapeHtml(penaltyLabel(d)) : ""} · winny: ${escapeHtml(guiltyLabel(r, d))}</div>
+        ${verdictCustomLines(d).length ? `<div class="va-meta">🧩 ${verdictCustomLines(d).map(x => escapeHtml(x.label) + ": " + escapeHtml(x.text)).join(" · ")}</div>` : ""}
         <div class="va-meta">✍️ ${escapeHtml((pv.submittedBy && pv.submittedBy.nick) || "?")} · wysłano ${escapeHtml(formatTimestamp(pv.submittedAt))}</div>
         ${opts.noEvidence ? "" : evidenceHtml(r, d)}
         <details class="va-why"><summary>Uzasadnienie</summary><div>${escapeHtml(d.verdictDetails || "—")}</div></details>
