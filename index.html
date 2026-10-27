@@ -16016,6 +16016,18 @@ html[data-theme="light"] .lv-kind.k-driver,html[data-theme="graphite"] .lv-kind.
 .lv-typing .lv-dots::after{content:"…";display:inline-block;animation:lvDots 1.2s steps(4,end) infinite;overflow:hidden;vertical-align:bottom;width:0;}
 @keyframes lvDots{to{width:1.1em;}}
 
+/* Co kto pisze (podgląd treści na żywo — tylko Główny Steward) */
+.lv-writing{margin-top:6px;border:1px solid var(--border);border-left:3px solid #64748b;border-radius:4px;background:var(--bg-input);padding:7px 10px;}
+.lv-writing.live{border-left-color:var(--green-text);background:rgba(16,185,129,.06);}
+.lv-whead{font-size:10px;font-weight:700;letter-spacing:.3px;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px;}
+.lv-writing.live .lv-whead{color:var(--green-text);}
+.lv-wtext{font-size:12.5px;line-height:1.5;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;font-family:var(--font-mono,ui-monospace,monospace);}
+.lv-caret{display:inline-block;width:2px;height:1.05em;margin-left:1px;background:var(--green-text);vertical-align:text-bottom;animation:lvCaret 1s steps(2,start) infinite;}
+@keyframes lvCaret{to{opacity:0;}}
+@media (prefers-reduced-motion:reduce){.lv-caret{animation:none;}}
+.lv-wother{margin-top:6px;display:flex;flex-wrap:wrap;gap:3px 14px;font-size:11px;color:var(--text-dim);}
+.lv-wother b{color:var(--text);font-weight:600;}
+
 button.lv-case,span.lv-case{all:unset;display:inline-block;margin:0 0 0 4px;padding:0 6px;border-radius:3px;border:1px solid var(--border);font-size:11px;font-weight:700;line-height:18px;color:var(--text);background:rgba(255,255,255,.04);white-space:nowrap;vertical-align:baseline;font-family:var(--font-body);}
 button.lv-case{cursor:pointer;}
 button.lv-case::before{content:none;display:none;}
@@ -16062,8 +16074,10 @@ html[data-theme="light"] .lv-chip.k-driver,html[data-theme="graphite"] .lv-chip.
    1. Każda otwarta karta strony (steward, kierowca, gość) na bieżąco
       zgłasza, kim jest i co robi: zakładka, sprawa, otwarte okno, „pisze…”,
       bezczynność / karta w tle, kanał głosowy, rozmowa, telefon / komputer.
-      Zapisywane są wyłącznie te flagi i identyfikatory — nigdy treść wpisywana w pola,
-      a pola haseł i wyszukiwarki w ogóle nie są brane pod uwagę.
+      Od tej wersji także CO KTO PISZE: treść pola, w którym ktoś właśnie pisze (na żywo),
+      nazwa tego pola i pozostałe wypełnione pola tego samego formularza / okna.
+      Nigdy nie są wysyłane: hasła, wyszukiwarki, pola z tokenami / kluczami / webhookami,
+      edytor treści i bazy, ani pola oznaczone atrybutem data-lv-private.
    2. Zakładka „🟢 Na żywo” (tylko Główny Steward / ROOT): osoby online z aktualną
       czynnością i czasem jej trwania, „Przy sprawach” (kto nad czym siedzi + ostrzeżenie,
       gdy dwóch stewardów pracuje nad tą samą sprawą), ostatnie zmiany, goście.
@@ -16096,6 +16110,8 @@ const TYPING_MS = 6000;            // „pisze…” jeszcze 6 s po ostatnim zna
 const HEARTBEAT_MS = 60 * 1000;    // odświeżenie znacznika „ostatni sygnał”
 const MIN_WRITE_GAP = 700;         // nie częściej niż ~1,5 zapisu na sekundę
 const AVATAR_RE = /^https:\/\/cdn\.discordapp\.com\//;
+const TEXT_MAX = 1500;             // treść pisanego pola (dłuższa → ostatnie 1500 znaków, tam gdzie ktoś pisze)
+const OTHER_N = 8, OTHER_MAX = 160; // pozostałe wypełnione pola formularza: ile i jak długie
 
 const SID = (() => {
     const a = new Uint8Array(12); (window.crypto || window.msCrypto).getRandomValues(a);
@@ -16237,7 +16253,7 @@ function extras() {
     return { voice, call };
 }
 
-/* --- pisanie i bezczynność (bez zapisywania treści) --- */
+/* --- pisanie i bezczynność --- */
 let lastType = 0, lastInput = Date.now();
 function countsAsTyping(t) {
     if (!t || !t.tagName) return false;
@@ -16247,7 +16263,61 @@ function countsAsTyping(t) {
     if (t.tagName === "TEXTAREA") return true;
     return t.tagName === "INPUT" && /^(text|url|email|number|tel|)$/i.test(t.getAttribute("type") || "");
 }
-document.addEventListener("input", e => { if (countsAsTyping(e.target)) { const was = Date.now() - lastType < TYPING_MS; lastType = Date.now(); if (!was) kick(); } }, true);
+
+/* --- co pisze: treść pola + pozostałe wypełnione pola tego samego formularza --- */
+// Pola, których treść NIGDY nie wychodzi z przeglądarki (sama flaga „pisze…” — tak).
+const SECRET_RE = /pass|hasł|hasl|token|secret|sekret|webhook|api.?key|klucz|otp\b|2fa|captcha/i;
+const SECRET_AC = /password|one-time-code|cc-/i;
+function isPrivateField(t) {
+    if (!t || !t.tagName) return true;
+    if (t.closest && t.closest("[data-lv-private], #liveSection, .te-modal, #teEditBar")) return true;
+    if (/^te/.test(t.id || "")) return true; // edytor treści i bazy danych
+    if (SECRET_RE.test([t.id, t.name, t.placeholder, t.getAttribute("aria-label")].join(" "))) return true;
+    return SECRET_AC.test(t.getAttribute("autocomplete") || "");
+}
+const tidy = s => String(s == null ? "" : s).replace(/\s+/g, " ").replace(/[\s.…:*]+$/, "").trim();
+function fieldLabel(el) {
+    let t = "";
+    if (el.id) { const l = g(() => document.querySelector('label[for="' + CSS.escape(el.id) + '"]')); if (l) t = l.textContent; }
+    if (!tidy(t)) { const f = el.closest && el.closest(".field"); const l = f && f.querySelector("label"); if (l) t = l.textContent; }
+    if (!tidy(t)) { let p = el.previousElementSibling; for (let i = 0; p && i < 3; i++, p = p.previousElementSibling) if (p.tagName === "LABEL") { t = p.textContent; break; } }
+    if (!tidy(t)) t = el.getAttribute("aria-label") || el.placeholder || el.name || el.id || "";
+    return clip(tidy(t), 60) || L("pole tekstowe", "text field");
+}
+const isVisible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+const fieldBox = el => el.closest("form, .desc-box, .modal-content, [role='dialog'], .section") || el.parentElement;
+function fieldValue(el) {
+    if (el.tagName === "SELECT") { const o = el.selectedIndex > 0 ? el.options[el.selectedIndex] : null; return o ? o.text : ""; }
+    return String(el.value || "");
+}
+let lastField = null, lastFieldAt = 0, typeT = null;
+// Wpis do obecności: { f: nazwa pola, t: treść, o: [[pole, wartość], …], at: kiedy ostatni znak }
+function writingInfo() {
+    const el = lastField;
+    if (!el || !document.contains(el) || !isVisible(el) || isPrivateField(el)) { lastField = null; return null; }
+    const text = String(el.value || "");
+    if (!text.trim()) return null;
+    const o = [];
+    const box = fieldBox(el);
+    if (box) box.querySelectorAll("input, textarea, select").forEach(f => {
+        if (o.length >= OTHER_N || f === el || f.disabled || f.readOnly) return;
+        if (f.tagName !== "SELECT" && !countsAsTyping(f)) return;
+        if (isPrivateField(f) || !isVisible(f)) return;
+        const v = tidy(fieldValue(f));
+        if (v) o.push([fieldLabel(f), clip(v, OTHER_MAX)]);
+    });
+    return { f: fieldLabel(el), t: text.length > TEXT_MAX ? "…" + text.slice(-TEXT_MAX) : text, o, at: lastFieldAt };
+}
+
+document.addEventListener("input", e => {
+    if (!countsAsTyping(e.target)) return;
+    const was = Date.now() - lastType < TYPING_MS;
+    lastType = Date.now();
+    if (isPrivateField(e.target)) { if (lastField) lastField = null; }
+    else { lastField = e.target; lastFieldAt = sNow(); }
+    if (!was) kick();
+    else if (!typeT) typeT = setTimeout(() => { typeT = null; tick(); }, 300); // treść na żywo (zapis i tak co ≥ 0,7 s)
+}, true);
 function onUserActivity() { const n = Date.now(), wasIdle = n - lastInput > IDLE_MS; lastInput = n; if (wasIdle) kick(); }
 ["mousemove", "mousedown", "keydown", "touchstart", "wheel", "scroll"].forEach(ev => document.addEventListener(ev, onUserActivity, { passive: true, capture: true }));
 document.addEventListener("visibilitychange", () => { if (!document.hidden) lastInput = Date.now(); kick(); });
@@ -16258,7 +16328,7 @@ document.addEventListener("click", () => kick(), true);
    2. ZAPIS OBECNOŚCI DO FIREBASE (z automatycznym węzłem zapasowym)
    ============================================================ */
 const W = { node: null, mode: "init", err: "", lastSig: "", lastWrite: 0, busy: false, pending: false,
-            timer: null, needFull: true, needDisc: true, since: 0, sinceKey: "", joinedAt: 0, deniedAt: 0 };
+            timer: null, needFull: true, needDisc: true, since: 0, sinceKey: "", joinedAt: 0, deniedAt: 0, noText: {} };
 const isDenied = e => /permission/i.test(String((e && e.code) || "") + " " + String((e && e.message) || e || ""));
 const errMsg = e => clip((e && (e.code || e.message)) || String(e || ""), 160);
 
@@ -16272,10 +16342,12 @@ function buildPayload() {
         act: d.a, c: d.c, x: d.x, sec: d.sec,
         typing: n - lastType < TYPING_MS,
         state: document.hidden ? "hidden" : (n - lastInput > IDLE_MS ? "idle" : "active"),
-        voice: ex.voice, call: ex.call, dev: DEV, since: W.since, joinedAt: W.joinedAt
+        voice: ex.voice, call: ex.call, dev: DEV, since: W.since, joinedAt: W.joinedAt,
+        w: writingInfo()
     };
 }
-const sigOf = p => JSON.stringify([p.kind, p.name, p.discordId, p.rank, p.avatar, p.act, p.c, p.x, p.typing, p.state, p.voice, p.call]);
+const sigOf = p => JSON.stringify([p.kind, p.name, p.discordId, p.rank, p.avatar, p.act, p.c, p.x, p.typing, p.state, p.voice, p.call, p.w ? [p.w.f, p.w.t, p.w.o] : null]);
+const withoutText = p => { const q = Object.assign({}, p); delete q.w; return q; };
 
 async function setWithFallback(payload) {
     const order = (W.node && !W.retryPrimary) ? [W.node].concat(NODES.filter(n => n !== W.node)) : NODES.slice();
@@ -16283,19 +16355,25 @@ async function setWithFallback(payload) {
     let lastErr = null;
     for (const node of order) {
         const ref = database.ref(node + "/" + SID);
-        try {
-            await ref.set(payload);
-            if (W.node !== node || W.needDisc) {
-                W.needDisc = false;
-                ref.onDisconnect().remove().catch(e => console.warn("[128] onDisconnect:", errMsg(e)));
+        // Najpierw z treścią pisania; gdy reguły Firebase odrzucą dodatkowe pole „w” — zapis bez niego
+        // (obecność działa dalej, a Diagnostyka pokazuje, że treść nie przechodzi).
+        const variants = payload.w && !W.noText[node] ? [payload, withoutText(payload)] : [withoutText(payload)];
+        for (let vi = 0; vi < variants.length; vi++) {
+            try {
+                await ref.set(variants[vi]);
+                if (vi === 1) { W.noText[node] = true; console.warn("[128] Reguły Firebase odrzucają treść pisania w " + node + " — zapisuję samą obecność."); }
+                if (W.node !== node || W.needDisc) {
+                    W.needDisc = false;
+                    ref.onDisconnect().remove().catch(e => console.warn("[128] onDisconnect:", errMsg(e)));
+                }
+                if (W.node && W.node !== node) database.ref(W.node + "/" + SID).remove().catch(() => {});
+                if (W.node !== node) console.log("[128] Obecność zapisywana w: " + node);
+                W.node = node; W.mode = node === NODES[0] ? "ok" : "fallback"; W.err = lastErr && vi === 0 ? errMsg(lastErr) : "";
+                return true;
+            } catch (e) {
+                lastErr = e;
+                if (!isDenied(e)) { W.err = errMsg(e); return false; }
             }
-            if (W.node && W.node !== node) database.ref(W.node + "/" + SID).remove().catch(() => {});
-            if (W.node !== node) console.log("[128] Obecność zapisywana w: " + node);
-            W.node = node; W.mode = node === NODES[0] ? "ok" : "fallback"; W.err = lastErr ? errMsg(lastErr) : "";
-            return true;
-        } catch (e) {
-            lastErr = e;
-            if (!isDenied(e)) { W.err = errMsg(e); return false; }
         }
     }
     W.node = null; W.mode = "denied"; W.err = errMsg(lastErr); W.deniedAt = Date.now();
@@ -16337,7 +16415,7 @@ database.ref(".info/connected").on("value", s => {
     if (s.val() === true) { W.needFull = true; W.needDisc = true; W.lastWrite = 0; kick(); }
 });
 // steward zalogował się do zapisu w bazie (wariant B) — ponów próbę zapisu w presence
-g(() => { if (fiaAuth) fiaAuth.onAuthStateChanged(() => { if (W.mode !== "ok") { W.retryPrimary = true; W.deniedAt = 0; W.needFull = true; W.lastWrite = 0; kick(); } }); });
+g(() => { if (fiaAuth) fiaAuth.onAuthStateChanged(() => { W.noText = {}; if (W.mode !== "ok") { W.retryPrimary = true; W.deniedAt = 0; W.needFull = true; W.lastWrite = 0; kick(); } }); });
 window.addEventListener("pagehide", () => { if (W.node) { try { database.ref(W.node + "/" + SID).remove(); } catch (e) {} } });
 
 /* ============================================================
@@ -16374,9 +16452,20 @@ function norm(sid, p, node) {
         act: ACT[p.act] ? p.act : "other", c: clip(p.c, 60), x: clip(p.x, 80),
         typing: p.typing === true, state: STATE_ORDER[p.state] != null ? p.state : "active",
         voice: clip(p.voice, 60), call: clip(p.call, 60), dev: p.dev === "mobile" ? "mobile" : "desktop",
-        since: Number(p.since) || 0, joinedAt: Number(p.joinedAt) || 0, seen: Number(p.seen) || 0
+        since: Number(p.since) || 0, joinedAt: Number(p.joinedAt) || 0, seen: Number(p.seen) || 0,
+        w: normWriting(p.w)
     };
 }
+// Firebase może zwrócić tablicę jako obiekt { "0": …, "1": … } — normalizujemy.
+const asArr = v => Array.isArray(v) ? v : (v && typeof v === "object" ? Object.keys(v).sort((a, b) => a - b).map(k => v[k]) : []);
+function normWriting(w) {
+    if (!w || typeof w !== "object") return null;
+    const t = String(w.t == null ? "" : w.t).slice(0, TEXT_MAX + 1);
+    if (!t.trim()) return null;
+    const o = asArr(w.o).map(asArr).filter(x => x.length >= 2 && String(x[1] || "").trim()).slice(0, OTHER_N).map(x => [clip(x[0], 60), clip(x[1], OTHER_MAX)]);
+    return { f: clip(w.f, 60), t, o, at: Number(w.at) || 0 };
+}
+const tail = (s, n) => { const t = String(s || "").replace(/\s+/g, " ").trim(); return t.length > n ? "…" + t.slice(-(n - 1)) : t; };
 function sessions() {
     const n = sNow(), bySid = new Map();
     R.data.forEach((obj, i) => {
@@ -16601,6 +16690,21 @@ function updateMenu() {
     btn.style.borderBottomColor = liveActive() ? "var(--green-text)" : "transparent";
 }
 
+// Co ktoś pisze: nazwa pola, jego treść na żywo i pozostałe wypełnione pola tego samego okna.
+// Pokazywane tylko Głównemu Stewardowi; treści haseł/tokenów/wyszukiwarek tu nigdy nie ma (filtr przy zapisie).
+function writingHtml(x, live) {
+    const w = x && x.w;
+    if (!w) return "";
+    const head = live
+        ? `✍️ ${esc(L("pisze w polu", "typing in"))} „${esc(w.f)}”`
+        : `📝 ${esc(L("ostatnio wpisane w polu", "last typed in"))} „${esc(w.f)}” <span class="lv-dim">· ${esc(ago(w.at))}</span>`;
+    const body = w.t ? `<div class="lv-wtext">${esc(w.t)}${live ? '<span class="lv-caret"></span>' : ""}</div>` : "";
+    const others = (w.o || []).length
+        ? `<div class="lv-wother">${w.o.map(o => `<span><b>${esc(o[0])}:</b> ${esc(o[1])}</span>`).join("")}</div>`
+        : "";
+    return `<div class="lv-writing${live ? " live" : ""}"><div class="lv-whead">${head}</div>${body}${others}</div>`;
+}
+
 function personHtml(p) {
     const s = p.main, nm = s.name;
     const initial = esc(nm.trim().charAt(0).toUpperCase() || "?");
@@ -16622,12 +16726,17 @@ function personHtml(p) {
         const rest = p.sessions.slice(1).map(x => actIcon(x.act) + " " + actLabel(x.act) + (x.c ? " " + (caseInfo(x.c) || {}).label : "")).join(", ");
         meta.push(`<span title="${esc(rest)}">🗂 ${esc(L(`${p.sessions.length} karty`, `${p.sessions.length} tabs`))}: ${esc(rest.length > 70 ? rest.slice(0, 69) + "…" : rest)}</span>`);
     }
-    const typing = p.sessions.some(x => x.typing) ? `<span class="lv-typing">✍️ ${esc(L("pisze", "typing"))}<span class="lv-dots"></span></span>` : "";
+    const anyTyping = p.sessions.some(x => x.typing);
+    const typing = anyTyping ? `<span class="lv-typing">✍️ ${esc(L("pisze", "typing"))}<span class="lv-dots"></span></span>` : "";
+    // Karta z treścią: najpierw ta, w której ktoś pisze w tej chwili, inaczej ostatnio wpisana.
+    const ws = p.sessions.filter(x => x.w).sort((a, b) => ((b.typing ? 1 : 0) - (a.typing ? 1 : 0)) || ((b.w.at || 0) - (a.w.at || 0)))[0];
+    const writing = ws ? writingHtml(ws, !!ws.typing) : "";
     return `<div class="lv-person k-${esc(p.kind)} st-${esc(s.state)}${p.self ? " me" : ""}">
       ${avatar}
       <div class="lv-main">
         <div class="lv-top"><span class="lv-name">${esc(nm)}${p.self ? `<em>(${esc(L("Ty", "You"))})</em>` : ""}</span><span class="lv-kind k-${esc(p.kind)}">${esc(kindLabel(p.kind) + rank)}</span><span class="lv-since" title="${esc(L("Jak długo trwa obecna czynność", "How long the current activity has lasted"))}">⏱ ${esc(ago(s.since))}</span></div>
         <div class="lv-act">${actHtml(s)}${typing}</div>
+        ${writing}
         <div class="lv-meta">${meta.join("")}</div>
       </div>
     </div>`;
@@ -16698,8 +16807,8 @@ function renderLive() {
     const voiceN = ppl.filter(p => p.sessions.some(s => s.voice || s.call)).length;
 
     $("lvTitle").textContent = L("🟢 Na żywo — kto co robi", "🟢 Live — who is doing what");
-    $("lvSubtitle").textContent = L("Aktualizuje się samo, w czasie rzeczywistym. Widać czynności (zakładka, sprawa, okno, „pisze…”) — nigdy treść wpisywana w pola.",
-                                    "Updates by itself, in real time. Shows activities (tab, case, window, “typing…”) — never what people type.");
+    $("lvSubtitle").textContent = L("Aktualizuje się samo, w czasie rzeczywistym. Widać czynności (zakładka, sprawa, okno) oraz treść pisaną na żywo w polach. Wyjątek: hasła, wyszukiwarki i pola z tokenami/kluczami nigdy nie są pokazywane.",
+                                    "Updates by itself, in real time. Shows activities (tab, case, window) and the text people type live in fields. Exception: passwords, search boxes and token/key fields are never shown.");
     const tile = (lbl, n, hot) => `<div class="stat-box${hot ? " hot" : ""}"><span>${esc(lbl)}</span><strong>${esc(n)}</strong></div>`;
     $("lvTiles").innerHTML = tile(L("Online", "Online"), ppl.length) + tile(L("Stewardzi", "Stewards"), staff.length) + tile(L("Kierowcy", "Drivers"), drivers.length)
         + tile(L("Goście", "Guests"), guests.length) + tile(L("Piszą teraz", "Typing now"), typingN, typingN > 0) + tile(L("Głos / rozmowy", "Voice / calls"), voiceN);
@@ -16756,6 +16865,9 @@ function renderDiag() {
     body.innerHTML = `
       <div>${esc(L("Ta karta zapisuje obecność w", "This tab writes presence to"))}: ${wr}</div>
       <div>${esc(L("Odczyt", "Read"))} presence: ${rd(0)} · ${esc(L("odczyt", "read"))} voiceMembers/_presence: ${rd(1)}</div>
+      <div>${esc(L("Treść pisana na żywo", "Live typed text"))}: ${Object.keys(W.noText || {}).length
+          ? `<span class="lv-bad">❌ ${esc(L("reguły Firebase odrzucają pole „w” w presence — widać tylko obecność, bez treści. Dodaj pole „w” do reguł walidacji presence.", "Firebase rules reject the “w” field in presence — only presence is shown, without text. Add the “w” field to the presence validation rules."))}</span>`
+          : `<span class="lv-ok">✅ ${esc(L("przesyłana", "being sent"))}</span>`}</div>
       <div class="lv-dim">${esc(L("ID tej karty", "This tab's ID"))}: ${esc(SID)}</div>
       <p style="margin:10px 0 0;">${esc(L(
         "Każda karta dodaje jeden mały wpis, który Firebase usuwa sam po jej zamknięciu. Docelowo wpisy powinny trafiać do węzła presence. Jeśli powyżej widać węzeł zapasowy albo błąd, dodaj w konsoli Firebase (Realtime Database → Reguły) poniższy fragment wewnątrz \"rules\": { … } — obok pozostałych węzłów — i kliknij Opublikuj. Odczyt jest ograniczony do zalogowanych stewardów (konto Firebase z wariantu B).",
