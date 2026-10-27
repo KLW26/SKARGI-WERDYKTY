@@ -5083,13 +5083,19 @@ function accusedEvidenceInfo(r) {
     if (!ae || typeof ae !== "object" || !ae.status) return null;
     const accId = String(r.accusedDiscordId || "");
     const sts = r.statements && typeof r.statements === "object" ? r.statements : {};
-    const hasStatement = !!(accId && sts[accId]) || Object.values(sts).some(s => s && s.role === "accused");
+    // Przy ponownej prośbie (🔁) liczy się tylko oświadczenie złożone PO niej — starsze już było
+    // i steward prosi o więcej. Tak samo pominięcie blokady dotyczy tylko prośby, przy której je zrobiono.
+    const requestedAt = Number(ae.requestedAt) || 0;
+    const fresh = at => !requestedAt || !(Number(at) > 0) || Number(at) >= requestedAt;
+    const accStmts = Object.entries(sts).filter(([u, s]) => s && (u === accId && !!accId || s.role === "accused")).map(([, s]) => s);
+    const hasStatement = accStmts.some(s => fresh(s.ts));
     const deadline = Number(ae.deadline) || 0;
     const state = hasStatement ? "submitted" : ae.status;
-    const overridden = !!(ae.override && ae.override.at);
+    const overridden = !!(ae.override && ae.override.at && fresh(ae.override.at));
     const waiting = state === "requested" && deadline > Date.now() && !overridden;
     const expired = state === "requested" && deadline <= Date.now();
-    return { state, deadline, waiting, expired, overridden, error: ae.error || null };
+    const again = !!(ae.again && ae.again.at && fresh(ae.again.at)) || (state === "requested" && accStmts.length > 0);
+    return { state, deadline, waiting, expired, overridden, again, error: ae.error || null };
 }
 
 function accusedEvidenceLeftText(ms) {
@@ -5121,33 +5127,57 @@ function accusedEvidenceChipHtml(r) {
     if (!r || !["Oczekuje", "Przyjęte"].includes(r.status)) return "";
     const info = accusedEvidenceInfo(r);
     const id = jsAttr(r.id);
+    const hasAccusedId = /^\d{15,21}$/.test(String(r.accusedDiscordId || "").trim());
     if (!info) {
-        const canAsk = isAdminAuthenticated && r.status === "Oczekuje" && /^\d{15,21}$/.test(String(r.accusedDiscordId || "").trim());
+        const canAsk = isAdminAuthenticated && r.status === "Oczekuje" && hasAccusedId;
         return canAsk ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}')" title="Wyślij oskarżonemu prywatną wiadomość na Discordzie z prośbą o jego dowód">✉️ Poproś o dowód</span>` : "";
     }
-    if (info.waiting) return `<span class="case-chip chip-ae-wait" title="Oskarżony ma czas na dowód do ${escapeHtml(formatTimestamp(info.deadline))}. Do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">⏳ Dowód oskarżonego: ${escapeHtml(accusedEvidenceLeftText(info.deadline - Date.now()))}</span>`;
-    if (info.state === "submitted") return `<span class="case-chip chip-ae-ok" title="Oskarżony dodał dowód — zobacz „Oświadczenia stron” w panelu werdyktu.">📎 Dowód oskarżonego</span>`;
-    if (info.state === "declined") return `<span class="case-chip chip-ae-none" title="Oskarżony zaznaczył na Discordzie, że nie ma dowodu.">🚫 Oskarżony: brak dowodu</span>`;
-    if (info.state === "dm_failed") return `<span class="case-chip chip-ae-fail" onclick="resendAccusedEvidenceDm('${id}')" title="Bot nie mógł wysłać wiadomości${info.error ? " (" + escapeHtml(info.error) + ")" : ""} — zwykle oskarżony ma wyłączone wiadomości prywatne. Kliknij, aby spróbować ponownie.">✉️ DM nie dotarł — ponów</span>`;
-    if (info.overridden) return `<span class="case-chip chip-ae-none" title="Blokadę pominął steward przed terminem.">⏭ Bez dowodu oskarżonego</span>`;
-    if (info.expired) return `<span class="case-chip chip-ae-none" title="Oskarżony nie odpowiedział w terminie — zgłoszenie można przyjąć.">⌛ Oskarżony nie odpowiedział</span>`;
-    return "";
+    // Ponowna prośba o dowód — przy każdym stanie poza „DM nie dotarł” (tam jest własne „ponów”).
+    const againChip = isAdminAuthenticated && hasAccusedId && info.state !== "dm_failed"
+        ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}', true)" title="Wyślij oskarżonemu jeszcze raz prośbę o dowód (nowa wiadomość od bota i nowy termin). Dotychczasowe oświadczenie zostaje w sprawie.">🔁 Poproś ponownie</span>`
+        : "";
+    let chip = "";
+    if (info.waiting) chip = `<span class="case-chip chip-ae-wait" title="Oskarżony ma czas na dowód do ${escapeHtml(formatTimestamp(info.deadline))}. Do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">⏳ ${info.again ? "Ponowna prośba o dowód" : "Dowód oskarżonego"}: ${escapeHtml(accusedEvidenceLeftText(info.deadline - Date.now()))}</span>`;
+    else if (info.state === "submitted") chip = `<span class="case-chip chip-ae-ok" title="Oskarżony dodał dowód — zobacz „Oświadczenia stron” w panelu werdyktu.">📎 Dowód oskarżonego</span>`;
+    else if (info.state === "declined") chip = `<span class="case-chip chip-ae-none" title="Oskarżony zaznaczył na Discordzie, że nie ma dowodu.">🚫 Oskarżony: brak dowodu</span>`;
+    else if (info.state === "dm_failed") chip = `<span class="case-chip chip-ae-fail" onclick="resendAccusedEvidenceDm('${id}')" title="Bot nie mógł wysłać wiadomości${info.error ? " (" + escapeHtml(info.error) + ")" : ""} — zwykle oskarżony ma wyłączone wiadomości prywatne. Kliknij, aby spróbować ponownie.">✉️ DM nie dotarł — ponów</span>`;
+    else if (info.overridden) chip = `<span class="case-chip chip-ae-none" title="Blokadę pominął steward przed terminem.">⏭ Bez dowodu oskarżonego</span>`;
+    else if (info.expired) chip = `<span class="case-chip chip-ae-none" title="Oskarżony nie odpowiedział w terminie — zgłoszenie można przyjąć.">⌛ Oskarżony nie odpowiedział</span>`;
+    return chip + againChip;
 }
 
-async function resendAccusedEvidenceDm(caseId) {
+// again = true: ponowna prośba o dowód (🔁) — także gdy oskarżony już coś dodał, odmówił albo minął termin.
+async function resendAccusedEvidenceDm(caseId, again) {
     const r = (globalIncidents || []).find(x => x.id === caseId);
     if (!r) return;
     const info = accusedEvidenceInfo(r);
-    const again = info ? " ponownie" : "";
-    if (!confirm(`Wysłać${again} oskarżonemu (${r.accusedNick || "?"}) prywatną wiadomość na Discordzie z prośbą o dowód w sprawie ${r.fiaId || r.id}?` +
-        (info ? "" : "\n\nDo czasu jego odpowiedzi (maks. termin z Workera, domyślnie 24 h) nie będzie można przyjąć zgłoszenia ani wydać werdyktu."))) return;
+    const who = r.accusedNick || "?", caseLabel = r.fiaId || r.id;
+    let question;
+    if (again && info) {
+        const now = info.state === "submitted" ? "Oskarżony już dodał dowód — dostanie prośbę o kolejny (dotychczasowy zostaje w sprawie)."
+            : info.state === "declined" ? "Oskarżony wcześniej zaznaczył, że nie ma dowodu."
+            : info.waiting ? `Poprzednia prośba jest jeszcze aktywna (do ${formatTimestamp(info.deadline)}) — termin zacznie się od nowa.`
+            : "Poprzednia prośba wygasła bez odpowiedzi.";
+        question = `Poprosić oskarżonego (${who}) PONOWNIE o dowód w sprawie ${caseLabel}?\n\n${now}\n\n` +
+            "Bot wyśle mu nową prywatną wiadomość na Discordzie. Do czasu odpowiedzi albo nowego terminu (domyślnie 24 h) nie będzie można przyjąć zgłoszenia ani wydać werdyktu — blokadę może pominąć Główny Steward.";
+    } else {
+        question = `Wysłać${info ? " ponownie" : ""} oskarżonemu (${who}) prywatną wiadomość na Discordzie z prośbą o dowód w sprawie ${caseLabel}?` +
+            (info ? "" : "\n\nDo czasu jego odpowiedzi (maks. termin z Workera, domyślnie 24 h) nie będzie można przyjąć zgłoszenia ani wydać werdyktu.");
+    }
+    if (!confirm(question)) return;
     try {
         const res = await requestAccusedEvidenceDm(caseId, { resend: true });
         if (res.status === "dm_failed") showToast("✉️ DM nie dotarł", "Oskarżony prawdopodobnie ma wyłączone wiadomości prywatne.");
         else if (res.status === "no_discord_id") showToast("✉️ Brak Discord ID", "Oskarżony nie ma poprawnego Discord ID w zgłoszeniu.");
-        else showToast("✉️ Prośba o dowód wysłana", `${r.accusedNick || "Oskarżony"} · ${r.fiaId || r.id}`);
+        else showToast(again ? "🔁 Ponowna prośba o dowód wysłana" : "✉️ Prośba o dowód wysłana", `${r.accusedNick || "Oskarżony"} · ${caseLabel}`);
+        if (again && info && res.status !== "dm_failed" && res.status !== "no_discord_id") {
+            const by = loggedInSteward ? loggedInSteward.nick : "Steward";
+            // Znacznik „ponowna prośba” (tylko do opisu na liście spraw) — bez niego wszystko działa tak samo.
+            try { await database.ref(`incidents/${r.id}/accusedEvidence/again`).set({ by, at: Date.now() }); } catch (e) {}
+            try { await logAction(by, "VERDICT", r.id, `Ponownie poproszono oskarżonego (${who}) o dowód przez Discord (poprzedni stan: ${info.state}).`); } catch (e) {}
+        }
     } catch (err) {
-        alert("Nie udało się wysłać prośby o dowód: " + err.message);
+        alert((again ? "Nie udało się wysłać ponownej prośby o dowód: " : "Nie udało się wysłać prośby o dowód: ") + err.message);
     }
 }
 
@@ -10958,6 +10988,9 @@ async function sendChatMessage() {
     const chatPingTargets = findChatPingTargets(selectedCaseId || "Ogólny", "admin");
     const chatPingContent = chatPingTargets.map(id => `<@${id}>`).join(" ");
     sendChatMessageWebhook(msgData, selectedCaseId || "Ogólny", chatPingContent);
+
+    // Powiadomienie na PV (Discord DM) dla kierowców tej sprawy — moduł „POWIADOMIENIA NA PV” na końcu pliku.
+    if (typeof window.fiaChatDmNotify === "function") window.fiaChatDmNotify(msgData.caseId, newMsgRef.key);
 }
 
 async function clearChat() {
@@ -21576,6 +21609,239 @@ wrap("adminLogout", function () {
 // Odświeżanie stanu „publikuje…” (blokada wygasa po 2 min, jeśli publikujący zamknął kartę).
 setInterval(() => { if (isAdminAuthenticated && (globalIncidents || []).some(r => hasPending(r) && r.pendingVerdict.publishing)) renderAll(); }, 30000);
 renderHint();
+})();
+</script>
+
+<script>
+/* ============================================================
+   === POWIADOMIENIA NA PV — nowa wiadomość na czacie sędziów ===
+   ============================================================
+   Gdy steward wyśle wiadomość na czacie sędziów (sekcja „💬 CZAT SĘDZIÓW”) w sprawie albo
+   apelacji, strona prosi Workera „fia-guard” (POST /chat/dm) o prywatną wiadomość od bota ligi
+   do kierowców tej sprawy — z podglądem treści i przyciskiem „Otwórz czat sprawy”.
+     • Nad polem wiadomości jest wybór odbiorców PV: obaj kierowcy / tylko zgłaszający /
+       tylko oskarżony / bez PV (przy apelacji: apelujący / bez PV). Po zmianie sprawy wraca
+       na „obaj”.
+     • Strona NIE podaje Workerowi ID odbiorców ani treści — Worker sam czyta wiadomość i strony
+       sprawy z bazy i sprawdza, że wysyła steward. Ta sama wiadomość nie pójdzie dwa razy,
+       a kolejne wiadomości w krótkim odstępie (domyślnie 3 min) nie zasypują kierowcy PV.
+     • Przycisk w PV prowadzi na adres strony z ?czat=<ID sprawy> — po zalogowaniu kierowcy
+       otwiera się od razu czat tej sprawy (także po drodze przez logowanie Discordem).
+   Wymaga wdrożenia w Workerze endpointu /chat/dm (plik fia-guard-chat-dm.js).
+   ============================================================ */
+(function () {
+"use strict";
+
+const $ = id => document.getElementById(id);
+const L = (pl, en) => (typeof currentLang !== "undefined" && currentLang === "en") ? en : pl;
+const ID_RE = /^\d{15,21}$/;
+const clip = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+
+function wrap(name, after) {
+    const orig = window[name];
+    if (typeof orig !== "function") return;
+    window[name] = function () {
+        const r = orig.apply(this, arguments);
+        try { after.apply(this, arguments); } catch (e) { console.error("[PV] " + name, e); }
+        return r;
+    };
+}
+
+// Strony sprawy/apelacji, do których może pójść PV (tylko z poprawnym Discord ID).
+function caseParties(caseId) {
+    const r = (typeof globalIncidents !== "undefined" ? globalIncidents : []).find(x => x.id === caseId);
+    if (r) {
+        const parties = [];
+        const rep = String(r.discordId || "").trim(), acc = String(r.accusedDiscordId || "").trim();
+        if (ID_RE.test(rep)) parties.push({ role: "reporter", id: rep, nick: r.nick || rep });
+        if (ID_RE.test(acc) && acc !== rep) parties.push({ role: "accused", id: acc, nick: r.accusedNick || acc });
+        return { kind: "incident", display: r.fiaId || r.id, parties };
+    }
+    const a = (typeof globalAppeals !== "undefined" ? globalAppeals : []).find(x => x.appealId === caseId);
+    if (a) {
+        const id = String(a.discordId || "").trim();
+        return { kind: "appeal", display: a.appealId, parties: ID_RE.test(id) ? [{ role: "appellant", id, nick: a.nick || id }] : [] };
+    }
+    return null;
+}
+
+/* ---------- 1. Wybór odbiorców PV przy czacie sędziów ---------- */
+const chatInputRow = $("chatMsg") && $("chatMsg").closest(".row");
+if (chatInputRow && !$("chatDmTarget")) {
+    chatInputRow.insertAdjacentHTML("beforebegin",
+        `<div id="chatDmTargetRow" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 8px; font-size:11px; color:var(--text-dim); letter-spacing:0.5px;">
+            <label for="chatDmTarget" style="margin:0; font-size:11px;">📩 Powiadomienie na PV:</label>
+            <select id="chatDmTarget" title="Bot ligi wyśle kierowcom prywatną wiadomość na Discordzie z podglądem tej wiadomości i linkiem do czatu sprawy"
+                    style="width:auto; max-width:100%; min-width:0; padding:5px 8px; font-size:12px;"></select>
+        </div>`);
+}
+
+function renderDmTarget() {
+    const sel = $("chatDmTarget");
+    if (!sel) return;
+    const caseId = ($("chatCaseSelect") && $("chatCaseSelect").value) || "";
+    const sameCase = sel.dataset.case === caseId;
+    const prev = sel.value;
+    const info = caseId ? caseParties(caseId) : null;
+    const opts = [];
+    if (info && info.kind === "incident" && info.parties.length === 2) {
+        const [rep, acc] = info.parties;
+        opts.push(["all", "obaj kierowcy"]);
+        opts.push(["reporter", `tylko ${clip(rep.nick, 24)} (zgłaszający)`]);
+        opts.push(["accused", `tylko ${clip(acc.nick, 24)} (oskarżony)`]);
+    } else if (info && info.parties.length === 1) {
+        const p = info.parties[0];
+        const label = p.role === "reporter" ? "zgłaszający" : p.role === "accused" ? "oskarżony" : "apelujący";
+        opts.push([info.kind === "appeal" ? "all" : p.role, `${clip(p.nick, 24)} (${label})`]);
+    }
+    opts.push(["off", opts.length ? "🔕 nie wysyłaj" : "🔕 brak Discord ID — nie da się wysłać"]);
+    const sig = caseId + "|" + opts.map(o => o.join("=")).join("|");
+    if (sel.dataset.sig === sig) return;
+    sel.innerHTML = opts.map(([v, t]) => `<option value="${escapeHtml(v)}">${escapeHtml(t)}</option>`).join("");
+    sel.value = sameCase && opts.some(o => o[0] === prev) ? prev : opts[0][0];
+    sel.dataset.case = caseId;
+    sel.dataset.sig = sig;
+}
+wrap("handleStewardChatSelection", renderDmTarget);
+wrap("updateChatCaseSelect", renderDmTarget);
+renderDmTarget();
+
+/* ---------- 2. Wysyłka PV po wiadomości stewarda ---------- */
+const ERR = {
+    not_steward: "To konto nie jest stewardem — PV może zlecić tylko steward.",
+    message_not_found: "Worker nie znalazł tej wiadomości w bazie.",
+    not_steward_message: "To nie jest wiadomość stewarda.",
+    message_too_old: "Wiadomość jest za stara na powiadomienie.",
+    invalid_message_id: "Nieprawidłowe ID wiadomości.",
+    chat_dm_failed: "Worker nie zdołał wysłać PV (błąd bazy albo Discorda)."
+};
+const DM_ERR = {
+    dm_closed: "ma zablokowane wiadomości prywatne",
+    unknown_user: "nie ma takiego konta Discord",
+    discord_rate_limited: "Discord chwilowo ogranicza wysyłkę",
+    network: "błąd połączenia z Discordem"
+};
+let workerWarned = false;
+function warnWorkerOnce(body) {
+    if (workerWarned) return;
+    workerWarned = true;
+    showToast("⚠️ Powiadomienia PV nie działają", body);
+}
+
+function reportDmResult(caseId, data) {
+    if (!data || data.already) return;
+    const info = caseParties(caseId);
+    const nick = id => { const p = info && info.parties.find(x => x.id === String(id)); return p ? p.nick : String(id); };
+    const sent = (data.sent || []).map(s => nick(s.id));
+    const failed = (data.failed || []).map(f => `${nick(f.id)} — ${DM_ERR[f.error] || f.error || "błąd"}`);
+    const skipped = (data.skipped || []).filter(s => s.reason === "cooldown").map(s => nick(s.id));
+    const caseLabel = info ? info.display : caseId;
+    const parts = [];
+    if (sent.length) parts.push("Wysłano: " + sent.join(", "));
+    if (failed.length) parts.push("Nie dotarło: " + failed.join("; "));
+    if (skipped.length) parts.push(`Pominięto (PV o tej sprawie poszło przed chwilą): ${skipped.join(", ")}`);
+    if (!parts.length) return;
+    const title = failed.length ? "⚠️ PV nie dotarło do wszystkich" : sent.length ? "📩 Powiadomiono na PV" : "📩 Bez nowego PV";
+    showToast(title, `${caseLabel} · ${parts.join(" · ")}`);
+}
+
+window.fiaChatDmNotify = async function (caseId, msgId) {
+    if (!caseId || caseId === "Ogólny" || !msgId) return;
+    const sel = $("chatDmTarget");
+    const target = sel && sel.dataset.case === caseId ? sel.value : "all";
+    if (target === "off") return;
+    const info = caseParties(caseId);
+    if (!info || !info.parties.length) return;
+    const user = fbAuth && fbAuth.currentUser;
+    if (!user) return;
+    let res, data = null;
+    try {
+        const idToken = await user.getIdToken();
+        res = await fetch(`${GUARD_WORKER_URL}/chat/dm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+            body: JSON.stringify({ caseId, msgId, target, pageUrl: location.origin + location.pathname })
+        });
+        try { data = await res.json(); } catch (e) {}
+    } catch (e) {
+        console.warn("[PV] /chat/dm:", e);
+        warnWorkerOnce("Brak połączenia z Workerem „fia-guard” — czy wdrożono w nim endpoint /chat/dm (plik fia-guard-chat-dm.js)?");
+        return;
+    }
+    if (!res.ok) {
+        const code = data && data.error;
+        if (res.status === 404 && (!code || code === "not_found")) {
+            warnWorkerOnce("Worker „fia-guard” nie zna jeszcze /chat/dm — wdróż jego nową wersję (plik fia-guard-chat-dm.js).");
+            return;
+        }
+        showToast("⚠️ PV nie wysłane", ERR[code] || guardErrorText(code, res.status));
+        return;
+    }
+    reportDmResult(caseId, data);
+};
+
+/* ---------- 3. Link z PV: ?czat=<ID sprawy> otwiera czat tej sprawy po zalogowaniu ---------- */
+const DL_KEY = "fiaOpenChatAfterLogin";
+const DL_MAX_AGE = 30 * 60 * 1000;
+try {
+    const u = new URL(location.href);
+    const wanted = (u.searchParams.get("czat") || "").trim();
+    if (wanted) {
+        // sessionStorage przetrwa przejście przez logowanie Discorda w tej samej karcie
+        sessionStorage.setItem(DL_KEY, JSON.stringify({ id: wanted.slice(0, 120), at: Date.now() }));
+        u.searchParams.delete("czat");
+        history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    }
+} catch (e) {}
+
+function pendingDeepLink() {
+    try {
+        const p = JSON.parse(sessionStorage.getItem(DL_KEY) || "null");
+        if (p && p.id && Date.now() - (Number(p.at) || 0) < DL_MAX_AGE) return p;
+        sessionStorage.removeItem(DL_KEY);
+    } catch (e) {}
+    return null;
+}
+function clearDeepLink() { try { sessionStorage.removeItem(DL_KEY); } catch (e) {} }
+
+function tryOpenDeepLink() {
+    const p = pendingDeepLink();
+    if (!p) return true;
+    if (document.documentElement.classList.contains("rz-gated")) return false; // jeszcze ekran logowania
+    const id = p.id;
+    if (typeof authorizedHistoryDiscordId !== "undefined" && authorizedHistoryDiscordId &&
+        typeof vcPlayerOwnsCase === "function" && vcPlayerOwnsCase(id)) {
+        clearDeepLink();
+        showSection("historySection");
+        selectPlayerChatCase(id);
+        return true;
+    }
+    if (typeof isAdminAuthenticated !== "undefined" && isAdminAuthenticated && caseParties(id) && typeof window.openCaseChatFromAdmin === "function") {
+        clearDeepLink();
+        window.openCaseChatFromAdmin(id);
+        return true;
+    }
+    return false;
+}
+
+if (pendingDeepLink()) {
+    let ungatedSince = 0;
+    const timer = setInterval(() => {
+        if (tryOpenDeepLink()) { clearInterval(timer); return; }
+        if (document.documentElement.classList.contains("rz-gated")) { ungatedSince = 0; return; }
+        if (!ungatedSince) ungatedSince = Date.now();
+        // zalogowany, dane wczytane, a sprawy nadal nie ma na liście tego konta — kończymy
+        if (Date.now() - ungatedSince > 20000) {
+            clearInterval(timer);
+            const p = pendingDeepLink();
+            clearDeepLink();
+            if (p && typeof authorizedHistoryDiscordId !== "undefined" && authorizedHistoryDiscordId) {
+                showToast(L("💬 Nie znaleziono czatu", "💬 Chat not found"),
+                    L(`Sprawa ${p.id} nie jest powiązana z Twoim kontem Discord.`, `Case ${p.id} is not linked to your Discord account.`));
+            }
+        }
+    }, 700);
+}
 })();
 </script>
 
