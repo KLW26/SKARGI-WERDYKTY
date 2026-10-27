@@ -5642,6 +5642,73 @@ async function buildAppealDiscordEvidenceFields(appeal, report, lang) {
     ];
 }
 
+// === DOWODY STRON W WERDYKCIE NA DISCORDZIE ===
+// Werdykt (także werdykt apelacji) ma dwa pola z dowodami: zgłaszającego i oskarżonego.
+//  • zgłaszający: dowód ze zgłoszenia + dowody dołączone do jego oświadczenia,
+//  • oskarżony:   dowody dołączone do jego oświadczenia,
+//  • werdykt apelacji: dowód z apelacji trafia do pola strony, która złożyła apelację.
+// Publikowane są tylko dowody (link i pliki) — treść oświadczeń zostaje u stewardów.
+function caseStatementsByRole(report) {
+    const out = { reporter: [], accused: [] };
+    const st = report && report.statements && typeof report.statements === "object" ? report.statements : {};
+    const repId = String((report && report.discordId) || "");
+    const accId = String((report && report.accusedDiscordId) || "");
+    Object.entries(st).forEach(([uid, s]) => {
+        if (!s || typeof s !== "object") return;
+        const isAccused = accId && String(uid) === accId ? true
+            : repId && String(uid) === repId ? false
+            : s.role === "accused";
+        out[isAccused ? "accused" : "reporter"].push(s);
+    });
+    out.reporter.sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0));
+    out.accused.sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0));
+    return out;
+}
+
+async function buildPartyEvidenceText(sources) {
+    const parts = [];
+    for (const src of sources) {
+        const rec = evidenceRecordWithList(src.rec);
+        if (!hasEvidence(rec)) continue;
+        const val = await buildDiscordEvidenceValue(rec);
+        parts.push(src.label ? `**${src.label}**\n${val}` : val);
+    }
+    return parts.join("\n");
+}
+
+async function buildVerdictPartyEvidenceFields(report, appeal, lang) {
+    const pl = (lang || currentLang) === 'pl';
+    const none = pl ? "Brak" : "None";
+    const sts = caseStatementsByRole(report);
+    const stLabel = pl ? "📝 Z oświadczenia:" : "📝 From statement:";
+    const reporterSources = [{ label: null, rec: report }].concat(sts.reporter.map(s => ({ label: stLabel, rec: s })));
+    const accusedSources = sts.accused.map(s => ({ label: stLabel, rec: s }));
+    let otherAppellant = null;
+    if (appeal) {
+        const apLabel = pl ? `⚖️ Z apelacji ${appeal.appealId || ""}:` : `⚖️ From appeal ${appeal.appealId || ""}:`;
+        const apId = String(appeal.discordId || "");
+        if (apId && report && apId === String(report.accusedDiscordId || "")) accusedSources.push({ label: apLabel, rec: appeal });
+        else if (apId && report && apId === String(report.discordId || "")) reporterSources.push({ label: apLabel, rec: appeal });
+        else otherAppellant = appeal;
+    }
+    const [repVal, accVal, otherVal] = await Promise.all([
+        buildPartyEvidenceText(reporterSources),
+        buildPartyEvidenceText(accusedSources),
+        otherAppellant ? buildPartyEvidenceText([{ label: null, rec: otherAppellant }]) : Promise.resolve("")
+    ]);
+    const repNick = report && report.nick ? ` — ${report.nick}` : "";
+    const accNick = report && report.accusedNick ? ` — ${report.accusedNick}` : "";
+    const fields = [
+        { name: dcFieldValue(`🎬 ${pl ? "Dowód zgłaszającego" : "Reporter's evidence"}${repNick}`, 256), value: dcFieldValue(repVal || none), inline: false },
+        { name: dcFieldValue(`🎬 ${pl ? "Dowód oskarżonego" : "Accused's evidence"}${accNick}`, 256), value: dcFieldValue(accVal || none), inline: false }
+    ];
+    if (otherAppellant) {
+        const apNick = otherAppellant.nick ? ` — ${otherAppellant.nick}` : "";
+        fields.push({ name: dcFieldValue(`🎬 ${pl ? "Dowód apelującego" : "Appellant's evidence"}${apNick}`, 256), value: dcFieldValue(otherVal || none), inline: false });
+    }
+    return fields;
+}
+
 function renderChatFilesHtml(files) {
     if (!Array.isArray(files) || !files.length) return "";
     const linkParts = [];
@@ -8659,10 +8726,8 @@ async function resendVerdict(id) {
         const isAppealVerdict = globalAppeals.some(a => a.caseId === id && a.status === "Zakończona");
         const resendAppealRec = isAppealVerdict ? findConcludedAppealForCase(id) : null;
         let resendEvidenceFields = [{ name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false }];
-        if (resendAppealRec) {
-            try { resendEvidenceFields = await buildAppealDiscordEvidenceFields(resendAppealRec, report, currentLang); }
-            catch (evErr) { console.warn("Nie udało się przygotować dowodów apelacji dla Discorda:", evErr); }
-        }
+        try { resendEvidenceFields = await buildVerdictPartyEvidenceFields(report, resendAppealRec, currentLang); }
+        catch (evErr) { console.warn("Nie udało się przygotować dowodów stron dla Discorda:", evErr); }
 
         const embed = {
             title: t.embedTitle, color: 3447003,
@@ -9540,13 +9605,12 @@ async function publishVerdict(draft) {
     await logAction(stewardName, "VERDICT", originalCaseId, `Wydano werdykt: ${decision} (${timePenalty}, ${pointsPenalty}).${authorNote}${approvalNote}`, restoreItemsVerdict.length ? { items: restoreItemsVerdict } : null, decisionDataToSave);
 
     const mainEvidence = await buildDiscordEvidenceValue(mainReport);
-    // Werdykt apelacji: dwa dowody — apelującego i zgłaszającego — zamiast jednego.
+    // Dwa pola z dowodami: zgłaszającego i oskarżonego. W werdykcie apelacji dowód z apelacji
+    // trafia do pola strony, która ją złożyła.
     const publishAppealRec = (isAppealVerdict && draft.appealId) ? (globalAppeals || []).find(a => a.appealId === draft.appealId) : null;
     let evidenceFields = [{ name: t.fieldEvidence, value: dcFieldValue(mainEvidence), inline: false }];
-    if (publishAppealRec) {
-        try { evidenceFields = await buildAppealDiscordEvidenceFields(publishAppealRec, mainReport, currentLang); }
-        catch (evErr) { console.warn("Nie udało się przygotować dowodów apelacji dla Discorda:", evErr); }
-    }
+    try { evidenceFields = await buildVerdictPartyEvidenceFields(mainReport, publishAppealRec, currentLang); }
+    catch (evErr) { console.warn("Nie udało się przygotować dowodów stron dla Discorda:", evErr); }
 
     const reporterNick = (mainReport && mainReport.nick) ? mainReport.nick : unknownLabel;
     const reporterDiscordId = mainReport && mainReport.discordId ? mainReport.discordId : null;
@@ -13647,20 +13711,7 @@ vcHideIncomingOverlay = function () {
 .unread-pill.hidden{display:none;}
 .menu .unread-pill{align-self:center;margin-left:-14px;margin-right:6px;}
 .chip-unread{color:#fff;background:#b91c1c;border-color:#b91c1c;cursor:pointer;}
-.chip-votes{color:var(--purple-text);border-color:var(--purple-text);}
 .chip-withdrawn{color:var(--text-dim);}
-
-/* Głosowanie sędziów */
-#verdictVotesBox{display:none;margin-bottom:16px;padding:12px 14px;border:1px solid rgba(168,85,247,0.35);border-radius:4px;background:var(--bg-deep);font-size:12px;line-height:1.55;}
-#verdictVotesBox .vote-row{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--border);}
-#verdictVotesBox .vote-row:last-of-type{border-bottom:none;}
-#verdictVotesBox .vote-who{font-weight:700;color:var(--text);min-width:110px;}
-#verdictVotesBox .vote-what{flex:1;color:var(--text-dim);}
-#verdictVotesBox .vote-mine{color:var(--purple-text);}
-#verdictVotesBox .vote-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
-#verdictVotesBox .vote-actions button{padding:6px 12px;font-size:11px;margin:0;}
-.vote-bar{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:6px 0 8px;background:rgba(255,255,255,0.06);}
-.vote-bar span{display:block;height:100%;}
 
 /* Szybkie odpowiedzi na czacie stewarda */
 #stewardQuickReplies{margin-bottom:8px;}
@@ -13719,7 +13770,7 @@ vcHideIncomingOverlay = function () {
    4. Wycofanie własnego, jeszcze nierozpatrzonego zgłoszenia przez kierowcę.
    5. Nieprzeczytane wiadomości czatu (kierowca i stewardzi) + powiadomienie.
    6. Szybkie odpowiedzi stewarda na czacie (gotowe + własne).
-   7. Głosowanie sędziów nad sprawą (panel kilku stewardów) + „Zastosuj większość”.
+   7. (Głosowanie sędziów — usunięte; zostały wspólne narzędzia dla kolejnych rozbudów.)
    8. „Następna sprawa” — przejęcie najstarszej oczekującej sprawy z kolejki.
    9. Biuletyn sędziowski rundy (kopiuj / pobierz / wyślij na Discord bez pingów).
       Biuletyn NIE trafia na kanał werdyktów — kanał wybiera się w oknie biuletynu
@@ -14186,24 +14237,13 @@ if ($("stewardQuickReplies")) $("stewardQuickReplies").addEventListener("click",
 renderQuickReplies();
 
 /* ============================================================
-   7. GŁOSOWANIE SĘDZIÓW
+   7. WSPÓLNE NARZĘDZIA (głosowanie sędziów zostało usunięte)
    ============================================================ */
-const histBox = $("verdictHistoryBox");
-if (histBox) histBox.insertAdjacentHTML("afterend", `<div id="verdictVotesBox"></div>`);
-const VOTE_COLORS = ["#a855f7", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#64748b"];
-
-function voteScopeFromForm() {
-    const m = (($("caseId") || {}).value || "").match(/APP-\d+/i);
-    return m ? m[0].toUpperCase() : "main";
-}
+// Klucz zalogowanego stewarda w bazie — używany m.in. przez akceptację werdyktów.
 function myVoterKey() {
     if (!loggedInSteward) return null;
     const base = String(loggedInSteward.id || loggedInSteward.nick);
     return base.replace(/[.#$\[\]\/]/g, "_");
-}
-function votesFor(inc, scope) {
-    const all = (inc && inc.stewardVotes && inc.stewardVotes[scope]) || {};
-    return Object.entries(all).map(([k, v]) => ({ key: k, ...v })).sort((a, b) => ts(a.ts) - ts(b.ts));
 }
 const penaltyLabel = v => {
     const parts = [];
@@ -14211,122 +14251,8 @@ const penaltyLabel = v => {
     if (parsePenaltyPoints(v.pointsPenalty) > 0) parts.push(v.pointsPenalty);
     return parts.join(" + ");
 };
-function majorityOf(votes) {
-    const byDecision = {};
-    votes.forEach(v => { (byDecision[v.decision] = byDecision[v.decision] || []).push(v); });
-    const ranked = Object.entries(byDecision).sort((a, b) => b[1].length - a[1].length);
-    if (!ranked.length) return null;
-    const tie = ranked.length > 1 && ranked[0][1].length === ranked[1][1].length;
-    const combos = {};
-    ranked[0][1].forEach(v => {
-        const k = JSON.stringify([v.timePenalty || "", v.pointsPenalty || ""]);
-        combos[k] = (combos[k] || 0) + 1;
-    });
-    const [time, points] = JSON.parse(Object.entries(combos).sort((a, b) => b[1] - a[1])[0][0]);
-    return { decision: ranked[0][0], count: ranked[0][1].length, total: votes.length, tie, time, points, ranked };
-}
-
-function renderVotesBox() {
-    const box = $("verdictVotesBox");
-    if (!box) return;
-    const inc = isAdminAuthenticated && typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
-    if (!inc) { box.style.display = "none"; return; }
-    const scope = voteScopeFromForm(), votes = votesFor(inc, scope), me = myVoterKey();
-    // Strona sprawy (zgłaszający/oskarżony będący stewardem) nie widzi przebiegu narady.
-    if (typeof conflictOf === "function" && conflictOf(inc)) {
-        box.innerHTML = `<strong style="color:var(--purple-text);">🗳 Głosy sędziów — ${escapeHtml(inc.id)}</strong>
-            <div style="margin-top:6px; color:var(--red-text);">Jesteś stroną tej sprawy — głosy i komentarze sędziów są dla Ciebie ukryte, nie możesz też głosować.</div>`;
-        box.style.display = "block";
-        return;
-    }
-    const mine = votes.find(v => v.key === me);
-    // Zasady głosowania (Rozbudowa 126): tryb tajny i kworum — ustawiane w panelu przez Głównego Stewarda.
-    const rules = window.fiaVotingSettings || {};
-    const quorum = Math.max(0, parseInt(rules.quorum, 10) || 0);
-    const hidden = rules.mode === "blind" && !mine && !isRoot();
-    const maj = hidden ? null : majorityOf(votes);
-    const quorumHtml = quorum ? ` <span style="font-size:11px; color:${votes.length >= quorum ? "var(--green-text)" : "var(--amber-text)"};">· kworum ${votes.length}/${escapeHtml(quorum)}${votes.length >= quorum ? " ✔" : ""}</span>` : "";
-    let html = `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-        <strong style="color:var(--purple-text);">🗳 Głosy sędziów — ${escapeHtml(scope === "main" ? inc.id : inc.id + " / " + scope)} (${votes.length})${quorumHtml}</strong>
-        ${maj ? `<span style="font-size:11px; color:${maj.tie ? "var(--amber-text)" : "var(--green-text)"};">${escapeHtml(maj.tie ? "⚖️ Remis" : `✔ Większość: ${maj.count}/${maj.total}`)}</span>` : ""}
-      </div>`;
-    if (rules.mode === "blind" && !hidden && isRoot() && !mine && votes.length) {
-        html += `<div style="font-size:11px; color:var(--text-dim); margin-top:4px;">🔒 Tryb tajny — jako Główny Steward widzisz głosy przed oddaniem własnego.</div>`;
-    }
-    if (hidden) {
-        html += `<div style="color:var(--text-dim); margin-top:6px;">🔒 Głosowanie tajne: ${votes.length ? `oddano już ${votes.length} ${plural(votes.length, "głos", "głosy", "głosów")}, ale ` : ""}głosy i komentarze innych sędziów zobaczysz dopiero po oddaniu własnego.</div>`;
-    } else if (maj) {
-        html += `<div class="vote-bar">${maj.ranked.map(([d, list], i) => `<span title="${escapeHtml(d)}: ${list.length}" style="width:${(list.length / maj.total) * 100}%; background:${escapeHtml(VOTE_COLORS[i % VOTE_COLORS.length])};"></span>`).join("")}</div>`;
-        html += votes.map(v => `<div class="vote-row">
-            <span class="vote-who ${v.key === me ? "vote-mine" : ""}">${escapeHtml(v.nick || "?")}${v.key === me ? " (Ty)" : ""}</span>
-            <span class="vote-what"><strong style="color:var(--text);">${escapeHtml(v.decision || "")}</strong>${penaltyLabel(v) ? " · " + escapeHtml(penaltyLabel(v)) : ""}${v.comment ? `<br><em>"${escapeHtml(v.comment)}"</em>` : ""}</span>
-            <span style="font-size:10px; color:var(--text-muted); white-space:nowrap;">${formatTimestamp(v.ts)}</span></div>`).join("");
-    } else {
-        html += `<div style="color:var(--text-dim); margin-top:6px;">Nikt jeszcze nie zagłosował. Ustaw decyzję i kary w formularzu poniżej, a potem kliknij „Oddaj głos”.</div>`;
-    }
-    html += `<div class="vote-actions">`;
-    if (canReview()) html += `<button type="button" class="btn-secondary" onclick="castStewardVote()">🗳 ${mine ? "Zmień mój głos" : "Oddaj głos"} (wg formularza)</button>`;
-    if (mine) html += `<button type="button" class="btn-secondary" onclick="removeStewardVote()">✕ Wycofaj mój głos</button>`;
-    if (maj) html += `<button type="button" class="btn-secondary" onclick="applyVoteMajority()">⤵ Zastosuj ${maj.tie ? "najczęstszy" : "większość"} w formularzu</button>`;
-    html += `</div>`;
-    box.innerHTML = html;
-    box.style.display = "block";
-}
-window.castStewardVote = async function () {
-    const inc = verdictCaseFromForm();
-    if (!inc || !canReview()) return;
-    if (conflictOf(inc)) return alert("Konflikt interesów: jesteś stroną tej sprawy.");
-    const decision = $("decision").value;
-    if (!decision) return alert("Najpierw wybierz decyzję w formularzu werdyktu — głos zapisuje decyzję i kary z formularza.");
-    const scope = voteScopeFromForm(), key = myVoterKey();
-    const prev = votesFor(inc, scope).find(v => v.key === key) || null;
-    const comment = prompt("Krótkie uzasadnienie głosu (opcjonalnie):", prev ? (prev.comment || "") : "");
-    if (comment === null) return;
-    const showTime = $("timePenaltyField") && $("timePenaltyField").style.display !== "none" && $("penaltyFields").style.display !== "none";
-    const showPts = $("pointsPenaltyField") && $("pointsPenaltyField").style.display !== "none" && $("penaltyFields").style.display !== "none";
-    const vote = {
-        nick: loggedInSteward.nick, decision,
-        timePenalty: showTime ? ($("timePenalty").value.trim() || "brak") : "brak",
-        pointsPenalty: showPts ? ($("pointsPenalty").value.trim() || "0 pkt") : "0 pkt",
-        comment: comment.trim().slice(0, 300), ts: Date.now()
-    };
-    const path = `incidents/${inc.id}/stewardVotes/${scope}/${key}`;
-    if (prev) delete prev.key;
-    await database.ref(path).set(vote);
-    await logAction(loggedInSteward.nick, "VERDICT", inc.id, `Głos sędziowski${scope !== "main" ? " (" + scope + ")" : ""}: ${decision}${penaltyLabel(vote) ? " · " + penaltyLabel(vote) : ""}.`, { items: [{ path, data: prev }] });
-    showToast("🗳 Głos zapisany", `${inc.id}: ${decision}`);
-};
-window.removeStewardVote = async function () {
-    const inc = verdictCaseFromForm();
-    if (!inc) return;
-    const scope = voteScopeFromForm(), key = myVoterKey();
-    const prev = votesFor(inc, scope).find(v => v.key === key);
-    if (!prev || !confirm("Wycofać Twój głos w tej sprawie?")) return;
-    delete prev.key;
-    const path = `incidents/${inc.id}/stewardVotes/${scope}/${key}`;
-    await database.ref(path).remove();
-    await logAction(loggedInSteward.nick, "VERDICT", inc.id, "Wycofano głos sędziowski.", { items: [{ path, data: prev }] });
-};
-window.applyVoteMajority = function () {
-    const inc = verdictCaseFromForm();
-    if (!inc || conflictOf(inc)) return;
-    const rules = window.fiaVotingSettings || {};
-    if (rules.mode === "blind" && !isRoot() && !votesFor(inc, voteScopeFromForm()).some(v => v.key === myVoterKey())) return;
-    const maj = majorityOf(votesFor(inc, voteScopeFromForm()));
-    if (!maj) return;
-    const dec = $("decision");
-    if (![...dec.options].some(o => o.value === maj.decision)) return alert("Ta decyzja nie występuje na liście opcji formularza.");
-    dec.value = maj.decision;
-    handleDecisionChange();
-    $("timePenalty").value = maj.time === "brak" ? "" : maj.time;
-    $("pointsPenalty").value = maj.points === "0 pkt" ? "" : maj.points;
-    updateVerdictHistoryBox();
-    showToast("⤵ Formularz uzupełniony", `${maj.decision} (${maj.count}/${maj.total} głosów)`);
-};
-wrap("updateVerdictHistoryBox", renderVotesBox);
 // Wspólne narzędzia dla kolejnych rozbudów (126+)
-window.fia125 = { renderVotesBox, votesFor, voteScopeFromForm, majorityOf, penaltyLabel, myVoterKey, canReview, canManageSys, isRoot, fmtLeft, plural, wrap };
-if ($("caseId")) $("caseId").addEventListener("input", renderVotesBox);
+window.fia125 = { penaltyLabel, myVoterKey, canReview, canManageSys, isRoot, fmtLeft, plural, wrap };
 
 /* ============================================================
    8. NASTĘPNA SPRAWA Z KOLEJKI   +   9. BIULETYN — przyciski
@@ -14541,9 +14467,6 @@ wrap("renderAdmin", function () {
         if (!tr || !r) return;
         const idCell = tr.children[1], statusCell = tr.children[tr.children.length - 1];
         let chips = "";
-        const openForVotes = !r.decisionData || r.status === "W apelacji";
-        const nVotes = r.stewardVotes ? Object.values(r.stewardVotes).reduce((a, s) => a + Object.keys(s || {}).length, 0) : 0;
-        if (nVotes && openForVotes) chips += `<span class="case-chip chip-votes" title="Oddane głosy sędziów">🗳 ${escapeHtml(nVotes)}</span>`;
         if (unread[id]) chips += `<span class="case-chip chip-unread" onclick="openCaseChatFromAdmin('${jsAttr(id)}')" title="Nieprzeczytane wiadomości od kierowcy — kliknij, aby otworzyć czat">💬 ${escapeHtml(unread[id])} nowe</span>`;
         if (chips && idCell) idCell.insertAdjacentHTML("beforeend", `<div>${chips}</div>`);
         if (r.status === WITHDRAWN && statusCell) {
@@ -14552,7 +14475,6 @@ wrap("renderAdmin", function () {
             if (r.withdrawReason) statusCell.insertAdjacentHTML("beforeend", `<div class="case-chip chip-withdrawn" title="${escapeHtml(r.withdrawReason)}">↩️ ${escapeHtml(r.withdrawReason.length > 28 ? r.withdrawReason.slice(0, 27) + "…" : r.withdrawReason)}</div>`);
         }
     });
-    renderVotesBox();
     decorateStewardUnread();
 });
 
@@ -14680,23 +14602,21 @@ if ($("adminSearch")) $("adminSearch").placeholder += "  ( / )";
 <script>
 /* ============================================================
    === ROZBUDOWA 126 ===
-   1. Zasady głosowania: tryb tajny (głosy widać po oddaniu własnego) i kworum
-      (minimalna liczba głosów przed wydaniem werdyktu).
+   1. (Zasady głosowania i kworum — usunięte razem z głosowaniem sędziów.)
    2. Precedensy: podobne, wcześniej rozstrzygnięte sprawy z tej samej kategorii
       w panelu werdyktu + „Użyj w formularzu”.
-   3. Oś czasu sprawy w oknie szczegółów (zgłoszenie, przypisania, głosy,
+   3. Oś czasu sprawy w oknie szczegółów (zgłoszenie, przypisania,
       werdykty, apelacje, czat, wycofanie).
    4. Kierowca: pasek postępu sprawy w historii + powiadomienie o zmianie statusu.
    5. „📣 Zaległe” — przypomnienie stewardom na Discordzie o sprawach >48 h.
    6. Szybka wyszukiwarka spraw (Ctrl+K / przycisk 🔍).
    7. „Twoja aktywność” w Statystykach — osobisty licznik sędziego.
-   Dane: settings/voting (nowe pole w istniejącym węźle settings) — reguły Firebase bez zmian.
    ============================================================ */
 (function () {
 "use strict";
 const F = window.fia125;
 if (!F) { console.error("[126] Brak modułu 125 — rozbudowa 126 nieaktywna."); return; }
-const { wrap, canReview, canManageSys, isRoot, plural, votesFor, penaltyLabel } = F;
+const { wrap, canReview, canManageSys, isRoot, plural, penaltyLabel } = F;
 const $ = id => document.getElementById(id);
 const ts = v => Number(v) || 0;
 const STALE_MS = 48 * 3600000;
@@ -14704,70 +14624,10 @@ const ageText = ms => { const h = Math.floor(ms / 3600000); return h < 48 ? h + 
 const shortTrack = t => { const s = String(t || ""), m = s.match(/\(([^)]+)\)\s*$/); return m ? m[1] : s.replace(/^GP\s+/, ""); }; // „GP Włoch (Monza)” → „Monza”
 
 /* ============================================================
-   1. ZASADY GŁOSOWANIA: TRYB TAJNY + KWORUM
-   ============================================================ */
-window.fiaVotingSettings = { mode: "open", quorum: 0 };
-const annBox = $("announcementAdminBox") || $("reportScheduleBox");
-if (annBox) annBox.insertAdjacentHTML("afterend", `
-  <div id="votingRulesBox" class="stats-group-box" style="display:none; border-color: rgba(168,85,247,0.5); margin-bottom: 14px;">
-    <div class="stats-group-title" style="color:var(--purple-text);">🗳 Zasady głosowania sędziów</div>
-    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-      <div style="min-width:300px; flex:1;"><label for="voteMode">Tryb głosowania</label>
-        <select id="voteMode">
-          <option value="open">Jawne — każdy od razu widzi głosy innych</option>
-          <option value="blind">Tajne — głosy innych widać dopiero po oddaniu własnego</option>
-        </select></div>
-      <div style="min-width:170px;"><label for="voteQuorum">Kworum (min. głosów)</label><input type="number" id="voteQuorum" min="0" max="10" step="1" placeholder="0 = wyłączone"></div>
-      <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="saveVotingRules()">💾 ZAPISZ ZASADY</button>
-    </div>
-    <div id="votingRulesStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim);"></div>
-  </div>`);
-
-function renderVotingRulesBox() {
-    const r = window.fiaVotingSettings, sel = $("voteMode"), q = $("voteQuorum"), st = $("votingRulesStatus");
-    if (!sel) return;
-    if (document.activeElement !== sel) sel.value = r.mode;
-    if (document.activeElement !== q) q.value = r.quorum || "";
-    st.textContent = (r.mode === "blind" ? "🔒 Głosowanie tajne" : "👁 Głosowanie jawne") + " · " +
-        (r.quorum ? `werdykt wymaga min. ${r.quorum} ${plural(r.quorum, "głosu", "głosów", "głosów")} (Główny Steward może to obejść po potwierdzeniu).` : "kworum wyłączone.");
-}
-database.ref("settings/voting").on("value", s => {
-    const v = s.val() || {};
-    window.fiaVotingSettings = { mode: v.mode === "blind" ? "blind" : "open", quorum: Math.min(10, Math.max(0, parseInt(v.quorum, 10) || 0)) };
-    renderVotingRulesBox();
-    F.renderVotesBox();
-});
-window.saveVotingRules = async function () {
-    if (!canManageSys()) return alert("Brak uprawnień (wymagany Główny Steward lub uprawnienie SYS).");
-    const next = { mode: $("voteMode").value === "blind" ? "blind" : "open", quorum: Math.min(10, Math.max(0, parseInt($("voteQuorum").value, 10) || 0)) };
-    const prev = JSON.parse(JSON.stringify(window.fiaVotingSettings));
-    await database.ref("settings/voting").set(next);
-    await logAction(loggedInSteward.nick, "SYSTEM", "GŁOSOWANIE", `Zmieniono zasady głosowania: tryb ${next.mode === "blind" ? "tajny" : "jawny"}, kworum ${next.quorum || "wyłączone"}.`, { items: [{ path: "settings/voting", data: prev }] });
-    showToast("🗳 Zasady zapisane", next.mode === "blind" ? "Głosowanie tajne" : "Głosowanie jawne");
-};
-// Kworum: blokada wysłania werdyktu przy zbyt małej liczbie głosów.
-window.addEventListener("submit", e => {
-    if (!e.target || e.target.id !== "responseForm") return;
-    const q = window.fiaVotingSettings.quorum;
-    if (!q) return;
-    const inc = typeof verdictCaseFromForm === "function" ? verdictCaseFromForm() : null;
-    if (!inc) return;
-    const n = votesFor(inc, F.voteScopeFromForm()).length;
-    if (n >= q) return;
-    if (isRoot()) {
-        if (confirm(`Kworum nie zostało osiągnięte: ${n}/${q} ${plural(q, "głos", "głosy", "głosów")}.\n\nJako Główny Steward możesz mimo to wydać werdykt. Kontynuować?`)) return;
-    } else {
-        alert(`Ten werdykt wymaga co najmniej ${q} ${plural(q, "głosu", "głosów", "głosów")} sędziów — oddano ${n}.\n\nPoczekaj na pozostałych sędziów albo poproś Głównego Stewarda.`);
-    }
-    e.preventDefault();
-    e.stopImmediatePropagation();
-}, true);
-
-/* ============================================================
    2. PRECEDENSY
    ============================================================ */
-const votesBox = $("verdictVotesBox");
-if (votesBox) votesBox.insertAdjacentHTML("afterend", `<div id="verdictPrecedentsBox"></div>`);
+const histBoxForPrecedents = $("verdictHistoryBox");
+if (histBoxForPrecedents) histBoxForPrecedents.insertAdjacentHTML("afterend", `<div id="verdictPrecedentsBox"></div>`);
 let precedentSuggestion = null;
 
 function renderPrecedents() {
@@ -15059,20 +14919,18 @@ function renderMyStats() {
     const box = $("myStewardStats");
     if (!box) return;
     if (!loggedInSteward) { box.style.display = "none"; return; }
-    const nick = loggedInSteward.nick, myId = loggedInSteward.id || nick, key = F.myVoterKey();
+    const nick = loggedInSteward.nick, myId = loggedInSteward.id || nick;
     const seasonStart = (seasonSettings && seasonSettings.start) || 0;
     const mine = (globalIncidents || []).filter(r => r.decisionData && r.decisionData.judge === nick);
     const season = mine.filter(r => ts(r.decisionData.issuedAt) >= seasonStart);
     const timed = mine.filter(r => r.decisionData.issuedAt && incTs(r));
     const avg = timed.length ? timed.reduce((s, r) => s + (r.decisionData.issuedAt - incTs(r)), 0) / timed.length : 0;
-    const votes = (globalIncidents || []).filter(r => r.stewardVotes && Object.values(r.stewardVotes).some(sc => sc && sc[key])).length;
     const open = (globalIncidents || []).filter(r => r.assignedTo && r.assignedTo.id === myId && ["Oczekuje", "W apelacji", "Przyjęte"].includes(r.status));
     const last = mine.reduce((m, r) => Math.max(m, ts(r.decisionData.issuedAt)), 0);
     box.innerHTML = `<div class="stats-group-title" style="color:var(--green-text);">👤 Twoja aktywność — ${escapeHtml(nick)}</div>
       <div class="admin-stats" style="flex-wrap:wrap;">
         <div class="stat-box"><span>Werdykty w sezonie</span><strong>${season.length}</strong></div>
         <div class="stat-box"><span>Werdykty łącznie</span><strong>${mine.length}</strong></div>
-        <div class="stat-box"><span>Oddane głosy</span><strong>${escapeHtml(votes)}</strong></div>
         <div class="stat-box" style="cursor:pointer;" title="Pokaż moje otwarte sprawy" onclick="showSection('adminSection'); document.getElementById('adminFilterAssign').value='mine'; renderAdmin();"><span>Moje otwarte sprawy</span><strong>${open.length}</strong></div>
         <div class="stat-box"><span>Śr. czas do werdyktu</span><strong style="font-size:15px;">${avg ? formatDuration(avg) : "—"}</strong></div>
         <div class="stat-box"><span>Ostatni werdykt</span><strong style="font-size:13px;">${last ? formatTimestamp(last) : "—"}</strong></div>
@@ -15086,10 +14944,8 @@ wrap("renderStats", renderMyStats);
    ============================================================ */
 wrap("applyStewardPermissions", function () {
     const show = (id, cond, disp) => { const el = $(id); if (el) el.style.display = cond ? (disp || "") : "none"; };
-    show("votingRulesBox", canManageSys(), "block");
     show("btnStaleRemind", canManageSys());
     show("btnQuickSearch", isAdminAuthenticated);
-    renderVotingRulesBox();
 });
 wrap("renderAdmin", function () {
     const el = $("staleCountBtn");
@@ -15194,7 +15050,7 @@ wrap("renderAdmin", function () {
    3. Publiczna tablica decyzji (zakładka „📋 Decyzje”) + publiczny ranking punktów.
    4. Kalendarz sezonu: rundy ustawiane w panelu, pasek „ostatnia / następna runda”,
       automatyczny wybór toru ostatniej rundy w formularzu.
-   5. Akta sprawy do druku / PDF (zgłoszenie, oświadczenia, głosy, werdykty,
+   5. Akta sprawy do druku / PDF (zgłoszenie, oświadczenia, werdykty,
       apelacje, dziennik, transkrypt czatu).
    6. Zawieszenia: lista kierowców, którzy przekroczyli próg punktów + „odbył karę”.
    7. Import kopii zapasowej z pliku eksportu (tylko brakujące rekordy, liczniki ID
@@ -15318,7 +15174,7 @@ window.openStatementModal = function (id) {
     statementCaseId = id;
     const role = myRoleIn(r), prev = (r.statements || {})[discordDriverAuth.id];
     $("statementTitle").textContent = `📝 Oświadczenie — ${r.fiaId || r.id}`;
-    $("statementInfo").innerHTML = `Występujesz jako <b>${role === "accused" ? "oskarżony" : "zgłaszający"}</b> · ${escapeHtml(r.track || "")}${r.split ? ", " + escapeHtml(r.split) : ""}.<br>Oświadczenie trafi tylko do stewardów — druga strona go nie zobaczy.${prev ? `<br>Masz już złożone oświadczenie (${formatTimestamp(prev.ts)}) — wysłanie nowego je zastąpi.` : ""}`;
+    $("statementInfo").innerHTML = `Występujesz jako <b>${role === "accused" ? "oskarżony" : "zgłaszający"}</b> · ${escapeHtml(r.track || "")}${r.split ? ", " + escapeHtml(r.split) : ""}.<br>Treść oświadczenia trafi tylko do stewardów — druga strona jej nie zobaczy. Dołączone dowody (link i pliki) zostaną opublikowane razem z werdyktem na Discordzie.${prev ? `<br>Masz już złożone oświadczenie (${formatTimestamp(prev.ts)}) — wysłanie nowego je zastąpi.` : ""}`;
     $("statementText").value = prev ? (prev.text || "") : "";
     $("statementLink").value = prev ? (prev.evidence || "") : "";
     $("statementFiles").value = "";
@@ -15397,8 +15253,8 @@ wrap("fetchAndRenderHistory", function () {
 });
 
 // Panel werdyktu: oświadczenia stron
-const anchorForStatements = $("verdictVotesBox") || $("verdictHistoryBox");
-if (anchorForStatements) anchorForStatements.insertAdjacentHTML("beforebegin", `<div id="verdictStatementsBox"></div>`);
+const anchorForStatements = $("verdictHistoryBox");
+if (anchorForStatements) anchorForStatements.insertAdjacentHTML("afterend", `<div id="verdictStatementsBox"></div>`);
 function statementsHtml(r) {
     const list = Object.values(r.statements || {}).sort((a, b) => ts(a.ts) - ts(b.ts));
     if (!list.length) return "";
@@ -15432,7 +15288,7 @@ function renderVerdictLockInfo() {
     if (!inc || !inc.split || isVerdictWindowOpen(inc.split)) { box.style.display = "none"; return; }
     const at = getVerdictUnlockTime(inc.split);
     box.innerHTML = `🔒 Werdykty dla <b>${escapeHtml(inc.split)}</b> odblokują się ${formatTimestamp(at)} (za ${F.fmtLeft(at - Date.now())}) — po zamknięciu okna zgłoszeń.` +
-        (stewardLockBypass ? ` <span style="color:var(--green-text);">Masz uprawnienie do pominięcia tej blokady.</span>` : ` Możesz już głosować i przygotować uzasadnienie.`);
+        (stewardLockBypass ? ` <span style="color:var(--green-text);">Masz uprawnienie do pominięcia tej blokady.</span>` : ` Możesz już przygotować uzasadnienie.`);
     box.style.display = "block";
 }
 wrap("updateVerdictHistoryBox", () => { renderStatementsBox(); renderVerdictLockInfo(); });
@@ -15453,8 +15309,8 @@ window.fiaAutoSelectRoundTrack = () => autoSelectRoundTrack();
 
 const formTitle = document.querySelector("#formSection .section-title");
 if (formTitle) formTitle.insertAdjacentHTML("afterend", `<div id="roundInfoBar" class="round-bar"></div>`);
-const votingBox = $("votingRulesBox") || $("announcementAdminBox") || $("reportScheduleBox");
-if (votingBox) votingBox.insertAdjacentHTML("afterend", `
+const settingsAnchorBox = $("announcementAdminBox") || $("reportScheduleBox");
+if (settingsAnchorBox) settingsAnchorBox.insertAdjacentHTML("afterend", `
   <div id="calendarAdminBox" class="stats-group-box" style="display:none; border-color: var(--gold-dim); margin-bottom:14px;">
     <div class="stats-group-title" style="color:var(--gold);">📅 Kalendarz sezonu</div>
     <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-bottom:10px;">
@@ -15718,7 +15574,6 @@ window.printCaseDossier = function (id) {
     const caseIds = new Set([id, ...appeals.map(a => a.appealId)]);
     const chat = globalChatData ? Object.values(globalChatData).filter(m => m && caseIds.has(m.caseId)).sort((a, b) => ts(a.timestamp) - ts(b.timestamp)) : [];
     const logs = (globalLogs || []).filter(l => l.targetId === id && l.category !== "CHAT").sort((a, b) => ts(a.timestamp) - ts(b.timestamp));
-    const votes = Object.entries(r.stewardVotes || {}).flatMap(([scope, vs]) => Object.values(vs || {}).map(v => ({ scope, ...v })));
     const statements = Object.values(r.statements || {});
     const html = `<!DOCTYPE html><html lang="pl"><head><meta charset="UTF-8"><title>Akta sprawy ${e(r.fiaId || r.id)}</title>
       <style>
@@ -15744,7 +15599,6 @@ window.printCaseDossier = function (id) {
         ${r.withdrawnAt ? `<tr><th>Wycofane</th><td>${formatTimestamp(r.withdrawnAt)}${r.withdrawReason ? " — " + e(r.withdrawReason) : ""}</td></tr>` : ""}
       </table>
       ${statements.length ? `<h2>Oświadczenia stron</h2>` + statements.map(s => `<h3>${e(s.nick || "?")} — ${s.role === "accused" ? "oskarżony" : "zgłaszający"} · ${formatTimestamp(s.ts)}</h3><table><tr><th>Treść</th><td class="pre">${e(s.text || "—")}</td></tr><tr><th>Dowody</th><td>${evidenceList(s)}</td></tr></table>`).join("") : ""}
-      ${votes.length ? `<h2>Głosy sędziów</h2><table><tr><th>Sędzia</th><th>Etap</th><th>Decyzja</th><th>Kara</th><th>Komentarz</th><th>Czas</th></tr>` + votes.map(v => `<tr><td>${e(v.nick || "?")}</td><td>${v.scope === "main" ? "sprawa" : e(v.scope)}</td><td>${e(v.decision || "")}</td><td>${e(penaltyLabel(v) || "—")}</td><td>${e(v.comment || "")}</td><td>${formatTimestamp(v.ts)}</td></tr>`).join("") + `</table>` : ""}
       ${verdicts ? `<h2>Werdykty</h2>${verdicts}` : `<h2>Werdykt</h2><p class="muted">Werdykt nie został jeszcze wydany.</p>`}
       ${appeals.length ? `<h2>Apelacje</h2>` + appeals.map(a => `<h3>${e(a.appealId || a.id)} — ${e(a.nick || "?")} · ${formatTimestamp(a.timestamp)} · status: ${e(a.status || "Nowa")}</h3><table><tr><th>Uzasadnienie</th><td class="pre">${e(a.reason || "")}</td></tr><tr><th>Dowód apelującego</th><td>${evidenceList(a)}</td></tr><tr><th>Dowód zgłaszającego</th><td>${evidenceList(r)}</td></tr>${typeof window.cfDossierRows === "function" ? window.cfDossierRows(a, "appeal") : ""}${a.rejectReason ? `<tr><th>Powód odrzucenia</th><td class="pre">${e(a.rejectReason)}</td></tr>` : ""}</table>`).join("") : ""}
       ${logs.length ? `<h2>Dziennik akcji</h2>` + logs.map(l => `<div class="row"><span class="muted">${formatTimestamp(l.timestamp)}</span> — <b>${e(l.steward || "")}</b>: ${e(l.details || "")}</div>`).join("") : ""}
@@ -21463,7 +21317,7 @@ if (typeof origOpenNotif === "function") {
 /* ============================================================
    9. USTAWIENIA W PANELU (tylko dwaj akceptujący Główni Stewardzi)
    ============================================================ */
-const rulesAnchor = $("votingRulesBox") || $("announcementAdminBox") || $("reportScheduleBox");
+const rulesAnchor = $("announcementAdminBox") || $("reportScheduleBox");
 if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
   <div id="verdictApprovalRulesBox" class="stats-group-box" style="display:none; border-color: rgba(16,185,129,0.5); margin-bottom: 14px;">
     <div class="stats-group-title" style="color:var(--green-text);">✅ Akceptacja werdyktów przez Głównych Stewardów</div>
