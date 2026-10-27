@@ -1054,13 +1054,13 @@
 
     .col-cb { width: 4%; text-align: center; }
     .col-id { width: 7%; }
-    .col-date { width: 8%; }
-    .col-rep { width: 11%; }
-    .col-track { width: 14%; }
-    .col-sess { width: 9%; }
-    .col-acc { width: 12%; }
+    .col-date { width: 7%; }
+    .col-rep { width: 10%; }
+    .col-track { width: 12%; }
+    .col-sess { width: 7%; }
+    .col-acc { width: 11%; }
     .col-desc { width: 15%; }
-    .col-ev { width: 8%; }
+    .col-ev { width: 15%; }
     .col-stat { width: 10%; }
     .col-ap-id { width: 8%; }
     .col-ap-date { width: 8%; }
@@ -1464,6 +1464,11 @@
     .appeal-ev-body .evidence-gallery { margin-top: 4px; gap: 6px; }
     .appeal-ev-body .evidence-thumb { max-width: 110px; max-height: 80px; }
     .appeal-ev-body .evidence-video { max-width: 180px; max-height: 120px; }
+    /* Dowody z oświadczeń stron w zgłoszeniu (np. dowód oskarżonego przysłany przez Discord) */
+    .inc-ev-stmt { margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--border); }
+    .appeal-ev-body > .inc-ev-stmt:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+    .inc-ev-stmt-head { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+    .inc-ev-stmt-text { font-size: 11px; font-style: italic; color: var(--text); margin-bottom: 2px; word-break: break-word; }
 
     /* === ZAŁĄCZNIKI W CZACIE === */
     .btn-attach {
@@ -5149,7 +5154,7 @@ function accusedEvidenceChipHtml(r) {
         : "";
     let chip = "";
     if (info.waiting) chip = `<span class="case-chip chip-ae-wait" title="Oskarżony ma czas na dowód do ${escapeHtml(formatTimestamp(info.deadline))}. Do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">⏳ ${info.again ? "Ponowna prośba o dowód" : "Dowód oskarżonego"}: ${escapeHtml(accusedEvidenceLeftText(info.deadline - Date.now()))}</span>`;
-    else if (info.state === "submitted") chip = `<span class="case-chip chip-ae-ok" title="Oskarżony dodał dowód — zobacz „Oświadczenia stron” w panelu werdyktu.">📎 Dowód oskarżonego</span>`;
+    else if (info.state === "submitted") chip = `<span class="case-chip chip-ae-ok" title="Oskarżony dodał dowód — widać go w kolumnie „Dowody” zgłoszenia oraz w „Oświadczeniach stron”.">📎 Dowód oskarżonego</span>`;
     else if (info.state === "declined") chip = `<span class="case-chip chip-ae-none" title="Oskarżony zaznaczył na Discordzie, że nie ma dowodu.">🚫 Oskarżony: brak dowodu</span>`;
     else if (info.state === "dm_failed") chip = `<span class="case-chip chip-ae-fail" onclick="resendAccusedEvidenceDm('${id}')" title="Bot nie mógł wysłać wiadomości${info.error ? " (" + escapeHtml(info.error) + ")" : ""} — zwykle oskarżony ma wyłączone wiadomości prywatne. Kliknij, aby spróbować ponownie.">✉️ DM nie dotarł — ponów</span>`;
     else if (info.overridden) chip = `<span class="case-chip chip-ae-none" title="Blokadę pominął steward przed terminem.">⏭ Bez dowodu oskarżonego</span>`;
@@ -5780,6 +5785,54 @@ function renderAppealEvidencePairHtml(appeal, report, linkLabel) {
         ? renderEvidenceHtml(evidenceRecordWithList(report), linkLabel, none)
         : `<span style="color:var(--text-dim);">${pl ? "Sprawa niedostępna" : "Case unavailable"}</span>`;
     return `<div class="appeal-ev-pair">${block("⚖️", pl ? "Dowód apelującego" : "Appellant's evidence", appeal && appeal.nick, appellantBody, "#eab308")}${block("🚩", pl ? "Dowód zgłaszającego" : "Reporter's evidence", report && report.nick, reporterBody, "#3b82f6")}</div>`;
+}
+
+// === DWA DOWODY W ZGŁOSZENIU (zgłaszający + oskarżony) ===
+// Zgłoszenie pokazuje dowód zgłaszającego (ze zgłoszenia + z jego oświadczeń) oraz dowód oskarżonego
+// (z jego oświadczeń — także tych przysłanych botowi na Discordzie przez /dowod). Gdy oskarżony nic
+// jeszcze nie dodał, w jego polu widać stan prośby o dowód (czeka / brak dowodu / DM nie dotarł…).
+// Oświadczenia są doklejane do sprawy tylko stewardom, dlatego tej wersji używa panel stewarda.
+function incidentStatementEvidenceHtml(list, linkLabel) {
+    const pl = currentLang === 'pl';
+    return (list || []).map(s => {
+        const rec = evidenceRecordWithList(s);
+        const ev = hasEvidence(rec) ? renderEvidenceHtml(rec, linkLabel, "") : "";
+        const txt = String(s.text || "").trim();
+        if (!ev && !txt) return "";
+        const short = txt.length > 140 ? txt.slice(0, 140) + "…" : txt;
+        const head = `📝 ${pl ? "Z oświadczenia" : "From statement"}${s.source === "discord" ? " · Discord" : ""}${s.ts ? " · " + formatTimestamp(s.ts) : ""}`;
+        return `<div class="inc-ev-stmt"><div class="inc-ev-stmt-head">${escapeHtml(head)}</div>` +
+            (txt ? `<div class="inc-ev-stmt-text" title="${escapeHtml(txt)}">„${escapeHtml(short)}”</div>` : "") +
+            ev + `</div>`;
+    }).filter(Boolean).join("");
+}
+
+function accusedEvidenceStateText(r) {
+    const pl = currentLang === 'pl';
+    const info = accusedEvidenceInfo(r);
+    if (!info) return pl ? "Brak" : "None";
+    if (info.waiting) return (pl ? "⏳ Czeka na dowód — zostało " : "⏳ Waiting for evidence — ") + accusedEvidenceLeftText(info.deadline - Date.now()) + (pl ? "" : " left");
+    if (info.state === "declined") return pl ? "🚫 Zaznaczył na Discordzie, że nie ma dowodu" : "🚫 Said on Discord there is no evidence";
+    if (info.state === "dm_failed") return pl ? "✉️ Prośba o dowód nie dotarła (DM)" : "✉️ Evidence request DM failed";
+    if (info.overridden) return pl ? "⏭ Pominięto oczekiwanie na dowód" : "⏭ Waiting for evidence skipped";
+    if (info.expired) return pl ? "⌛ Nie odpowiedział w terminie" : "⌛ No reply in time";
+    return pl ? "Brak" : "None";
+}
+
+function renderIncidentEvidencePairHtml(report, linkLabel) {
+    if (!report) return "";
+    const pl = currentLang === 'pl';
+    const dim = txt => `<span style="color:var(--text-dim);">${escapeHtml(txt)}</span>`;
+    const block = (icon, role, nick, body, color) =>
+        `<div class="appeal-ev-item" style="border-left-color:${color};"><div class="appeal-ev-label">${icon} <span class="appeal-ev-role">${role}</span>${nick ? ` — <span class="appeal-ev-nick">${escapeHtml(nick)}</span>` : ""}</div><div class="appeal-ev-body">${body}</div></div>`;
+    const sts = caseStatementsByRole(report);
+    const main = evidenceRecordWithList(report);
+    const reporterBody = (hasEvidence(main) ? renderEvidenceHtml(main, linkLabel, "") : "") + incidentStatementEvidenceHtml(sts.reporter, linkLabel);
+    const accusedBody = incidentStatementEvidenceHtml(sts.accused, linkLabel);
+    return `<div class="appeal-ev-pair">` +
+        block("🚩", pl ? "Dowód zgłaszającego" : "Reporter's evidence", report.nick, reporterBody || dim(pl ? "Brak" : "None"), "#3b82f6") +
+        block("🏎️", pl ? "Dowód oskarżonego" : "Accused's evidence", report.accusedNick, accusedBody || dim(accusedEvidenceStateText(report)), "#ef4444") +
+        `</div>`;
 }
 
 // Dwa pola embeda Discorda: dowód apelującego i dowód zgłaszającego.
@@ -8428,7 +8481,7 @@ function renderAdmin() {
                         </div>
                     ` : ''}
                 </td>
-                <td>${renderEvidenceHtml(r, t.evidenceBtn, `<span>Brak</span>`)}</td>
+                <td>${renderIncidentEvidencePairHtml(r, t.evidenceBtn)}</td>
                 <td>
                     <span style="background:${escapeHtml(badgeBg)}; color:#000; font-weight:bold; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:6px; font-size:11px;">${escapeHtml(trStatusText)}</span>${assignChipHtml(r)}
                     <div class="action-btns">
@@ -8820,9 +8873,9 @@ function transferToVerdictPanel(id, accusedDiscordId) {
     updateGuiltyPickerState();
     if (found) {
         document.getElementById("verdictPreviewDesc").textContent = found.details;
-        document.getElementById("verdictPreviewEvidence").innerHTML = renderEvidenceHtml(found);
+        document.getElementById("verdictPreviewEvidence").innerHTML = renderIncidentEvidencePairHtml(found, "Link");
         const lblPrevEvInc = document.getElementById("lblPreviewEvidence");
-        if (lblPrevEvInc && langData[currentLang] && langData[currentLang].lblPreviewEvidence) lblPrevEvInc.textContent = langData[currentLang].lblPreviewEvidence;
+        if (lblPrevEvInc) lblPrevEvInc.textContent = currentLang === 'pl' ? "Dowody: zgłaszający i oskarżony" : "Evidence: reporter and accused";
         document.getElementById("verdictDetails").value = `Sprawa ${id} | Tor: ${found.track} (${found.session || found.sessionType})\n\nOpis zdarzenia: ${found.details}\n\nWerdykt sędziowski:\n`;
     }
     collapseList("incidentsListWrap", "btnToggleIncidents");
