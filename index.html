@@ -2878,6 +2878,20 @@
     .chip-ae-fail{color:#fff;background:#b45309;border-color:#b45309;cursor:pointer;}
     .chip-ae-send{color:var(--text-dim);cursor:pointer;border-style:dashed;}
     .chip-ae-send:hover{color:var(--text);border-color:var(--text-dim);}
+    /* Okno „ile czasu ma oskarżony na wysłanie POV” */
+    .ae-time-text{font-size:13px;line-height:1.5;color:var(--text);white-space:pre-line;max-height:34vh;overflow-y:auto;}
+    .ae-time-label{display:block;font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text);}
+    .ae-time-row{display:flex;gap:8px;}
+    .ae-time-row input{flex:1;min-width:0;font-size:16px;font-weight:700;}
+    .ae-time-row select{width:110px;}
+    .ae-time-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+    .ae-time-presets button{font-size:11px;padding:4px 10px;background:rgba(255,255,255,0.07);color:var(--text-dim);border:1px solid var(--border);box-shadow:none;background-image:none;}
+    .ae-time-presets button:hover{color:var(--text);border-color:var(--text-dim);}
+    .ae-time-presets button.active{color:var(--amber-text) !important;border-color:var(--amber-text) !important;}
+    .ae-time-deadline{margin-top:10px;font-size:12px;color:var(--text-dim);}
+    .ae-time-deadline b{color:var(--amber-text);}
+    .ae-time-err{margin-top:6px;font-size:12px;color:var(--red-text);min-height:16px;}
+    .ae-time-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
     .chip-rel{color:var(--purple-text);cursor:pointer;}
     .chip-age-ok{color:var(--text-dim);}
     .chip-age-warn{color:var(--amber-text);border-color:var(--amber-text);}
@@ -5067,17 +5081,166 @@ async function postApprovalWebhook(options) {
 // trafia do sprawy jako jego oświadczenie. Stan prośby: staffIncidents/{sprawa}/accusedEvidence
 //   { status: requested | submitted | declined | dm_failed, requestedAt, deadline, override? }.
 // Dopóki oskarżony nie odpowie, a termin nie minął, nie można przyjąć zgłoszenia ani wydać werdyktu.
-// Termin na odpowiedź: ACCUSED_EVIDENCE_HOURS od wysłania prośby (requestedAt). Gdy Worker zapisze
-// dłuższy termin, strona i tak liczy ten krótszy; po jego upływie bez odpowiedzi blokada znika.
-const ACCUSED_EVIDENCE_HOURS = 24;
+// Termin na odpowiedź wpisuje steward przy wysyłaniu prośby (okno askAccusedEvidenceTime) — zapisujemy
+// go w sprawie jako accusedEvidence/customTime {minutes, at, by} i liczymy od wysłania prośby (requestedAt).
+// Gdy nic nie wpisano (np. prośba wysłana automatycznie po zgłoszeniu), obowiązuje ACCUSED_EVIDENCE_HOURS:
+// jeśli Worker zapisze dłuższy termin, strona i tak liczy ten krótszy. Po upływie terminu bez odpowiedzi
+// blokada znika.
+const ACCUSED_EVIDENCE_HOURS = 24;                    // domyślny czas, gdy steward go nie wpisał
+const ACCUSED_EVIDENCE_MIN_MINUTES = 1;               // najkrócej: 1 minuta
+const ACCUSED_EVIDENCE_MAX_MINUTES = 30 * 24 * 60;    // najdłużej: 30 dni
+const ACCUSED_EVIDENCE_LS_KEY = "fiaEvidenceMinutes"; // ostatnio wpisany czas (podpowiedź w oknie)
+
+// Czas po ludzku: 45 min, 6 h, 1 h 30 min, 3 dni, 2 dni 6 h.
+function accusedEvidenceFormatMinutes(min) {
+    min = Math.round(Number(min) || 0);
+    if (min <= 0) return "0 min";
+    const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+    // Do 2 dób podajemy w godzinach (24 h, 48 h) — tak jak steward to zwykle wpisuje.
+    if (min < 2 * 1440 && !m) return Math.floor(min / 60) + " h";
+    const parts = [];
+    if (d) parts.push(d + (d === 1 ? " dzień" : " dni"));
+    if (h) parts.push(h + " h");
+    if (m) parts.push(m + " min");
+    return parts.join(" ");
+}
+
+function accusedEvidenceLastMinutes() {
+    try {
+        const v = Math.round(Number(localStorage.getItem(ACCUSED_EVIDENCE_LS_KEY)));
+        if (v >= ACCUSED_EVIDENCE_MIN_MINUTES && v <= ACCUSED_EVIDENCE_MAX_MINUTES) return v;
+    } catch (e) {}
+    return ACCUSED_EVIDENCE_HOURS * 60;
+}
+
+// Okno: steward ręcznie wpisuje, ile czasu oskarżony ma na wysłanie dowodu (POV). Zastępuje zwykłe
+// confirm() przy prośbie o dowód. opts: { title, text, okLabel }. Zwraca Promise<{minutes}> albo
+// null, gdy steward anulował.
+let accusedEvidenceTimeOpen = false;
+function askAccusedEvidenceTime(opts) {
+    opts = opts || {};
+    if (accusedEvidenceTimeOpen) return Promise.resolve(null);
+    accusedEvidenceTimeOpen = true;
+    return new Promise(resolve => {
+        const prevFocus = document.activeElement;
+        const overlay = document.createElement("div");
+        overlay.className = "desc-modal";
+        overlay.style.cssText = "display:flex; z-index:1000010;";
+        overlay.innerHTML =
+            `<div class="desc-box" role="dialog" aria-modal="true" aria-labelledby="aeTimeTitle" style="width:min(480px, 92vw); max-height:92vh;">
+                <h2 class="section-title" id="aeTimeTitle" style="margin-bottom:0;"></h2>
+                <div class="ae-time-text"></div>
+                <div>
+                    <label class="ae-time-label" for="aeTimeValue">Ile czasu ma oskarżony na wysłanie POV?</label>
+                    <div class="ae-time-row">
+                        <input id="aeTimeValue" type="text" inputmode="decimal" autocomplete="off" maxlength="8" placeholder="np. 24">
+                        <select id="aeTimeUnit" aria-label="Jednostka czasu">
+                            <option value="1">minut</option><option value="60">godzin</option><option value="1440">dni</option>
+                        </select>
+                    </div>
+                    <div class="ae-time-presets"></div>
+                    <div class="ae-time-deadline"></div>
+                    <div class="ae-time-err" role="alert"></div>
+                </div>
+                <div class="ae-time-actions">
+                    <button type="button" class="btn-secondary" data-act="cancel">Anuluj</button>
+                    <button type="button" data-act="ok"></button>
+                </div>
+            </div>`;
+        const q = sel => overlay.querySelector(sel);
+        q("#aeTimeTitle").textContent = opts.title || "Poproś oskarżonego o dowód (POV)";
+        q(".ae-time-text").textContent = opts.text || "";
+        if (!opts.text) q(".ae-time-text").style.display = "none";
+        q('[data-act="ok"]').textContent = opts.okLabel || "✉️ Wyślij prośbę";
+        const input = q("#aeTimeValue"), unit = q("#aeTimeUnit"), presetsBox = q(".ae-time-presets");
+        const deadlineEl = q(".ae-time-deadline"), errEl = q(".ae-time-err");
+
+        const PRESETS = [30, 60, 360, 720, 1440, 2880, 4320, 10080];
+        const setMinutes = min => {
+            if (min >= 4320 && min % 1440 === 0) { unit.value = "1440"; input.value = String(min / 1440); }
+            else if (min % 60 === 0) { unit.value = "60"; input.value = String(min / 60); }
+            else { unit.value = "1"; input.value = String(min); }
+        };
+        // Wpisana wartość → minuty albo null, gdy niepoprawna.
+        const readMinutes = () => {
+            const raw = input.value.trim().replace(",", ".");
+            if (!/^\d+(\.\d+)?$/.test(raw)) return null;
+            const min = Math.round(parseFloat(raw) * Number(unit.value));
+            return min >= ACCUSED_EVIDENCE_MIN_MINUTES && min <= ACCUSED_EVIDENCE_MAX_MINUTES ? min : null;
+        };
+        PRESETS.forEach(min => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.dataset.min = String(min);
+            b.textContent = accusedEvidenceFormatMinutes(min);
+            b.addEventListener("click", () => { setMinutes(min); refresh(); input.focus(); });
+            presetsBox.appendChild(b);
+        });
+        const refresh = () => {
+            const min = readMinutes();
+            presetsBox.querySelectorAll("button").forEach(b => b.classList.toggle("active", min === Number(b.dataset.min)));
+            if (min) {
+                errEl.textContent = "";
+                deadlineEl.innerHTML = "";
+                deadlineEl.append("Oskarżony ma czas do ");
+                const b = document.createElement("b");
+                b.textContent = formatTimestamp(Date.now() + min * 60000);
+                deadlineEl.append(b, " (" + accusedEvidenceFormatMinutes(min) + " od wysłania).");
+            } else {
+                deadlineEl.textContent = "";
+                errEl.textContent = input.value.trim() ? "Wpisz czas od 1 minuty do 30 dni (np. 24 godzin albo 90 minut)." : "";
+            }
+        };
+
+        const close = result => {
+            document.removeEventListener("keydown", onKey, true);
+            overlay.remove();
+            accusedEvidenceTimeOpen = false;
+            try { if (prevFocus && prevFocus.focus) prevFocus.focus(); } catch (e) {}
+            resolve(result);
+        };
+        const submit = () => {
+            const min = readMinutes();
+            if (!min) {
+                errEl.textContent = "Wpisz czas od 1 minuty do 30 dni (np. 24 godzin albo 90 minut).";
+                input.focus();
+                return;
+            }
+            try { localStorage.setItem(ACCUSED_EVIDENCE_LS_KEY, String(min)); } catch (e) {}
+            close({ minutes: min });
+        };
+        const onKey = e => {
+            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(null); }
+            else if (e.key === "Enter" && !(e.target && e.target.tagName === "BUTTON")) { e.preventDefault(); e.stopPropagation(); submit(); }
+        };
+        document.addEventListener("keydown", onKey, true);
+        input.addEventListener("input", refresh);
+        unit.addEventListener("change", refresh);
+        q('[data-act="cancel"]').addEventListener("click", () => close(null));
+        q('[data-act="ok"]').addEventListener("click", submit);
+        overlay.addEventListener("mousedown", e => { if (e.target === overlay) close(null); });
+
+        document.body.appendChild(overlay);
+        setMinutes(accusedEvidenceLastMinutes());
+        refresh();
+        input.focus();
+        input.select();
+    });
+}
+
+// opts.minutes — czas na dowód wpisany przez stewarda. Idzie do Workera (hours / minutes) i jest
+// zapisywany w sprawie (accusedEvidence/customTime), bo to strona liczy termin blokady.
 async function requestAccusedEvidenceDm(caseId, opts) {
     const user = fbAuth && fbAuth.currentUser;
     if (!user) throw new Error(guardErrorText("login_required", 401));
     const idToken = await user.getIdToken();
+    const minutes = opts && Number(opts.minutes) > 0 ? Math.round(Number(opts.minutes)) : 0;
+    const body = { caseId, resend: !!(opts && opts.resend), again: !!(opts && opts.again) };
+    if (minutes) { body.minutes = minutes; body.hours = minutes / 60; }
     const res = await fetch(`${GUARD_WORKER_URL}/accused/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-        body: JSON.stringify({ caseId, resend: !!(opts && opts.resend), again: !!(opts && opts.again) })
+        body: JSON.stringify(body)
     });
     let data = null;
     try { data = await res.json(); } catch (e) {}
@@ -5087,7 +5250,19 @@ async function requestAccusedEvidenceDm(caseId, opts) {
         err.status = res.status;
         throw err;
     }
-    return data || {};
+    const out = data || {};
+    if (minutes && out.status !== "dm_failed" && out.status !== "no_discord_id") {
+        // Zapis po odpowiedzi Workera — Worker zapisuje accusedEvidence (requestedAt) przed odpowiedzią.
+        try {
+            await database.ref(`incidents/${caseId}/accusedEvidence/customTime`).set({
+                minutes, at: Date.now(), by: (typeof loggedInSteward !== "undefined" && loggedInSteward) ? String(loggedInSteward.nick || "") : ""
+            });
+        } catch (e) {
+            console.warn("Nie zapisano wpisanego czasu na dowód oskarżonego:", e);
+            out.customTimeError = (e && e.message) || String(e);
+        }
+    }
+    return out;
 }
 
 function accusedEvidenceInfo(r) {
@@ -5102,14 +5277,23 @@ function accusedEvidenceInfo(r) {
     const accStmts = Object.entries(sts).filter(([u, s]) => s && (u === accId && !!accId || s.role === "accused")).map(([, s]) => s);
     const hasStatement = accStmts.some(s => fresh(s.ts));
     let deadline = Number(ae.deadline) || 0;
-    const cap = requestedAt ? requestedAt + ACCUSED_EVIDENCE_HOURS * 3600000 : 0;
-    if (cap && (!deadline || deadline > cap)) deadline = cap;
+    // Czas wpisany przez stewarda przy tej prośbie (starszy wpis z poprzedniej prośby pomijamy; 2 min
+    // zapasu na różnicę zegarów między przeglądarką a Workerem).
+    const ct = ae.customTime && typeof ae.customTime === "object" ? ae.customTime : null;
+    const customMin = ct && requestedAt && Number(ct.minutes) >= ACCUSED_EVIDENCE_MIN_MINUTES && Number(ct.at) + 120000 >= requestedAt
+        ? Math.min(Math.round(Number(ct.minutes)), ACCUSED_EVIDENCE_MAX_MINUTES) : 0;
+    if (customMin) {
+        deadline = requestedAt + customMin * 60000;
+    } else {
+        const cap = requestedAt ? requestedAt + ACCUSED_EVIDENCE_HOURS * 3600000 : 0;
+        if (cap && (!deadline || deadline > cap)) deadline = cap;
+    }
     const state = hasStatement ? "submitted" : ae.status;
     const overridden = !!(ae.override && ae.override.at && fresh(ae.override.at));
     const waiting = state === "requested" && deadline > Date.now() && !overridden;
     const expired = state === "requested" && deadline <= Date.now();
     const again = !!(ae.again && ae.again.at && fresh(ae.again.at)) || (state === "requested" && accStmts.length > 0);
-    return { state, deadline, waiting, expired, overridden, again, error: ae.error || null };
+    return { state, deadline, waiting, expired, overridden, again, error: ae.error || null, minutes: customMin || ACCUSED_EVIDENCE_HOURS * 60, custom: !!customMin };
 }
 
 function accusedEvidenceLeftText(ms) {
@@ -5145,14 +5329,14 @@ function accusedEvidenceChipHtml(r) {
     if (!info) {
         // Także starsze zgłoszenia (sprzed prośby o dowód) — oczekujące i przyjęte, bez werdyktu.
         const canAsk = isAdminAuthenticated && hasAccusedId;
-        return canAsk ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}')" title="Wyślij oskarżonemu prywatną wiadomość na Discordzie z prośbą o jego dowód. Ma ${ACCUSED_EVIDENCE_HOURS} h na odpowiedź — do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">✉️ Poproś o dowód</span>` : "";
+        return canAsk ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}')" title="Wyślij oskarżonemu prywatną wiadomość na Discordzie z prośbą o jego dowód (POV). Czas na odpowiedź wpiszesz przed wysłaniem — do jego upływu nie można przyjąć zgłoszenia ani wydać werdyktu.">✉️ Poproś o dowód</span>` : "";
     }
     // Ponowna prośba o dowód — przy każdym stanie poza „DM nie dotarł” (tam jest własne „ponów”).
     const againChip = isAdminAuthenticated && hasAccusedId && info.state !== "dm_failed"
         ? `<span class="case-chip chip-ae-send" onclick="resendAccusedEvidenceDm('${id}', true)" title="Wyślij oskarżonemu jeszcze raz prośbę o dowód (nowa wiadomość od bota i nowy termin). Dotychczasowe oświadczenie zostaje w sprawie.">🔁 Poproś ponownie</span>`
         : "";
     let chip = "";
-    if (info.waiting) chip = `<span class="case-chip chip-ae-wait" title="Oskarżony ma czas na dowód do ${escapeHtml(formatTimestamp(info.deadline))}. Do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">⏳ ${info.again ? "Ponowna prośba o dowód" : "Dowód oskarżonego"}: ${escapeHtml(accusedEvidenceLeftText(info.deadline - Date.now()))}</span>`;
+    if (info.waiting) chip = `<span class="case-chip chip-ae-wait" title="Oskarżony ma czas na dowód do ${escapeHtml(formatTimestamp(info.deadline))}${info.custom ? " (wpisany czas: " + escapeHtml(accusedEvidenceFormatMinutes(info.minutes)) + ")" : ""}. Do tego czasu nie można przyjąć zgłoszenia ani wydać werdyktu.">⏳ ${info.again ? "Ponowna prośba o dowód" : "Dowód oskarżonego"}: ${escapeHtml(accusedEvidenceLeftText(info.deadline - Date.now()))}</span>`;
     else if (info.state === "submitted") chip = `<span class="case-chip chip-ae-ok" title="Oskarżony dodał dowód — widać go w kolumnie „Dowody” zgłoszenia oraz w „Oświadczeniach stron”.">📎 Dowód oskarżonego</span>`;
     else if (info.state === "declined") chip = `<span class="case-chip chip-ae-none" title="Oskarżony zaznaczył na Discordzie, że nie ma dowodu.">🚫 Oskarżony: brak dowodu</span>`;
     else if (info.state === "dm_failed") chip = `<span class="case-chip chip-ae-fail" onclick="resendAccusedEvidenceDm('${id}')" title="Bot nie mógł wysłać wiadomości${info.error ? " (" + escapeHtml(info.error) + ")" : ""} — zwykle oskarżony ma wyłączone wiadomości prywatne. Kliknij, aby spróbować ponownie.">✉️ DM nie dotarł — ponów</span>`;
@@ -5173,22 +5357,28 @@ async function resendAccusedEvidenceDm(caseId, again) {
             : info.state === "declined" ? "Oskarżony wcześniej zaznaczył, że nie ma dowodu."
             : info.waiting ? `Poprzednia prośba jest jeszcze aktywna (do ${formatTimestamp(info.deadline)}) — termin zacznie się od nowa.`
             : "Poprzednia prośba wygasła bez odpowiedzi.";
-        question = `Poprosić oskarżonego (${who}) PONOWNIE o dowód w sprawie ${caseLabel}?\n\n${now}\n\n` +
-            `Bot wyśle mu nową prywatną wiadomość na Discordzie. Przez ${ACCUSED_EVIDENCE_HOURS} h albo do jego odpowiedzi nie będzie można przyjąć zgłoszenia ani wydać werdyktu — blokadę może pominąć Główny Steward.`;
+        question = `Poprosić oskarżonego (${who}) PONOWNIE o dowód w sprawie ${caseLabel}?\n${now}\n` +
+            `Bot wyśle mu nową prywatną wiadomość na Discordzie. Do końca terminu albo do jego odpowiedzi nie będzie można przyjąć zgłoszenia ani wydać werdyktu — blokadę może pominąć Główny Steward.`;
     } else {
-        question = `Wysłać${info ? " ponownie" : ""} oskarżonemu (${who}) prywatną wiadomość na Discordzie z prośbą o dowód w sprawie ${caseLabel}?` +
-            `\n\nPrzez ${ACCUSED_EVIDENCE_HOURS} h albo do jego odpowiedzi nie będzie można przyjąć zgłoszenia ani wydać werdyktu.`;
+        question = `Wysłać${info ? " ponownie" : ""} oskarżonemu (${who}) prywatną wiadomość na Discordzie z prośbą o dowód w sprawie ${caseLabel}?\n` +
+            `Do końca terminu albo do jego odpowiedzi nie będzie można przyjąć zgłoszenia ani wydać werdyktu.`;
     }
-    if (!confirm(question)) return;
+    const picked = await askAccusedEvidenceTime({
+        title: again && info ? "🔁 Poproś ponownie o dowód (POV)" : "✉️ Poproś o dowód (POV)",
+        text: question
+    });
+    if (!picked) return;
+    const timeLabel = accusedEvidenceFormatMinutes(picked.minutes);
     try {
-        const res = await requestAccusedEvidenceDm(caseId, { resend: true, again: !!(again && info) });
+        const res = await requestAccusedEvidenceDm(caseId, { resend: true, again: !!(again && info), minutes: picked.minutes });
         if (res.status === "dm_failed") showToast("✉️ DM nie dotarł", "Oskarżony prawdopodobnie ma wyłączone wiadomości prywatne.");
         else if (res.status === "no_discord_id") showToast("✉️ Brak Discord ID", "Oskarżony nie ma poprawnego Discord ID w zgłoszeniu.");
-        else showToast(again ? "🔁 Ponowna prośba o dowód wysłana" : "✉️ Prośba o dowód wysłana", `${r.accusedNick || "Oskarżony"} · ${caseLabel}`);
+        else showToast(again ? "🔁 Ponowna prośba o dowód wysłana" : "✉️ Prośba o dowód wysłana", `${r.accusedNick || "Oskarżony"} · ${caseLabel} · czas: ${timeLabel}`);
+        if (res.customTimeError) alert(`Prośba poszła, ale nie udało się zapisać wpisanego czasu (${timeLabel}) w bazie, więc strona liczy domyślne ${ACCUSED_EVIDENCE_HOURS} h.\n\nPowód: ${res.customTimeError}\n\nSprawdź, czy reguły bazy pozwalają stewardowi zapisywać staffIncidents/<sprawa>/accusedEvidence/customTime.`);
         if (again && info && res.status !== "dm_failed" && res.status !== "no_discord_id") {
             const by = loggedInSteward ? loggedInSteward.nick : "Steward";
             // Znacznik „ponowna prośba” (accusedEvidence/again), nowy termin i status zapisuje Worker.
-            try { await logAction(by, "VERDICT", r.id, `Ponownie poproszono oskarżonego (${who}) o dowód przez Discord (poprzedni stan: ${info.state}).`); } catch (e) {}
+            try { await logAction(by, "VERDICT", r.id, `Ponownie poproszono oskarżonego (${who}) o dowód przez Discord, czas na dowód: ${timeLabel} (poprzedni stan: ${info.state}).`); } catch (e) {}
         }
     } catch (err) {
         alert((again ? "Nie udało się wysłać ponownej prośby o dowód: " : "Nie udało się wysłać prośby o dowód: ") + err.message);
@@ -22737,9 +22927,10 @@ if (pendingDeepLink()) {
      • przycisk „✉️ POPROŚ O DOWODY (N)” w panelu — wszystkie otwarte zgłoszenia (Oczekuje /
        Przyjęte) bez prośby, z poprawnym Discord ID oskarżonego i bez jego oświadczenia,
      • „✉️ Poproś o dowód” w pasku zaznaczonych — to samo tylko dla zaznaczonych wierszy.
-   Każda prośba idzie przez Workera (/accused/request) jak pojedyncza, co ~3,5 s — oskarżony ma
-   ACCUSED_EVIDENCE_HOURS (24 h) na odpowiedź i do tego czasu zgłoszenia nie można przyjąć
-   ani wydać w nim werdyktu (blokadę może pominąć Główny Steward).
+   Każda prośba idzie przez Workera (/accused/request) jak pojedyncza, co ~3,5 s — czas na odpowiedź
+   steward wpisuje raz w oknie (askAccusedEvidenceTime) i obowiązuje wszystkie wysyłane prośby;
+   do jego upływu zgłoszenia nie można przyjąć ani wydać w nim werdyktu (blokadę może pominąć
+   Główny Steward).
    ============================================================ */
 (function () {
 "use strict";
@@ -22773,7 +22964,7 @@ const trashBtn = $("openTrashBtn");
 if (trashBtn && !$("btnEvidenceOld")) {
     trashBtn.insertAdjacentHTML("beforebegin",
         `<button id="btnEvidenceOld" type="button" style="display:none; font-size:11px; padding:6px 14px; background:#1e3a5f; border:1px solid #3b82f6;"
-                 title="Wyślij prośbę o dowód oskarżonym we wszystkich otwartych zgłoszeniach, w których jeszcze o niego nie proszono (starsze zgłoszenia). Każdy ma ${ACCUSED_EVIDENCE_HOURS} h na odpowiedź.">✉️ POPROŚ O DOWODY (<span id="btnEvidenceOldCount">0</span>)</button>`);
+                 title="Wyślij prośbę o dowód oskarżonym we wszystkich otwartych zgłoszeniach, w których jeszcze o niego nie proszono (starsze zgłoszenia). Czas na odpowiedź wpiszesz przed wysłaniem.">✉️ POPROŚ O DOWODY (<span id="btnEvidenceOldCount">0</span>)</button>`);
     $("btnEvidenceOld").addEventListener("click", () => runBulk(eligibleAll(), null));
 }
 const bulkBtns = document.querySelector("#bulkBar .btns");
@@ -22809,20 +23000,27 @@ async function runBulk(list, pickedCount) {
     }
     const preview = list.slice(0, 15).map(r => `• ${r.fiaId || r.id} — ${r.accusedNick || "?"} (${r.status})`).join("\n") +
         (list.length > 15 ? `\n… i ${list.length - 15} więcej` : "");
-    if (!confirm(`Wysłać prośbę o dowód w ${list.length} ${list.length === 1 ? "zgłoszeniu" : "zgłoszeniach"}?` +
-        (skipped ? ` (pominięto ${skipped} zaznaczonych — prośba już była, jest oświadczenie oskarżonego albo brak Discord ID)` : "") +
-        `\n\n${preview}\n\nKażdy oskarżony dostanie PV od bota i ma ${ACCUSED_EVIDENCE_HOURS} h na odpowiedź. Do tego czasu tych zgłoszeń nie można przyjąć ani wydać w nich werdyktu (blokadę może pominąć Główny Steward).`)) return;
+    const picked = await askAccusedEvidenceTime({
+        title: "✉️ Poproś o dowody (POV)",
+        text: `Wysłać prośbę o dowód w ${list.length} ${list.length === 1 ? "zgłoszeniu" : "zgłoszeniach"}?` +
+            (skipped ? ` (pominięto ${skipped} zaznaczonych — prośba już była, jest oświadczenie oskarżonego albo brak Discord ID)` : "") +
+            `\n\n${preview}\n\nKażdy oskarżony dostanie PV od bota i ma tyle samo czasu na odpowiedź. Do końca terminu tych zgłoszeń nie można przyjąć ani wydać w nich werdyktu (blokadę może pominąć Główny Steward).`,
+        okLabel: `✉️ Wyślij (${list.length})`
+    });
+    if (!picked) return;
+    const timeLabel = accusedEvidenceFormatMinutes(picked.minutes);
 
     running = true;
     const btn = $("btnEvidenceOld"), label = btn ? btn.innerHTML : "";
-    const out = { sent: [], dmFailed: [], noId: [], errors: [] };
+    const out = { sent: [], dmFailed: [], noId: [], errors: [], timeNotSaved: [] };
     let stoppedBy = null;
     try {
         for (let i = 0; i < list.length; i++) {
             const r = list[i];
             if (btn) { btn.style.display = ""; btn.disabled = true; btn.textContent = `⏳ WYSYŁANIE ${i + 1}/${list.length}…`; }
             try {
-                const res = await requestAccusedEvidenceDm(r.id, { resend: true });
+                const res = await requestAccusedEvidenceDm(r.id, { resend: true, minutes: picked.minutes });
+                if (res.customTimeError) out.timeNotSaved.push(r);
                 if (res.status === "dm_failed") out.dmFailed.push(r);
                 else if (res.status === "no_discord_id") out.noId.push(r);
                 else out.sent.push(r);
@@ -22839,7 +23037,8 @@ async function runBulk(list, pickedCount) {
     }
 
     const tag = r => `${r.fiaId || r.id} (${r.accusedNick || "?"})`;
-    const lines = [`✉️ Wysłano: ${out.sent.length}`];
+    const lines = [`✉️ Wysłano: ${out.sent.length} (czas na dowód: ${timeLabel})`];
+    if (out.timeNotSaved.length) lines.push(`Nie zapisano wpisanego czasu w bazie (strona liczy tam domyślne ${ACCUSED_EVIDENCE_HOURS} h): ${out.timeNotSaved.map(tag).join(", ")}`);
     if (out.dmFailed.length) lines.push(`DM nie dotarł (zablokowane PV): ${out.dmFailed.map(tag).join(", ")}`);
     if (out.noId.length) lines.push(`Brak poprawnego Discord ID: ${out.noId.map(tag).join(", ")}`);
     if (out.errors.length) lines.push(`Błędy:\n${out.errors.slice(0, 10).join("\n")}${out.errors.length > 10 ? `\n… i ${out.errors.length - 10} więcej` : ""}`);
@@ -22848,7 +23047,7 @@ async function runBulk(list, pickedCount) {
     alert(lines.join("\n\n"));
     try {
         await logAction(loggedInSteward ? loggedInSteward.nick : "Steward", "VERDICT", "DOWODY",
-            `Wysłano prośby o dowód w starszych zgłoszeniach: ${out.sent.length}` +
+            `Wysłano prośby o dowód w starszych zgłoszeniach (czas na dowód: ${timeLabel}): ${out.sent.length}` +
             (out.sent.length ? ` (${out.sent.map(r => r.fiaId || r.id).join(", ")})` : "") +
             (out.dmFailed.length ? `; DM nie dotarł: ${out.dmFailed.map(r => r.fiaId || r.id).join(", ")}` : "") +
             (out.errors.length ? `; błędy: ${out.errors.length}` : "") + ".");
