@@ -10012,7 +10012,10 @@ async function publishVerdict(draft) {
         const accusedPart = noOneGuilty ? `🤝 ${t.noOneGuiltyText}` : `🚩 ${accusedLabel}: <@${accusedId}>`;
         const pingContent = reporterDiscordId ? `${accusedPart}   |   👤 Zgłaszający: <@${reporterDiscordId}>` : accusedPart;
 
+        // Wariant tekstowy (bez obrazka) — zapasowy: gdy nie udało się wygenerować karty PNG albo Worker ją odrzucił.
+        const sendTextVariant = () => postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         let res;
+        let via = "tekst";
         if (verdictPngBlob) {
             const pngEmbed = {
                 title: t.embedTitle, color: 3447003,
@@ -10023,13 +10026,34 @@ async function publishVerdict(draft) {
             const formData = new FormData();
             formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [pngEmbed] }));
             formData.append("files[0]", verdictPngBlob, verdictPngFilename);
-            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
+            try { res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", body: formData }); via = "karta PNG"; }
+            catch (pngErr) { console.warn("Wysyłka karty PNG na Discord nie powiodła się:", pngErr); res = null; }
+            // Zapasowa wersja tekstowa tylko tam, gdzie to ma sens (obraz nie przeszedł: brak odpowiedzi, zbyt duży/
+            // niepoprawny plik, błąd serwera). Nie przy odmowie dostępu, duplikacie ani limicie — tych zabezpieczeń nie obchodzimy.
+            const pngRetryable = !res || [400, 413, 415, 422].includes(res.status) || res.status >= 500;
+            if (pngRetryable && (!res || !res.ok)) {
+                console.warn("Worker odrzucił kartę PNG (" + (res ? "HTTP " + res.status : "brak odpowiedzi") + ") — wysyłam wersję tekstową werdyktu.");
+                res = await sendTextVariant();
+                via = "tekst (zapasowo, bez obrazka)";
+            }
         } else {
-            // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
-            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
+            res = await sendTextVariant();
         }
         if (!res.ok) throw new Error(await describeHttpError(res));
-        return { ok: true, saved: !!mainReport };
+        // Kod 2xx nie zawsze znaczy „dostarczono”: Worker może w treści odpowiedzi zgłosić błąd (np. kanał nieskonfigurowany).
+        let reply = "";
+        try { reply = (((await res.clone().text()) || "") + "").trim().slice(0, 300); } catch (e) {}
+        console.info("[werdykt → Discord]", { kanał: DISCORD_WEBHOOK_URL, status: res.status, wysłano: via, odpowiedźWorkera: reply || "(pusta)" });
+        try {
+            const j = reply ? JSON.parse(reply) : null;
+            if (j && typeof j === "object" && (j.ok === false || (j.error && j.ok !== true))) {
+                throw new Error("Worker odpowiedział błędem mimo kodu HTTP " + res.status + ": " + guardErrorText(String(j.error || j.message || "unknown"), res.status));
+            }
+            // Odpowiedź w stylu „pominięto / duplikat / wyłączone” = wiadomość NIE została dostarczona.
+            const notDelivered = j && typeof j === "object" ? Object.keys(j).find(k => /skip|dup|dedup|drop|disabled|suppress|ignor/i.test(k) && j[k] === true) : null;
+            if (notDelivered) throw new Error("Worker przyjął żądanie, ale nie dostarczył wiadomości na Discorda (" + notDelivered + ": " + reply.slice(0, 120) + ")");
+        } catch (bodyErr) { if (bodyErr instanceof SyntaxError) { /* odpowiedź nie jest JSON-em — to normalne */ } else throw bodyErr; }
+        return { ok: true, saved: !!mainReport, delivery: `HTTP ${res.status} · ${via}${reply ? " · " + reply.slice(0, 80) : ""}` };
     } catch (err) {
         console.error("Błąd wysyłania werdyktu na Discord:", err);
         const why = (err && err.message) ? err.message : (currentLang === 'pl' ? "nieznany błąd" : "unknown error");
@@ -22221,7 +22245,7 @@ async function finalizePublish(caseId, val, token) {
     }
     try { await database.ref(`incidents/${caseId}/pendingVerdict`).remove(); } catch (e) {}
     if (res.ok) {
-        showToast("✅ Werdykt opublikowany", `${caseId}: ${draft.decision} · zatwierdzili: ${approvedBy.map(a => a.nick).join(", ")}`);
+        showToast("✅ Werdykt opublikowany", `${caseId}: ${draft.decision} · zatwierdzili: ${approvedBy.map(a => a.nick).join(", ")}` + (res.delivery ? ` · Discord: ${res.delivery}` : ""));
     } else {
         alert(res.saved
             ? `Werdykt zapisano w bazie, ale nie udało się go wysłać na Discord (${res.error}). Użyj „🔁 Wyślij ponownie” w tabeli zgłoszeń.`
