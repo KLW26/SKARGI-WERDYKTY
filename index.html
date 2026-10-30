@@ -21943,7 +21943,9 @@ database.ref(LO_PATH).on("value", snap => {
    drugi nie musi; w panelu można przełączyć na 2 — obaj). Ostatnia wymagana akceptacja publikuje werdykt
    dokładnie tak, jak wcześniej robił to formularz (baza + karta PNG na Discordzie) —
    funkcja publishVerdict().
-   - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja.
+   - Zasada „2 — obaj”: autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja.
+   - Zasada „1 — wystarczy jeden”: autor werdyktu NIE może go zaakceptować (nawet jako Główny Steward) —
+     zatwierdza go inny Główny Steward (drugi z akceptujących).
    - Akceptować i odrzucać mogą WYŁĄCZNIE dwaj wyznaczeni Główni Stewardzi (APPROVER_IDS
      poniżej — Discord ID). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
    - Jeśli któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.
@@ -21997,7 +21999,11 @@ const leadStewards = () => APPROVER_IDS.map(id => {
     const self = loggedInSteward && String(loggedInSteward.id) === id ? loggedInSteward.nick : null;
     return { id, nick: (s && s.nick) || self || id };
 });
-const approvalsOf = pv => Object.entries((pv && pv.approvals) || {}).filter(([, a]) => a && typeof a === "object")
+// Przy zasadzie „1” autor werdyktu nie może go akceptować, więc jego akceptacja (zapisana, gdy obowiązywała
+// zasada „2”, jako author:true) nie jest liczona ani pokazywana. Po powrocie na „2” znów się liczy.
+const noSelfApproval = () => rules.required <= 1;
+const isAuthorApproval = (pv, a) => !!a && (a.author === true || (!!(pv && pv.submittedBy) && String(a.id) === String(pv.submittedBy.id)));
+const approvalsOf = pv => Object.entries((pv && pv.approvals) || {}).filter(([, a]) => a && typeof a === "object" && !(noSelfApproval() && isAuthorApproval(pv, a)))
     .map(([key, a]) => Object.assign({ key }, a)).sort((a, b) => ts(a.ts) - ts(b.ts));
 // Ile akceptacji potrzeba — liczone z AKTUALNEJ zasady (przełącznik 1 / 2), więc zmiana zasady działa
 // od razu także na werdykty, które już czekają w kolejce (w obie strony). Gdy jeden z akceptujących
@@ -22082,6 +22088,7 @@ function awaitingMe(r) {
     // Czeka na mnie, gdy jeszcze nie akceptowałem — albo gdy wymagane akceptacje są już zebrane,
     // a publikacja nie została dokończona (np. po obniżeniu zasady z 2 na 1).
     return !!who && pv.status === "pending" && isApprover() && !isConflict(r) && !publishingNow(pv) &&
+        !(noSelfApproval() && isMineOf(pv)) &&
         (!approvalsOf(pv).some(a => a.key === who.key) || approvalsOf(pv).length >= needOf(pv));
 }
 
@@ -22102,6 +22109,11 @@ async function submit(draft) {
         alert(`Obaj Główni Stewardzi akceptujący werdykty są stronami sprawy ${inc.id} — nikt nie może zaakceptować tego werdyktu.`);
         return { status: "cancelled" };
     }
+    // Zasada „1”: autor nie akceptuje własnego werdyktu — musi być ktoś inny, kto może to zrobić.
+    if (noSelfApproval() && !eligible.some(s => String(s.id) !== String(who.id))) {
+        alert(`Zasada akceptacji: autor nie może zaakceptować własnego werdyktu, a drugi Główny Steward jest stroną sprawy ${inc.id} — nikt inny nie może go zatwierdzić.\n\nWerdykt powinien wysłać inny steward (Główny Steward go wtedy zaakceptuje) albo przełącz zasadę na „2”.`);
+        return { status: "cancelled" };
+    }
     // Gdy jeden z akceptujących jest stroną sprawy, wystarcza akceptacja drugiego.
     const need = Math.max(1, Math.min(rules.required, eligible.length));
     const prev = hasPending(inc) ? inc.pendingVerdict : null;
@@ -22117,8 +22129,8 @@ async function submit(draft) {
 
     const now = Date.now();
     const approvals = {};
-    // Autor będący Głównym Stewardem / ROOT = pierwsza akceptacja.
-    if (isApprover() && !isConflict(inc) && who.key) approvals[who.key] = { id: who.id, nick: who.nick, ts: now, author: true };
+    // Zasada „2”: autor będący Głównym Stewardem / ROOT = pierwsza akceptacja. Zasada „1”: autor nie akceptuje.
+    if (!noSelfApproval() && isApprover() && !isConflict(inc) && who.key) approvals[who.key] = { id: who.id, nick: who.nick, ts: now, author: true };
     const have = Object.keys(approvals).length;
     if (have >= need) {
         return { status: "publish", approvedBy: Object.values(approvals).map(a => ({ id: a.id, nick: a.nick, ts: a.ts })) };
@@ -22158,6 +22170,7 @@ window.approvePendingVerdict = async function (caseId) {
     if (!hasPending(r) || !who || pv.status !== "pending") return;
     if (!isApprover()) return alert(`Akceptować werdykty mogą tylko wyznaczeni Główni Stewardzi: ${leadStewards().map(s => s.nick).join(", ")}.`);
     if (isConflict(r)) return alert("Konflikt interesów: jesteś stroną tej sprawy — nie możesz akceptować werdyktu.");
+    if (noSelfApproval() && isMineOf(pv)) return alert("Jesteś autorem tego werdyktu — przy zasadzie „1 akceptacja” nie możesz go zaakceptować. Zatwierdza go drugi Główny Steward.");
     if (publishingNow(pv)) return alert(`Ten werdykt jest właśnie publikowany (${pv.publishing.by || "?"}).`);
     const stale = publishingStale(pv);
     const already = approvalsOf(pv).some(a => a.key === who.key);
@@ -22188,7 +22201,8 @@ window.approvePendingVerdict = async function (caseId) {
             cur.approvals = cur.approvals || {};
             if (!cur.approvals[who.key]) cur.approvals[who.key] = { id: who.id, nick: who.nick, ts: Date.now() };
             const need2 = need;
-            if (Object.keys(cur.approvals).length >= need2) cur.publishing = { by: who.nick, token, ts: Date.now() };
+            if (noSelfApproval() && cur.submittedBy && String(cur.submittedBy.id) === String(who.id)) return; // autor nie akceptuje (przerwij)
+            if (approvalsOf(cur).length >= need2) cur.publishing = { by: who.nick, token, ts: Date.now() };
             return cur;
         }, undefined, false);
     } catch (err) {
@@ -22354,7 +22368,7 @@ async function notifyQueued(r, pv) {
         .map(s => String(s.id)).filter(isDiscordId);
     const appr = approvalsOf(pv), n = appr.length, need = needOf(pv);
     const content = (ids.length ? ids.map(id => `<@${id}>`).join(" ") + " — " : "") +
-        `⏳ Werdykt w sprawie **${caseLabel(r, pv)}** czeka na akceptację ${need === 1 && ids.length > 1 ? "jednego z Głównych Stewardów — drugi nie musi akceptować" : "Głównych Stewardów"} (${n}/${need}).`;
+        `⏳ Werdykt w sprawie **${caseLabel(r, pv)}** czeka na akceptację ${need === 1 ? (ids.length > 1 ? "jednego z Głównych Stewardów — drugi nie musi akceptować" : "Głównego Stewarda") : "Głównych Stewardów"} (${n}/${need}).`;
     const embed = {
         title: "⏳ WERDYKT DO AKCEPTACJI", color: 15105570, timestamp: new Date().toISOString(),
         fields: [
@@ -22427,6 +22441,7 @@ function itemHtml(r, pv, opts) {
     const actions = [], notes = [];
     if (pending && lead && !busy) {
         if (conflict) notes.push("Jesteś stroną tej sprawy — nie możesz jej akceptować.");
+        else if (noSelfApproval() && mine) notes.push("Jesteś autorem tego werdyktu — nie możesz go zaakceptować. Zatwierdza go drugi Główny Steward (drugi nie musi, wystarczy jedna akceptacja).");
         else {
             if (stale || (iApproved && n >= need)) actions.push(`<button type="button" class="btn-success" onclick="approvePendingVerdict('${id}')">${stale ? "⚠️ " : ""}Dokończ publikację</button>`);
             else if (!iApproved) actions.push(`<button type="button" class="btn-success" onclick="approvePendingVerdict('${id}')">✅ Akceptuj${n + 1 >= need ? " i opublikuj" : ""}</button>`);
@@ -22515,11 +22530,10 @@ function renderHint() {
     if (!el) return;
     if (!rules.enabled || !isAdminAuthenticated) { el.style.display = "none"; return; }
     const lead = isApprover();
-    el.textContent = lead && rules.required <= 1
-        ? "ℹ️ Akceptacja werdyktów jest włączona, ale wymaga 1 akceptacji — Twoja decyzja jako Głównego Stewarda wystarcza, werdykt zostanie opublikowany od razu."
-        : (rules.required <= 1
-            ? "ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów — wystarczy akceptacja jednego z nich (drugi nie musi). Na Discordzie pojawi się dopiero po zatwierdzeniu."
-            : `ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane: ${rules.required}) — na Discordzie pojawi się dopiero po zatwierdzeniu.` +
+    el.textContent = rules.required <= 1
+        ? "ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów — wystarczy akceptacja jednego z nich (drugi nie musi). Autor nie może zaakceptować własnego werdyktu" +
+          (lead ? " — Twój werdykt zatwierdzi drugi Główny Steward." : ".") + " Na Discordzie pojawi się dopiero po zatwierdzeniu."
+        : (`ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane: ${rules.required}) — na Discordzie pojawi się dopiero po zatwierdzeniu.` +
               (lead ? " Twoja decyzja jako Głównego Stewarda liczy się jako pierwsza akceptacja." : ""));
     el.style.display = "block";
 }
@@ -22618,7 +22632,7 @@ if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
           <option value="0">Wyłączona — werdykt publikowany od razu</option>
         </select></div>
       <div style="min-width:170px;"><label for="vaRequired">Wymagane akceptacje</label>
-        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich (drugi nie musi)</option><option value="2">2 — obaj</option></select></div>
+        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich (drugi nie musi; autor nie akceptuje własnego)</option><option value="2">2 — obaj</option></select></div>
       <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="saveVerdictApprovalRules()">💾 ZAPISZ ZASADY</button>
     </div>
     <div id="vaRulesStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim); line-height:1.6;"></div>
@@ -22632,7 +22646,7 @@ function renderRulesBox() {
     const leads = leadStewards();
     st.innerHTML = (rules.enabled
         ? (rules.required <= 1
-            ? "✅ Włączona: werdykt z formularza publikuje się po akceptacji jednego z Głównych Stewardów — drugi nie musi akceptować. Autor będący Głównym Stewardem sam wystarcza."
+            ? "✅ Włączona: werdykt z formularza publikuje się po akceptacji jednego z Głównych Stewardów — drugi nie musi akceptować. Autor werdyktu nie może go zaakceptować (nawet jako Główny Steward) — zatwierdza go inny Główny Steward."
             : `✅ Włączona: werdykt z formularza publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. Autor będący Głównym Stewardem liczy się jako jedna akceptacja.`)
         : "⏸ Wyłączona: werdykty z formularza są publikowane od razu.") +
         `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.`;
@@ -22647,8 +22661,8 @@ window.setVerdictApprovalRequired = async function (n) {
     n = clampReq(n);
     if (n === rules.required) return;
     if (!confirm(n === 1
-        ? "Przełączyć na 1 akceptację?\n\nWystarczy akceptacja jednego z dwóch Głównych Stewardów — drugi nie musi. Dotyczy też werdyktów, które już czekają w kolejce."
-        : "Przełączyć na 2 akceptacje?\n\nWerdykt będą musieli zaakceptować obaj Główni Stewardzi (gdy jeden jest stroną sprawy — wystarczy drugi). Dotyczy też werdyktów, które już czekają w kolejce.")) return;
+        ? "Przełączyć na 1 akceptację?\n\nWystarczy akceptacja jednego z dwóch Głównych Stewardów — drugi nie musi. Autor werdyktu nie może go zaakceptować (zatwierdza go inny Główny Steward). Dotyczy też werdyktów, które już czekają w kolejce."
+        : "Przełączyć na 2 akceptacje?\n\nWerdykt będą musieli zaakceptować obaj Główni Stewardzi (autor będący Głównym Stewardem liczy się jako pierwsza akceptacja; gdy jeden jest stroną sprawy — wystarczy drugi). Dotyczy też werdyktów, które już czekają w kolejce.")) return;
     return persistRules({ enabled: rules.enabled, required: n });
 };
 async function persistRules(next) {
