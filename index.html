@@ -9886,42 +9886,7 @@ function resetAppealIDCounter() {
 //          verdictDetails, judge, accusedId, noOneGuilty, approvedBy? }
 // Zwraca { ok, saved, error } — saved = werdykt jest już w bazie (nawet jeśli Discord zawiódł).
 // Błąd zapisu do bazy jest rzucany dalej (obsługuje go wywołujący).
-// Opakowanie: gdy werdykt jest już zapisany w bazie, a coś pójdzie nie tak w dalszych krokach
-// (log, dowody, karta PNG, wysyłka), zwracamy { ok:false, saved:true, error } zamiast rzucać wyjątek —
-// wtedy wywołujący (formularz albo akceptacja Głównych Stewardów) pokazuje prawdziwy komunikat
-// i werdykt da się wysłać ponownie przyciskiem „🔁 Wyślij ponownie”, zamiast wisieć bez śladu.
 async function publishVerdict(draft) {
-    const progress = { saved: false };
-    try {
-        return await publishVerdictCore(draft, progress);
-    } catch (err) {
-        console.error("[publikacja werdyktu] błąd (werdykt " + (progress.saved ? "jest już" : "nie jest jeszcze") + " zapisany w bazie):", err);
-        if (progress.saved) return { ok: false, saved: true, error: (err && (err.message || err.code)) || String(err) };
-        throw err;
-    }
-}
-
-// Wysyłka werdyktu na Discorda z jednym automatycznym ponowieniem (błąd sieci, HTTP 429 lub 5xx).
-async function postVerdictToDiscord(makeOptions) {
-    let res = null, lastErr = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            res = await postWebhook(DISCORD_WEBHOOK_URL, makeOptions());
-            lastErr = null;
-            if (res.ok || (res.status < 500 && res.status !== 429)) return res;
-            console.warn("[publikacja werdyktu] Worker odpowiedział HTTP " + res.status + (attempt === 0 ? " — ponawiam." : "."));
-        } catch (e) {
-            lastErr = e;
-            console.warn("[publikacja werdyktu] wysyłka na Discord nie powiodła się" + (attempt === 0 ? " — ponawiam." : "."), e);
-        }
-        if (attempt === 0) await new Promise(r => setTimeout(r, 1500));
-    }
-    if (res) return res;
-    throw lastErr || new Error("brak odpowiedzi Workera");
-}
-
-async function publishVerdictCore(draft, progress) {
-    progress = progress || {};
     const t = langData[currentLang];
     const originalCaseId = draft.originalCaseId;
     const isAppealVerdict = !!draft.isAppealVerdict;
@@ -9983,7 +9948,6 @@ async function publishVerdictCore(draft, progress) {
         }
     }
 
-    progress.saved = !!mainReport; // od tego miejsca werdykt jest w bazie
     const stewardName = loggedInSteward ? loggedInSteward.nick : judge;
     const authorNote = stewardName !== judge ? ` Autor: ${judge}.` : "";
     const approvalNote = approvedNames ? ` Zatwierdzili: ${approvedNames}.` : "";
@@ -10059,13 +10023,12 @@ async function publishVerdictCore(draft, progress) {
             const formData = new FormData();
             formData.append("payload_json", JSON.stringify({ content: pingContent, embeds: [pngEmbed] }));
             formData.append("files[0]", verdictPngBlob, verdictPngFilename);
-            res = await postVerdictToDiscord(() => ({ method: "POST", body: formData }));
+            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", body: formData });
         } else {
             // Zapasowy wariant tekstowy — na wypadek gdyby generowanie obrazu się nie powiodło.
-            res = await postVerdictToDiscord(() => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) }));
+            res = await postWebhook(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: pingContent, embeds: [embed] }) });
         }
         if (!res.ok) throw new Error(await describeHttpError(res));
-        console.info("[publikacja werdyktu] wysłano na Discord: " + originalCaseId);
         return { ok: true, saved: !!mainReport };
     } catch (err) {
         console.error("Błąd wysyłania werdyktu na Discord:", err);
@@ -22242,26 +22205,13 @@ async function finalizePublish(caseId, val, token) {
         res = await publishVerdict(draft);
     } catch (err) {
         console.error("[132] Publikacja werdyktu:", err);
-        try { await logAction(who ? who.nick : "System", "VERDICT", caseId, `Publikacja werdyktu przerwana po akceptacji: ${(err && (err.code || err.message)) || err}`); } catch (e) {}
-        // Zdejmujemy blokadę „publikuje…”, żeby można było spróbować ponownie od razu (jeśli rekord nadal istnieje).
-        let stillQueued = false;
         try {
-            const cur = await database.ref(`incidents/${caseId}/pendingVerdict`).once("value");
-            stillQueued = !!cur.val();
-            if (stillQueued) await database.ref(`incidents/${caseId}/pendingVerdict/publishing`).transaction(p => (p && p.token === token) ? null : p);
+            await database.ref(`incidents/${caseId}/pendingVerdict/publishing`).transaction(p => (p && p.token === token) ? null : p);
         } catch (e) {}
-        alert("Nie udało się opublikować werdyktu: " + ((err && (err.code || err.message)) || err) + "\n\n" +
-            (stillQueued ? "Werdykt nadal czeka w kolejce — spróbuj ponownie."
-                         : "Werdykt nie jest już w kolejce akceptacji — sprawdź jego stan w tabeli zgłoszeń (użyj „🔁 Wyślij ponownie”, jeśli jest zapisany)."));
+        alert("Nie udało się opublikować werdyktu: " + ((err && (err.code || err.message)) || err) + "\n\nWerdykt nadal czeka w kolejce — spróbuj ponownie.");
         return;
     }
     try { await database.ref(`incidents/${caseId}/pendingVerdict`).remove(); } catch (e) {}
-    // Ślad w Dzienniku Akcji: czy po zapisie w bazie werdykt faktycznie dotarł na Discorda.
-    try {
-        await logAction(who ? who.nick : "System", "VERDICT", caseId, res.ok
-            ? `Werdykt wysłany na Discord po akceptacji (${approvedBy.map(a => a.nick).join(", ")}).`
-            : `Werdykt zapisany w bazie, ale NIE wysłany na Discord: ${res.error || "nieznany błąd"}. Użyj „🔁 Wyślij ponownie”.`);
-    } catch (e) {}
     if (res.ok) {
         showToast("✅ Werdykt opublikowany", `${caseId}: ${draft.decision} · zatwierdzili: ${approvedBy.map(a => a.nick).join(", ")}`);
     } else {
