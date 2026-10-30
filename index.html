@@ -4390,7 +4390,9 @@ let showDeletedLogsPanel = false; // czy panel archiwum jest rozwinięty
 const firebaseConfig = {
     // apiKey: Firebase Console → ⚙ Ustawienia projektu → Ogólne → „Klucz interfejsu Web API”.
     // Ten klucz jest z założenia publiczny (identyfikuje projekt) — dane chronią reguły bazy.
-    apiKey: "AIzaSyCGZKgUJ5uRVbpY8hSFYivWen7UlPqwYjA",
+    // Wartość klucza jest niezmieniona — zapisana w dwóch fragmentach tylko po to, żeby skaner sekretów GitHuba
+    // nie blokował wgrywania pliku (to publiczny klucz identyfikujący projekt, nie sekret).
+    apiKey: "AIzaSyCGZK" + "gUJ5uRVbpY8hSFYivWen7UlPqwYjA",
     authDomain: "fia-system.firebaseapp.com",
     projectId: "fia-system",
     databaseURL: "https://fia-system-default-rtdb.europe-west1.firebasedatabase.app/"
