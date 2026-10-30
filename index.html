@@ -10158,19 +10158,29 @@ document.getElementById("responseForm").addEventListener("submit", async (e) => 
 
     // Akceptacja przez Głównych Stewardów (Rozbudowa 132): werdykt trafia najpierw do akceptacji,
     // a na Discordzie pojawia się dopiero po zatwierdzeniu przez wymaganą liczbę Głównych Stewardów.
+    // Akceptacja jest OBOWIĄZKOWA. Gdy moduł akceptacji się nie załadował, werdykt NIE jest
+    // publikowany „po cichu” od razu — blokujemy wysyłkę i prosimy o odświeżenie strony.
     const approval = window.fiaVerdictApproval;
-    if (approval && typeof approval.required === "function" && approval.required()) {
-        const q = await approval.submit(draft);
-        if (!q || q.status === "cancelled") { statusEl.textContent = ""; statusEl.className = "status-msg"; return; }
-        if (q.status === "queued") {
-            statusEl.textContent = q.message;
-            statusEl.className = "status-msg ok";
-            resetVerdictForm();
-            return;
-        }
-        // q.status === "publish" — akceptacja autora (Głównego Stewarda) wystarcza, publikujemy od razu.
-        if (q.approvedBy) draft.approvedBy = q.approvedBy;
+    if (!approval || typeof approval.submit !== "function") {
+        statusEl.textContent = "";
+        statusEl.className = "status-msg";
+        alert(currentLang === 'pl'
+            ? "Moduł akceptacji werdyktów nie jest załadowany, więc werdykt NIE został wysłany. Odśwież stronę (Ctrl+F5) i spróbuj ponownie."
+            : "The verdict approval module is not loaded, so the verdict was NOT sent. Refresh the page (Ctrl+F5) and try again.");
+        return;
     }
+    const q = await approval.submit(draft);
+    if (!q || q.status === "cancelled") { statusEl.textContent = ""; statusEl.className = "status-msg"; return; }
+    if (q.status === "queued") {
+        statusEl.textContent = q.message;
+        statusEl.className = "status-msg ok";
+        resetVerdictForm();
+        return;
+    }
+    // q.status === "publish" — zwracane wyłącznie, gdy wymagana liczba akceptacji została już zebrana
+    // (jedyny przypadek: drugi Główny Steward jest stroną sprawy i nie może akceptować).
+    if (q.status !== "publish") { statusEl.textContent = ""; statusEl.className = "status-msg"; return; }
+    if (q.approvedBy) draft.approvedBy = q.approvedBy;
 
     const result = await publishVerdict(draft);
     if (result.ok) {
@@ -13762,9 +13772,9 @@ document.addEventListener("submit", e => {
         "Decyzja: " + g("decision") + "\n" +
         "Kara: " + (g("timePenalty") || "brak") + " / " + (g("pointsPenalty") || "0") + " pkt\n" +
         "Ping: " + (noOne ? "nikt (nikt nie winny)" : (g("accusedId") || "—")) + "\n\n" +
-        (window.fiaVerdictApproval && window.fiaVerdictApproval.required()
-            ? "Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane akceptacje: " + window.fiaVerdictApproval.need() + "). Na Discordzie pojawi się dopiero po zatwierdzeniu."
-            : "Werdykt zostanie opublikowany na Discordzie.");
+        (window.fiaVerdictApproval
+            ? "Werdykt NIE zostanie opublikowany od razu — trafi najpierw do akceptacji Głównych Stewardów (drugi Główny Steward musi go zatwierdzić). Na Discordzie pojawi się dopiero po zatwierdzeniu."
+            : "UWAGA: moduł akceptacji werdyktów nie jest załadowany — werdykt nie zostanie wysłany (odśwież stronę).");
     if (!confirm(msg)) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
 
@@ -21939,10 +21949,14 @@ database.ref(LO_PATH).on("value", snap => {
 /* ============================================================
    === ROZBUDOWA 132 — AKCEPTACJA WERDYKTÓW PRZEZ GŁÓWNYCH STEWARDÓW ===
    Po kliknięciu „Wyślij decyzję” werdykt nie trafia od razu na Discorda, tylko do akceptacji
-   Głównych Stewardów (domyślnie wymagane 2 akceptacje). Ostatnia akceptacja publikuje werdykt
-   dokładnie tak, jak wcześniej robił to formularz (baza + karta PNG na Discordzie) —
-   funkcja publishVerdict().
-   - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja.
+   Głównych Stewardów. Akceptacja jest OBOWIĄZKOWA i nie da się jej wyłączyć ani obniżyć do
+   „wystarczy jeden” (wymagane są akceptacje obu Głównych Stewardów). Ostatnia akceptacja
+   publikuje werdykt dokładnie tak, jak wcześniej robił to formularz (baza + karta PNG na
+   Discordzie) — funkcja publishVerdict().
+   - Autor, który sam jest Głównym Stewardem, liczy się jako jedna akceptacja — drugi Główny
+     Steward MUSI zatwierdzić werdykt, zanim zostanie opublikowany.
+   - Jedyny wyjątek: gdy drugi Główny Steward jest stroną sprawy (konflikt interesów), nie może
+     akceptować — wtedy wystarcza akceptacja tego, który stroną nie jest.
    - Akceptować i odrzucać mogą WYŁĄCZNIE dwaj wyznaczeni Główni Stewardzi (APPROVER_IDS
      poniżej — Discord ID). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
    - Jeśli któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.
@@ -21951,8 +21965,8 @@ database.ref(LO_PATH).on("value", snap => {
    - Strona sprawy (konflikt interesów) nie może akceptować ani odrzucać.
    - Powiadomienia: ping Głównych Stewardów na kanale stewardów (Discord) + dzwonek w panelu.
    Dane: staffIncidents/{sprawa}/pendingVerdict (prywatne pole spraw — widzą je tylko stewardzi;
-         kod nadal używa ścieżki incidents/{sprawa}/pendingVerdict, przekładanej automatycznie),
-         settings/verdictApproval { enabled, required } — zmieniają tylko ci dwaj Główni Stewardzi.
+         kod nadal używa ścieżki incidents/{sprawa}/pendingVerdict, przekładanej automatycznie).
+         Ustawienie settings/verdictApproval jest ignorowane — zasady są stałe w kodzie.
    ============================================================ */
 (function () {
 "use strict";
@@ -21972,17 +21986,12 @@ const isDiscordId = s => /^\d{15,21}$/.test(String(s || ""));
 /* ============================================================
    1. ZASADY (settings/verdictApproval)
    ============================================================ */
-const DEFAULT_RULES = { enabled: true, required: 2 };
-let rules = Object.assign({}, DEFAULT_RULES);
-let rulesRaw = null;
-const clampReq = v => Math.min(APPROVER_IDS.length, Math.max(1, parseInt(v, 10) || DEFAULT_RULES.required));
-database.ref("settings/verdictApproval").on("value", s => {
-    rulesRaw = s.val();
-    rules = rulesRaw && typeof rulesRaw === "object"
-        ? { enabled: rulesRaw.enabled !== false, required: clampReq(rulesRaw.required) }
-        : Object.assign({}, DEFAULT_RULES);
-    renderRulesBox(); renderHint(); renderAll();
-}, err => console.warn("[132] Brak dostępu do settings/verdictApproval:", err && (err.code || err.message)));
+// Zasady są STAŁE: akceptacja zawsze włączona i wymagani są obaj Główni Stewardzi.
+// Wcześniej da się je było zmienić w panelu (tryb „Wyłączona” / „wystarczy jeden”) i wtedy
+// werdykt szedł na Discord od razu — to zostało usunięte. Wartość z bazy (settings/verdictApproval)
+// jest celowo ignorowana, więc nikt nie obniży wymagań zapisem do bazy.
+const RULES = Object.freeze({ enabled: true, required: APPROVER_IDS.length });
+const rules = RULES;
 
 /* ============================================================
    2. POMOCNICZE
@@ -21996,7 +22005,15 @@ const leadStewards = () => APPROVER_IDS.map(id => {
 });
 const approvalsOf = pv => Object.entries((pv && pv.approvals) || {}).filter(([, a]) => a && typeof a === "object")
     .map(([key, a]) => Object.assign({ key }, a)).sort((a, b) => ts(a.ts) - ts(b.ts));
-const needOf = pv => Math.max(1, parseInt(pv && pv.required, 10) || rules.required);
+// Ile akceptacji wymaga werdykt. Dolna granica jest wymuszana zawsze (także dla werdyktów, które
+// utknęły w kolejce ze starą wartością „required: 1”): obaj Główni Stewardzi, a gdy jeden z nich
+// jest stroną sprawy i nie może akceptować — tylu, ilu może (min. 1).
+const minNeed = r => Math.max(1, Math.min(rules.required, r ? eligibleApprovers(r).length : rules.required));
+const needOf = (pv, r) => {
+    const stored = parseInt(pv && pv.required, 10) || 0;
+    const need = Math.max(minNeed(r), stored);
+    return r ? Math.min(need, Math.max(1, eligibleApprovers(r).length)) : need; // nigdy więcej, niż jest uprawnionych akceptujących
+};
 const isMineOf = pv => !!loggedInSteward && !!pv && !!pv.submittedBy && String(pv.submittedBy.id) === String(loggedInSteward.id);
 const publishingNow = pv => !!(pv && pv.publishing && Date.now() - ts(pv.publishing.ts) < PUBLISH_STALE_MS);
 const publishingStale = pv => !!(pv && pv.publishing && !publishingNow(pv));
@@ -22097,7 +22114,7 @@ async function submit(draft) {
             alert(`Werdykt w sprawie ${inc.id} jest właśnie publikowany (${prev.publishing.by || "Główny Steward"}) — poczekaj chwilę.`);
             return { status: "cancelled" };
         }
-        if (!confirm(`Sprawa ${inc.id} ma już werdykt czekający na akceptację:\n„${prev.draft.decision}” (${penaltyText(prev.draft)}), autor: ${(prev.submittedBy && prev.submittedBy.nick) || "?"}, akceptacje ${approvalsOf(prev).length}/${needOf(prev)}.\n\nNowa decyzja go ZASTĄPI, a dotychczasowe akceptacje zostaną wyzerowane. Kontynuować?`)) {
+        if (!confirm(`Sprawa ${inc.id} ma już werdykt czekający na akceptację:\n„${prev.draft.decision}” (${penaltyText(prev.draft)}), autor: ${(prev.submittedBy && prev.submittedBy.nick) || "?"}, akceptacje ${approvalsOf(prev).length}/${needOf(prev, inc)}.\n\nNowa decyzja go ZASTĄPI, a dotychczasowe akceptacje zostaną wyzerowane. Kontynuować?`)) {
             return { status: "cancelled" };
         }
     }
@@ -22149,7 +22166,7 @@ window.approvePendingVerdict = async function (caseId) {
     const stale = publishingStale(pv);
     const already = approvalsOf(pv).some(a => a.key === who.key);
     if (already && !stale) return alert("Ten werdykt ma już Twoją akceptację — czeka na pozostałych Głównych Stewardów.");
-    const d = pv.draft, need = needOf(pv);
+    const d = pv.draft, need = needOf(pv, r);
     const n = approvalsOf(pv).length + (already ? 0 : 1);
     const last = n >= need;
     let msg = (stale
@@ -22172,7 +22189,7 @@ window.approvePendingVerdict = async function (caseId) {
             if (cur.publishing && Date.now() - ts(cur.publishing.ts) < PUBLISH_STALE_MS) return;
             cur.approvals = cur.approvals || {};
             if (!cur.approvals[who.key]) cur.approvals[who.key] = { id: who.id, nick: who.nick, ts: Date.now() };
-            const need2 = Math.max(1, parseInt(cur.required, 10) || rules.required);
+            const need2 = needOf(cur, r); // dolna granica wymuszana zawsze — także dla starych wpisów z „required: 1”
             if (Object.keys(cur.approvals).length >= need2) cur.publishing = { by: who.nick, token, ts: Date.now() };
             return cur;
         }, undefined, false);
@@ -22186,10 +22203,10 @@ window.approvePendingVerdict = async function (caseId) {
     const nowN = approvalsOf(val).length;
     if (!(val.publishing && val.publishing.token === token)) {
         try {
-            await logAction(who.nick, "VERDICT", r.id, `Zaakceptowano werdykt (${nowN}/${needOf(val)}): ${d.decision}${penaltyLabel(d) ? " · " + penaltyLabel(d) : ""}. Autor: ${(val.submittedBy && val.submittedBy.nick) || "?"}.`,
+            await logAction(who.nick, "VERDICT", r.id, `Zaakceptowano werdykt (${nowN}/${needOf(val, r)}): ${d.decision}${penaltyLabel(d) ? " · " + penaltyLabel(d) : ""}. Autor: ${(val.submittedBy && val.submittedBy.nick) || "?"}.`,
                 { items: [{ path: `incidents/${r.id}/pendingVerdict/approvals/${who.key}`, data: null }] });
         } catch (e) { console.warn("[132] logAction:", e); }
-        showToast("✅ Akceptacja zapisana", `${caseLabel(r, val)}: ${nowN}/${needOf(val)}`);
+        showToast("✅ Akceptacja zapisana", `${caseLabel(r, val)}: ${nowN}/${needOf(val, r)}`);
         return;
     }
     await finalizePublish(r.id, val, token);
@@ -22337,7 +22354,7 @@ async function notifyQueued(r, pv) {
     const ids = approverCandidates(r, pv.submittedBy && pv.submittedBy.id)
         .filter(s => !((pv.approvals || {})[keyOfId(s.id)]))
         .map(s => String(s.id)).filter(isDiscordId);
-    const appr = approvalsOf(pv), n = appr.length, need = needOf(pv);
+    const appr = approvalsOf(pv), n = appr.length, need = needOf(pv, r);
     const content = (ids.length ? ids.map(id => `<@${id}>`).join(" ") + " — " : "") +
         `⏳ Werdykt w sprawie **${caseLabel(r, pv)}** czeka na akceptację Głównych Stewardów (${n}/${need}).`;
     const embed = {
@@ -22396,7 +22413,7 @@ if (sendBtn) sendBtn.insertAdjacentHTML("afterend", `<div id="verdictApprovalHin
 function itemHtml(r, pv, opts) {
     opts = opts || {};
     const d = pv.draft || {}, who = me();
-    const appr = approvalsOf(pv), n = appr.length, need = needOf(pv);
+    const appr = approvalsOf(pv), n = appr.length, need = needOf(pv, r);
     const mine = isMineOf(pv), lead = isApprover(), conflict = isConflict(r);
     const iApproved = !!who && appr.some(a => a.key === who.key);
     const busy = publishingNow(pv), stale = publishingStale(pv);
@@ -22469,7 +22486,7 @@ function renderPanel() {
     const leads = leadStewards().map(s => s.nick || s.id);
     const html = `<div class="va-head">
         <span class="va-title">✅ Werdykty do akceptacji Głównych Stewardów (${pend})${rej ? ` <span class="case-chip chip-approval-rej">odrzucone: ${rej}</span>` : ""}${forMe ? ` <span class="case-chip chip-approval">czeka na Ciebie: ${forMe}</span>` : ""}</span>
-        <span class="va-sub">${rules.enabled ? `Wymagane akceptacje: ${escapeHtml(rules.required)}` : "Akceptacja wyłączona — nowe werdykty trafiają od razu na Discord"}${leads.length ? " · Główni Stewardzi: " + escapeHtml(leads.join(", ")) : ""}</span>
+        <span class="va-sub">Wymagane akceptacje: ${escapeHtml(rules.required)} (obaj Główni Stewardzi)${leads.length ? " · Główni Stewardzi: " + escapeHtml(leads.join(", ")) : ""}</span>
       </div>` + items.map(r => itemHtml(r, r.pendingVerdict)).join("");
     // Bez zmian w treści nie przerysowujemy — inaczej odświeżenie danych zatrzymywałoby
     // oglądane wideo z dowodem i zwijało rozwinięte uzasadnienie.
@@ -22495,12 +22512,10 @@ function renderInfo() {
 function renderHint() {
     const el = $("verdictApprovalHint");
     if (!el) return;
-    if (!rules.enabled || !isAdminAuthenticated) { el.style.display = "none"; return; }
+    if (!isAdminAuthenticated) { el.style.display = "none"; return; }
     const lead = isApprover();
-    el.textContent = lead && rules.required <= 1
-        ? "ℹ️ Akceptacja werdyktów jest włączona, ale wymaga 1 akceptacji — Twoja decyzja jako Głównego Stewarda wystarcza, werdykt zostanie opublikowany od razu."
-        : `ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane: ${rules.required}) — na Discordzie pojawi się dopiero po zatwierdzeniu.` +
-          (lead ? " Twoja decyzja jako Głównego Stewarda liczy się jako pierwsza akceptacja." : "");
+    el.textContent = "ℹ️ Werdykt NIE zostanie opublikowany od razu — najpierw musi go zaakceptować Główny Steward (wymagane akceptacje: " + rules.required + "). Na Discordzie pojawi się dopiero po zatwierdzeniu." +
+        (lead ? " Twoja decyzja jako Głównego Stewarda liczy się jako pierwsza akceptacja — drugi Główny Steward musi ją zatwierdzić." : "");
     el.style.display = "block";
 }
 
@@ -22516,7 +22531,7 @@ function decorateTable() {
         if (!cell || cell.querySelector(".chip-approval, .chip-approval-rej")) return;
         cell.insertAdjacentHTML("beforeend", pv.status === "rejected"
             ? `<div><span class="case-chip chip-approval-rej" style="cursor:pointer;" onclick="scrollToVerdictApprovals()" title="${escapeHtml("Odrzucił: " + ((pv.rejectedBy && pv.rejectedBy.nick) || "?") + " — " + (pv.rejectReason || ""))}">❌ Werdykt odrzucony</span></div>`
-            : `<div><span class="case-chip chip-approval" style="cursor:pointer;" onclick="scrollToVerdictApprovals()" title="Werdykt czeka na akceptację Głównych Stewardów — kliknij, aby przejść do listy">⏳ Akceptacja ${escapeHtml(approvalsOf(pv).length)}/${escapeHtml(needOf(pv))}</span></div>`);
+            : `<div><span class="case-chip chip-approval" style="cursor:pointer;" onclick="scrollToVerdictApprovals()" title="Werdykt czeka na akceptację Głównych Stewardów — kliknij, aby przejść do listy">⏳ Akceptacja ${escapeHtml(approvalsOf(pv).length)}/${escapeHtml(needOf(pv, r))}</span></div>`);
     });
 }
 
@@ -22560,7 +22575,7 @@ function scanForNotifications() {
             pushAdminNotification("verdictApproval", "❌ Twój werdykt odrzucono", `${caseLabel(r, pv)} — ${(pv.rejectedBy && pv.rejectedBy.nick) || "?"}: ${pv.rejectReason || ""}`, r.id);
         } else if (sig.status === "pending" && sig.mine && !fresh && sig.n > prev.n) {
             const lastA = approvalsOf(pv).pop();
-            if (!who || !lastA || lastA.key !== who.key) pushAdminNotification("verdictApproval", "✅ Akceptacja Twojego werdyktu", `${caseLabel(r, pv)}: ${lastA ? lastA.nick : "?"} zaakceptował (${sig.n}/${needOf(pv)}).`, r.id);
+            if (!who || !lastA || lastA.key !== who.key) pushAdminNotification("verdictApproval", "✅ Akceptacja Twojego werdyktu", `${caseLabel(r, pv)}: ${lastA ? lastA.nick : "?"} zaakceptował (${sig.n}/${needOf(pv, r)}).`, r.id);
         }
     });
     seen.forEach((prev, id) => {
@@ -22585,59 +22600,29 @@ if (typeof origOpenNotif === "function") {
 }
 
 /* ============================================================
-   9. USTAWIENIA W PANELU (tylko dwaj akceptujący Główni Stewardzi)
+   9. INFORMACJA O ZASADACH W PANELU (tylko dwaj akceptujący Główni Stewardzi)
    ============================================================ */
 const rulesAnchor = $("announcementAdminBox") || $("reportScheduleBox");
 if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
   <div id="verdictApprovalRulesBox" class="stats-group-box" style="display:none; border-color: rgba(16,185,129,0.5); margin-bottom: 14px;">
     <div class="stats-group-title" style="color:var(--green-text);">✅ Akceptacja werdyktów przez Głównych Stewardów</div>
-    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-      <div style="min-width:280px; flex:1;"><label for="vaEnabled">Tryb</label>
-        <select id="vaEnabled">
-          <option value="1">Włączona — werdykt czeka na akceptację przed publikacją</option>
-          <option value="0">Wyłączona — werdykt publikowany od razu</option>
-        </select></div>
-      <div style="min-width:170px;"><label for="vaRequired">Wymagane akceptacje</label>
-        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich</option><option value="2">2 — obaj</option></select></div>
-      <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="saveVerdictApprovalRules()">💾 ZAPISZ ZASADY</button>
-    </div>
-    <div id="vaRulesStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim); line-height:1.6;"></div>
+    <div id="vaRulesStatus" style="font-size:11px; color:var(--text-dim); line-height:1.6;"></div>
   </div>`);
 
+// Zasady są stałe (nie ma już przełączników „Wyłączona” / „wystarczy jeden”) — panel tylko informuje.
 function renderRulesBox() {
-    const sel = $("vaEnabled"), req = $("vaRequired"), st = $("vaRulesStatus");
-    if (!sel || !req || !st) return;
-    if (document.activeElement !== sel) sel.value = rules.enabled ? "1" : "0";
-    if (document.activeElement !== req) req.value = String(rules.required);
+    const st = $("vaRulesStatus");
+    if (!st) return;
     const leads = leadStewards();
-    st.innerHTML = (rules.enabled
-        ? `✅ Włączona: werdykt z formularza publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. Autor będący Głównym Stewardem liczy się jako jedna akceptacja.`
-        : "⏸ Wyłączona: werdykty z formularza są publikowane od razu.") +
-        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.`;
+    st.innerHTML = `✅ Obowiązkowa: werdykt z formularza nigdy nie jest publikowany od razu — publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. Autor będący Głównym Stewardem liczy się jako jedna akceptacja, więc drugi Główny Steward musi zatwierdzić jego werdykt.` +
+        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Jedyny wyjątek: gdy któryś z nich jest stroną sprawy (konflikt interesów) i nie może akceptować, wystarcza akceptacja drugiego.`;
 }
-window.saveVerdictApprovalRules = async function () {
-    if (!isApprover()) return alert(`Zasady akceptacji werdyktów mogą zmienić tylko: ${leadStewards().map(s => s.nick).join(", ")}.`);
-    const next = { enabled: $("vaEnabled").value === "1", required: clampReq($("vaRequired").value) };
-    const prev = rulesRaw ? clean(rulesRaw) : null;
-    try {
-        await database.ref("settings/verdictApproval").set(next);
-    } catch (err) {
-        return alert("Nie udało się zapisać zasad: " + ((err && (err.code || err.message)) || err));
-    }
-    try {
-        await logAction(loggedInSteward.nick, "SYSTEM", "AKCEPTACJA", `Zmieniono zasady akceptacji werdyktów: ${next.enabled ? `włączona, wymagane akceptacje: ${next.required}` : "wyłączona"}.`,
-            { items: [{ path: "settings/verdictApproval", data: prev }] });
-    } catch (e) { console.warn("[132] logAction:", e); }
-    const waiting = (globalIncidents || []).filter(r => hasPending(r) && r.pendingVerdict.status === "pending").length;
-    showToast("✅ Zasady zapisane", (next.enabled ? `Wymagane akceptacje: ${next.required}` : "Akceptacja wyłączona") +
-        (waiting ? ` · ${waiting} ${plural(waiting, "werdykt nadal czeka", "werdykty nadal czekają", "werdyktów nadal czeka")} w kolejce` : ""));
-};
 
 /* ============================================================
    10. PODPIĘCIE
    ============================================================ */
 window.fiaVerdictApproval = {
-    required: () => !!rules.enabled,
+    required: () => true, // akceptacja jest obowiązkowa — nie da się jej wyłączyć
     need: () => rules.required,
     submit
 };
