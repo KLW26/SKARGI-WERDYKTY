@@ -21942,11 +21942,7 @@ database.ref(LO_PATH).on("value", snap => {
    Głównych Stewardów (domyślnie wymagane 2 akceptacje). Ostatnia akceptacja publikuje werdykt
    dokładnie tak, jak wcześniej robił to formularz (baza + karta PNG na Discordzie) —
    funkcja publishVerdict().
-   - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja
-     — ALE tylko przy wymaganych 2 akceptacjach. Przy ustawieniu „1 akceptacja” autor NIE może
-     zaakceptować własnego werdyktu (nawet jako jeden z dwóch akceptujących) — musi to zrobić
-     drugi Główny Steward (flaga noSelfApprove w pendingVerdict). Wyjątek: gdy drugi Główny
-     Steward jest stroną sprawy, nikt inny nie może zaakceptować, więc zatwierdza autor.
+   - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja.
    - Akceptować i odrzucać mogą WYŁĄCZNIE dwaj wyznaczeni Główni Stewardzi (APPROVER_IDS
      poniżej — Discord ID). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
    - Jeśli któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.
@@ -22002,11 +21998,6 @@ const approvalsOf = pv => Object.entries((pv && pv.approvals) || {}).filter(([, 
     .map(([key, a]) => Object.assign({ key }, a)).sort((a, b) => ts(a.ts) - ts(b.ts));
 const needOf = pv => Math.max(1, parseInt(pv && pv.required, 10) || rules.required);
 const isMineOf = pv => !!loggedInSteward && !!pv && !!pv.submittedBy && String(pv.submittedBy.id) === String(loggedInSteward.id);
-// Zasada „1 akceptacja”: gdy ustawiono 1 wymaganą akceptację, autor werdyktu (nawet jako jeden z dwóch
-// akceptujących Głównych Stewardów) NIE akceptuje go sam — musi to zrobić drugi Główny Steward.
-// Flaga noSelfApprove jest zapisywana w werdykcie przy wysłaniu, więc późniejsza zmiana ustawień
-// nie zmienia zasad dla werdyktów, które już czekają w kolejce.
-const selfApprovalBlocked = pv => !!(pv && pv.noSelfApprove && isMineOf(pv));
 const publishingNow = pv => !!(pv && pv.publishing && Date.now() - ts(pv.publishing.ts) < PUBLISH_STALE_MS);
 const publishingStale = pv => !!(pv && pv.publishing && !publishingNow(pv));
 const findInc = id => (globalIncidents || []).find(r => r.id === id) || null;
@@ -22078,7 +22069,7 @@ const keyOfId = id => String(id || "").replace(/[.#$\[\]\/]/g, "_");
 // Czy ta sprawa czeka na decyzję zalogowanego Głównego Stewarda?
 function awaitingMe(r) {
     const pv = r.pendingVerdict, who = me();
-    return !!who && pv.status === "pending" && isApprover() && !isConflict(r) && !publishingNow(pv) && !selfApprovalBlocked(pv) && !approvalsOf(pv).some(a => a.key === who.key);
+    return !!who && pv.status === "pending" && isApprover() && !isConflict(r) && !publishingNow(pv) && !approvalsOf(pv).some(a => a.key === who.key);
 }
 
 /* ============================================================
@@ -22098,9 +22089,6 @@ async function submit(draft) {
         alert(`Obaj Główni Stewardzi akceptujący werdykty są stronami sprawy ${inc.id} — nikt nie może zaakceptować tego werdyktu.`);
         return { status: "cancelled" };
     }
-    // Ustawiona 1 akceptacja: autor nie akceptuje własnego werdyktu — o ile jest ktoś inny, kto może to zrobić.
-    // Gdy drugi Główny Steward jest stroną sprawy (nie ma kto inny zaakceptować), werdykt zatwierdza autor.
-    const noSelf = rules.required === 1 && eligible.some(s => String(s.id) !== who.id);
     // Gdy jeden z akceptujących jest stroną sprawy, wystarcza akceptacja drugiego.
     const need = Math.max(1, Math.min(rules.required, eligible.length));
     const prev = hasPending(inc) ? inc.pendingVerdict : null;
@@ -22116,9 +22104,8 @@ async function submit(draft) {
 
     const now = Date.now();
     const approvals = {};
-    // Autor będący Głównym Stewardem / ROOT = pierwsza akceptacja — chyba że ustawiono 1 akceptację
-    // (wtedy autor nie akceptuje własnego werdyktu i czeka na drugiego Głównego Stewarda).
-    if (isApprover() && !isConflict(inc) && who.key && !noSelf) approvals[who.key] = { id: who.id, nick: who.nick, ts: now, author: true };
+    // Autor będący Głównym Stewardem / ROOT = pierwsza akceptacja.
+    if (isApprover() && !isConflict(inc) && who.key) approvals[who.key] = { id: who.id, nick: who.nick, ts: now, author: true };
     const have = Object.keys(approvals).length;
     if (have >= need) {
         return { status: "publish", approvedBy: Object.values(approvals).map(a => ({ id: a.id, nick: a.nick, ts: a.ts })) };
@@ -22128,7 +22115,6 @@ async function submit(draft) {
         status: "pending", caseId: inc.id, draft, required: need,
         submittedAt: now, submittedBy: { id: who.id, nick: who.nick },
         approvals: have ? approvals : null,
-        noSelfApprove: noSelf ? true : null,
         requiredNote: need < rules.required ? `${leadStewards().filter(s => !eligible.some(e => e.id === s.id)).map(s => s.nick).join(", ")} jest stroną sprawy` : null
     });
     const path = `incidents/${inc.id}/pendingVerdict`;
@@ -22147,9 +22133,7 @@ async function submit(draft) {
     renderAll();
     return {
         status: "queued",
-        message: `⏳ Werdykt wysłany do akceptacji Głównych Stewardów (${have}/${need}).` +
-            (noSelf && isApprover() ? " Przy ustawieniu „1 akceptacja” nie możesz zaakceptować własnego werdyktu — musi to zrobić drugi Główny Steward." : "") +
-            ` Pojawi się na Discordzie po zatwierdzeniu — status widać w panelu „Werdykty do akceptacji”.`
+        message: `⏳ Werdykt wysłany do akceptacji Głównych Stewardów (${have}/${need}). Pojawi się na Discordzie po zatwierdzeniu — status widać w panelu „Werdykty do akceptacji”.`
     };
 }
 
@@ -22163,14 +22147,10 @@ window.approvePendingVerdict = async function (caseId) {
     if (isConflict(r)) return alert("Konflikt interesów: jesteś stroną tej sprawy — nie możesz akceptować werdyktu.");
     if (publishingNow(pv)) return alert(`Ten werdykt jest właśnie publikowany (${pv.publishing.by || "?"}).`);
     const stale = publishingStale(pv);
-    // Ustawiona 1 akceptacja: autor nie akceptuje własnego werdyktu (wyjątek: dokończenie publikacji,
-    // którą wcześniej zatwierdził ktoś inny — wtedy autor nie dodaje własnej akceptacji).
-    const selfBlocked = selfApprovalBlocked(pv);
-    if (selfBlocked && !stale) return alert("Ustawiono 1 wymaganą akceptację, a to Twój werdykt — nie możesz go sam zaakceptować. Musi to zrobić drugi Główny Steward.");
     const already = approvalsOf(pv).some(a => a.key === who.key);
     if (already && !stale) return alert("Ten werdykt ma już Twoją akceptację — czeka na pozostałych Głównych Stewardów.");
     const d = pv.draft, need = needOf(pv);
-    const n = approvalsOf(pv).length + (already || selfBlocked ? 0 : 1);
+    const n = approvalsOf(pv).length + (already ? 0 : 1);
     const last = n >= need;
     let msg = (stale
         ? `Publikacja werdyktu ${caseLabel(r, pv)} nie została dokończona (${pv.publishing.by || "?"}). Dokończyć ją teraz?\n\n`
@@ -22191,12 +22171,9 @@ window.approvePendingVerdict = async function (caseId) {
             if (!cur || cur.status !== "pending" || cur.submittedAt !== sub) return; // przerwij
             if (cur.publishing && Date.now() - ts(cur.publishing.ts) < PUBLISH_STALE_MS) return;
             cur.approvals = cur.approvals || {};
-            // Autor werdyktu przy ustawionej 1 akceptacji nie dodaje własnej akceptacji (sprawdzane też w transakcji).
-            const selfNow = !!(cur.noSelfApprove && cur.submittedBy && String(cur.submittedBy.id) === who.id);
-            if (!selfNow && !cur.approvals[who.key]) cur.approvals[who.key] = { id: who.id, nick: who.nick, ts: Date.now() };
+            if (!cur.approvals[who.key]) cur.approvals[who.key] = { id: who.id, nick: who.nick, ts: Date.now() };
             const need2 = Math.max(1, parseInt(cur.required, 10) || rules.required);
             if (Object.keys(cur.approvals).length >= need2) cur.publishing = { by: who.nick, token, ts: Date.now() };
-            else if (selfNow) return; // autor nie może sam doprowadzić werdyktu do wymaganej liczby akceptacji — przerwij
             return cur;
         }, undefined, false);
     } catch (err) {
@@ -22424,11 +22401,10 @@ function itemHtml(r, pv, opts) {
     const iApproved = !!who && appr.some(a => a.key === who.key);
     const busy = publishingNow(pv), stale = publishingStale(pv);
     const pending = pv.status === "pending", rejected = pv.status === "rejected";
-    const selfBlocked = selfApprovalBlocked(pv);
     const id = jsAttr(r.id);
 
     let steps = appr.map(a => `<span class="va-step ok" title="${escapeHtml(formatTimestamp(a.ts))}">✔ ${escapeHtml(a.nick || "?")}${a.author ? " (autor)" : ""}</span>`).join("");
-    if (pending) for (let i = n; i < need; i++) steps += `<span class="va-step wait">○ ${pv.noSelfApprove ? "czeka na akceptację drugiego Głównego Stewarda" : "czeka na akceptację"}</span>`;
+    if (pending) for (let i = n; i < need; i++) steps += `<span class="va-step wait">○ czeka na akceptację</span>`;
     if (busy) steps += `<span class="va-step busy">⏳ publikuje: ${escapeHtml(pv.publishing.by || "?")}</span>`;
     if (pending && stale) steps += `<span class="va-step busy">⚠️ publikacja niedokończona</span>`;
     if (rejected) steps += `<span class="va-step no">✖ odrzucił: ${escapeHtml((pv.rejectedBy && pv.rejectedBy.nick) || "?")}</span>`;
@@ -22436,7 +22412,6 @@ function itemHtml(r, pv, opts) {
     const actions = [], notes = [];
     if (pending && lead && !busy) {
         if (conflict) notes.push("Jesteś stroną tej sprawy — nie możesz jej akceptować.");
-        else if (selfBlocked && !stale) notes.push("To Twój werdykt — przy ustawieniu „1 akceptacja” nie możesz go sam zaakceptować. Musi to zrobić drugi Główny Steward.");
         else {
             if (stale) actions.push(`<button type="button" class="btn-success" onclick="approvePendingVerdict('${id}')">⚠️ Dokończ publikację</button>`);
             else if (!iApproved) actions.push(`<button type="button" class="btn-success" onclick="approvePendingVerdict('${id}')">✅ Akceptuj${n + 1 >= need ? " i opublikuj" : ""}</button>`);
@@ -22522,9 +22497,8 @@ function renderHint() {
     if (!el) return;
     if (!rules.enabled || !isAdminAuthenticated) { el.style.display = "none"; return; }
     const lead = isApprover();
-    el.textContent = rules.required <= 1
-        ? "ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagana: 1) — na Discordzie pojawi się dopiero po zatwierdzeniu." +
-          (lead ? " Jako autor nie możesz zaakceptować własnego werdyktu — musi to zrobić drugi Główny Steward (chyba że jest stroną sprawy — wtedy zatwierdzasz Ty)." : "")
+    el.textContent = lead && rules.required <= 1
+        ? "ℹ️ Akceptacja werdyktów jest włączona, ale wymaga 1 akceptacji — Twoja decyzja jako Głównego Stewarda wystarcza, werdykt zostanie opublikowany od razu."
         : `ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane: ${rules.required}) — na Discordzie pojawi się dopiero po zatwierdzeniu.` +
           (lead ? " Twoja decyzja jako Głównego Stewarda liczy się jako pierwsza akceptacja." : "");
     el.style.display = "block";
@@ -22624,7 +22598,7 @@ if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
           <option value="0">Wyłączona — werdykt publikowany od razu</option>
         </select></div>
       <div style="min-width:170px;"><label for="vaRequired">Wymagane akceptacje</label>
-        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich (ale nie autor werdyktu)</option><option value="2">2 — obaj</option></select></div>
+        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich</option><option value="2">2 — obaj</option></select></div>
       <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="saveVerdictApprovalRules()">💾 ZAPISZ ZASADY</button>
     </div>
     <div id="vaRulesStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim); line-height:1.6;"></div>
@@ -22637,15 +22611,9 @@ function renderRulesBox() {
     if (document.activeElement !== req) req.value = String(rules.required);
     const leads = leadStewards();
     st.innerHTML = (rules.enabled
-        ? `✅ Włączona: werdykt z formularza publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. ` +
-          (rules.required <= 1
-              ? "Autor werdyktu nie może go zaakceptować sam — nawet będąc jednym z dwóch akceptujących — musi to zrobić drugi Główny Steward."
-              : "Autor będący Głównym Stewardem liczy się jako jedna akceptacja.")
+        ? `✅ Włączona: werdykt z formularza publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. Autor będący Głównym Stewardem liczy się jako jedna akceptacja.`
         : "⏸ Wyłączona: werdykty z formularza są publikowane od razu.") +
-        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. ` +
-        (rules.required <= 1
-            ? "Gdy któryś z nich jest stroną sprawy, werdykt zatwierdza ten drugi — także wtedy, gdy jest jego autorem."
-            : "Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.");
+        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.`;
 }
 window.saveVerdictApprovalRules = async function () {
     if (!isApprover()) return alert(`Zasady akceptacji werdyktów mogą zmienić tylko: ${leadStewards().map(s => s.nick).join(", ")}.`);
