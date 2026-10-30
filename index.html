@@ -21945,7 +21945,8 @@ database.ref(LO_PATH).on("value", snap => {
    - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja
      — ALE tylko przy wymaganych 2 akceptacjach. Przy ustawieniu „1 akceptacja” autor NIE może
      zaakceptować własnego werdyktu (nawet jako jeden z dwóch akceptujących) — musi to zrobić
-     drugi Główny Steward (flaga noSelfApprove w pendingVerdict).
+     drugi Główny Steward (flaga noSelfApprove w pendingVerdict). Wyjątek: gdy drugi Główny
+     Steward jest stroną sprawy, nikt inny nie może zaakceptować, więc zatwierdza autor.
    - Akceptować i odrzucać mogą WYŁĄCZNIE dwaj wyznaczeni Główni Stewardzi (APPROVER_IDS
      poniżej — Discord ID). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
    - Jeśli któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.
@@ -22097,12 +22098,9 @@ async function submit(draft) {
         alert(`Obaj Główni Stewardzi akceptujący werdykty są stronami sprawy ${inc.id} — nikt nie może zaakceptować tego werdyktu.`);
         return { status: "cancelled" };
     }
-    // Ustawiona 1 akceptacja: autor nie akceptuje własnego werdyktu, więc musi istnieć ktoś inny, kto może to zrobić.
-    const noSelf = rules.required === 1;
-    if (noSelf && !eligible.some(s => String(s.id) !== who.id)) {
-        alert(`Ustawiono 1 wymaganą akceptację, a autor werdyktu nie może go zaakceptować sam. W sprawie ${inc.id} drugi Główny Steward jest stroną sprawy — nikt inny nie może zaakceptować tego werdyktu.`);
-        return { status: "cancelled" };
-    }
+    // Ustawiona 1 akceptacja: autor nie akceptuje własnego werdyktu — o ile jest ktoś inny, kto może to zrobić.
+    // Gdy drugi Główny Steward jest stroną sprawy (nie ma kto inny zaakceptować), werdykt zatwierdza autor.
+    const noSelf = rules.required === 1 && eligible.some(s => String(s.id) !== who.id);
     // Gdy jeden z akceptujących jest stroną sprawy, wystarcza akceptacja drugiego.
     const need = Math.max(1, Math.min(rules.required, eligible.length));
     const prev = hasPending(inc) ? inc.pendingVerdict : null;
@@ -22526,7 +22524,7 @@ function renderHint() {
     const lead = isApprover();
     el.textContent = rules.required <= 1
         ? "ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagana: 1) — na Discordzie pojawi się dopiero po zatwierdzeniu." +
-          (lead ? " Jako autor nie możesz zaakceptować własnego werdyktu — musi to zrobić drugi Główny Steward." : "")
+          (lead ? " Jako autor nie możesz zaakceptować własnego werdyktu — musi to zrobić drugi Główny Steward (chyba że jest stroną sprawy — wtedy zatwierdzasz Ty)." : "")
         : `ℹ️ Werdykt trafi najpierw do akceptacji Głównych Stewardów (wymagane: ${rules.required}) — na Discordzie pojawi się dopiero po zatwierdzeniu.` +
           (lead ? " Twoja decyzja jako Głównego Stewarda liczy się jako pierwsza akceptacja." : "");
     el.style.display = "block";
@@ -22646,7 +22644,7 @@ function renderRulesBox() {
         : "⏸ Wyłączona: werdykty z formularza są publikowane od razu.") +
         `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. ` +
         (rules.required <= 1
-            ? "Gdy drugi z nich jest stroną sprawy, autor-akceptujący nie wyśle takiego werdyktu (nikt nie mógłby go zaakceptować)."
+            ? "Gdy któryś z nich jest stroną sprawy, werdykt zatwierdza ten drugi — także wtedy, gdy jest jego autorem."
             : "Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.");
 }
 window.saveVerdictApprovalRules = async function () {
