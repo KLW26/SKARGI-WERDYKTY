@@ -21943,16 +21943,16 @@ database.ref(LO_PATH).on("value", snap => {
    dokładnie tak, jak wcześniej robił to formularz (baza + karta PNG na Discordzie) —
    funkcja publishVerdict().
    - Autor, który sam jest Głównym Stewardem (lub ROOT), liczy się od razu jako jedna akceptacja.
-   - Akceptować i odrzucać mogą WYŁĄCZNIE dwaj wyznaczeni Główni Stewardzi (APPROVER_IDS
-     poniżej — Discord ID). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
-   - Jeśli któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.
+   - Akceptować i odrzucać mogą WYŁĄCZNIE wyznaczeni Główni Stewardzi (APPROVER_IDS
+     z Workera fia-guard, POST /approvers — ID nie ma w kodzie strony). Inne konta z rolą „Główny Steward” / ROOT tego nie mogą.
+   - Jeśli któryś z nich jest stroną sprawy, nie liczy się (wymagana liczba akceptacji spada do liczby pozostałych).
    - Każdy z nich może werdykt odrzucić z powodem — autor widzi powód, może poprawić
      decyzję („Popraw w formularzu”) i wysłać ją ponownie.
    - Strona sprawy (konflikt interesów) nie może akceptować ani odrzucać.
    - Powiadomienia: ping Głównych Stewardów na kanale stewardów (Discord) + dzwonek w panelu.
    Dane: staffIncidents/{sprawa}/pendingVerdict (prywatne pole spraw — widzą je tylko stewardzi;
          kod nadal używa ścieżki incidents/{sprawa}/pendingVerdict, przekładanej automatycznie),
-         settings/verdictApproval { enabled, required } — zmieniają tylko ci dwaj Główni Stewardzi.
+         settings/verdictApproval { enabled, required } — zmieniają tylko ci Główni Stewardzi.
    ============================================================ */
 (function () {
 "use strict";
@@ -21962,7 +21962,12 @@ const { wrap, plural, penaltyLabel, myVoterKey } = F;
 const $ = id => document.getElementById(id);
 const ts = v => Number(v) || 0;
 // Jedyni Główni Stewardzi, którzy akceptują werdykty (Discord ID).
-const APPROVER_IDS = ["511295717457920010", "698503713932836955"];
+// Główni Stewardzi akceptujący werdykty (Discord ID). Listy NIE ma w kodzie strony — trzyma ją Worker
+// „fia-guard” (DEFAULT_APPROVER_IDS / zmienna APPROVER_IDS), a strona pobiera ją po zalogowaniu stewarda
+// (POST /approvers). Do czasu pobrania lista jest pusta i nikt nie jest uznawany za akceptującego.
+// Wymaga wersji Workera „fia-guard” z endpointem /approvers.
+let APPROVER_IDS = [];
+let approversLoaded = false, approversPromise = null, approversTriedAt = 0;
 const isApprover = () => !!loggedInSteward && APPROVER_IDS.includes(String(loggedInSteward.id));
 const PUBLISH_STALE_MS = 2 * 60000;          // po tylu ms niedokończona publikacja uznawana jest za porzuconą
 const clean = o => JSON.parse(JSON.stringify(o)); // Firebase nie przyjmuje wartości undefined
@@ -21975,12 +21980,46 @@ const isDiscordId = s => /^\d{15,21}$/.test(String(s || ""));
 const DEFAULT_RULES = { enabled: true, required: 2 };
 let rules = Object.assign({}, DEFAULT_RULES);
 let rulesRaw = null;
-const clampReq = v => Math.min(APPROVER_IDS.length, Math.max(1, parseInt(v, 10) || DEFAULT_RULES.required));
-database.ref("settings/verdictApproval").on("value", s => {
-    rulesRaw = s.val();
+// Do czasu pobrania listy akceptujących (APPROVER_IDS puste) nie przycinamy liczby wymaganych akceptacji.
+const clampReq = v => Math.min(APPROVER_IDS.length || 99, Math.max(1, parseInt(v, 10) || DEFAULT_RULES.required));
+function applyRules() {
     rules = rulesRaw && typeof rulesRaw === "object"
         ? { enabled: rulesRaw.enabled !== false, required: clampReq(rulesRaw.required) }
         : Object.assign({}, DEFAULT_RULES);
+}
+// Pobiera listę akceptujących z Workera „fia-guard” (POST /approvers) — wymaga zalogowanego stewarda
+// (token Firebase). Bez `force` próbuje nie częściej niż co 15 s, żeby nie zalewać niedostępnego Workera.
+function loadApprovers(force) {
+    if (approversLoaded) return Promise.resolve(true);
+    if (approversPromise) return approversPromise;
+    if (!force && Date.now() - approversTriedAt < 15000) return Promise.resolve(false);
+    approversPromise = (async () => {
+        approversTriedAt = Date.now();
+        try {
+            const user = fbAuth && fbAuth.currentUser;
+            if (!user) return false;
+            const res = await fetch(`${GUARD_WORKER_URL}/approvers`, { method: "POST", headers: { Authorization: "Bearer " + (await user.getIdToken()) } });
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            const ids = Array.from(new Set((Array.isArray(data && data.ids) ? data.ids : []).map(String).filter(isDiscordId)));
+            if (!ids.length) throw new Error("pusta lista");
+            APPROVER_IDS = ids;
+            approversLoaded = true;
+            applyRules();
+            const box = $("verdictApprovalRulesBox");
+            if (box) box.style.display = isAdminAuthenticated && isApprover() ? "block" : "none";
+            renderRulesBox(); renderHint(); renderAll();
+            return true;
+        } catch (err) {
+            console.warn("[132] Nie udało się pobrać listy akceptujących z Workera (POST /approvers):", err && (err.message || err));
+            return false;
+        }
+    })().finally(() => { approversPromise = null; });
+    return approversPromise;
+}
+database.ref("settings/verdictApproval").on("value", s => {
+    rulesRaw = s.val();
+    applyRules();
     renderRulesBox(); renderHint(); renderAll();
 }, err => console.warn("[132] Brak dostępu do settings/verdictApproval:", err && (err.code || err.message)));
 
@@ -21988,7 +22027,7 @@ database.ref("settings/verdictApproval").on("value", s => {
    2. POMOCNICZE
    ============================================================ */
 const me = () => loggedInSteward ? { key: myVoterKey(), id: String(loggedInSteward.id || ""), nick: loggedInSteward.nick || "?" } : null;
-// Akceptujący (dwaj wyznaczeni Główni Stewardzi) — nick z listy stewardów, a gdy go brak: Discord ID.
+// Akceptujący (wyznaczeni Główni Stewardzi) — nick z listy stewardów, a gdy go brak: Discord ID.
 const leadStewards = () => APPROVER_IDS.map(id => {
     const s = (globalStewards || []).find(x => x && String(x.id) === id);
     const self = loggedInSteward && String(loggedInSteward.id) === id ? loggedInSteward.nick : null;
@@ -22078,6 +22117,10 @@ function awaitingMe(r) {
 async function submit(draft) {
     const who = me();
     if (!who) { alert("Sesja stewarda wygasła — zaloguj się ponownie."); return { status: "cancelled" }; }
+    if (!approversLoaded && !(await loadApprovers(true))) {
+        alert("Nie udało się pobrać z Workera (fia-guard) listy Głównych Stewardów akceptujących werdykty — werdykt nie został wysłany. Sprawdź, czy Worker jest wdrożony w wersji z endpointem /approvers, i spróbuj ponownie.");
+        return { status: "cancelled" };
+    }
     const inc = resolveInc(draft.originalCaseId);
     if (!inc) {
         alert(`Nie znaleziono sprawy „${draft.originalCaseId}” — werdykt nie może trafić do akceptacji. Sprawdź ID sprawy.`);
@@ -22086,10 +22129,10 @@ async function submit(draft) {
     draft.originalCaseId = inc.id;
     const eligible = eligibleApprovers(inc);
     if (!eligible.length) {
-        alert(`Obaj Główni Stewardzi akceptujący werdykty są stronami sprawy ${inc.id} — nikt nie może zaakceptować tego werdyktu.`);
+        alert(`Wszyscy Główni Stewardzi akceptujący werdykty są stronami sprawy ${inc.id} — nikt nie może zaakceptować tego werdyktu.`);
         return { status: "cancelled" };
     }
-    // Gdy jeden z akceptujących jest stroną sprawy, wystarcza akceptacja drugiego.
+    // Akceptujący będący stroną sprawy odpadają — wymagana liczba akceptacji nie przekroczy liczby pozostałych.
     const need = Math.max(1, Math.min(rules.required, eligible.length));
     const prev = hasPending(inc) ? inc.pendingVerdict : null;
     if (prev && prev.status === "pending") {
@@ -22585,7 +22628,7 @@ if (typeof origOpenNotif === "function") {
 }
 
 /* ============================================================
-   9. USTAWIENIA W PANELU (tylko dwaj akceptujący Główni Stewardzi)
+   9. USTAWIENIA W PANELU (tylko akceptujący Główni Stewardzi)
    ============================================================ */
 const rulesAnchor = $("announcementAdminBox") || $("reportScheduleBox");
 if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
@@ -22598,7 +22641,7 @@ if (rulesAnchor) rulesAnchor.insertAdjacentHTML("afterend", `
           <option value="0">Wyłączona — werdykt publikowany od razu</option>
         </select></div>
       <div style="min-width:170px;"><label for="vaRequired">Wymagane akceptacje</label>
-        <select id="vaRequired"><option value="1">1 — wystarczy jeden z nich</option><option value="2">2 — obaj</option></select></div>
+        <select id="vaRequired"></select></div>
       <button type="button" class="btn-success" style="padding:8px 16px; font-size:11px;" onclick="saveVerdictApprovalRules()">💾 ZAPISZ ZASADY</button>
     </div>
     <div id="vaRulesStatus" style="margin-top:8px; font-size:11px; color:var(--text-dim); line-height:1.6;"></div>
@@ -22608,12 +22651,16 @@ function renderRulesBox() {
     const sel = $("vaEnabled"), req = $("vaRequired"), st = $("vaRulesStatus");
     if (!sel || !req || !st) return;
     if (document.activeElement !== sel) sel.value = rules.enabled ? "1" : "0";
+    const total = APPROVER_IDS.length || 1;
+    if (req.options.length !== total) {
+        req.innerHTML = Array.from({ length: total }, (_, i) => { const n = i + 1; return `<option value="${n}">${n} — ${n === 1 ? "wystarczy jeden z nich" : n === total ? "wszyscy" : n + " z " + total}</option>`; }).join("");
+    }
     if (document.activeElement !== req) req.value = String(rules.required);
     const leads = leadStewards();
     st.innerHTML = (rules.enabled
         ? `✅ Włączona: werdykt z formularza publikuje się dopiero po ${escapeHtml(rules.required)} ${plural(rules.required, "akceptacji", "akceptacjach", "akceptacjach")} Głównych Stewardów. Autor będący Głównym Stewardem liczy się jako jedna akceptacja.`
         : "⏸ Wyłączona: werdykty z formularza są publikowane od razu.") +
-        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Gdy któryś z nich jest stroną sprawy, wystarcza akceptacja drugiego.`;
+        `<br>Akceptują wyłącznie: ${escapeHtml(leads.map(s => s.nick === s.id ? s.id : `${s.nick} (${s.id})`).join(", "))}. Gdy któryś z nich jest stroną sprawy, nie liczy się do wymaganych akceptacji.`;
 }
 window.saveVerdictApprovalRules = async function () {
     if (!isApprover()) return alert(`Zasady akceptacji werdyktów mogą zmienić tylko: ${leadStewards().map(s => s.nick).join(", ")}.`);
@@ -22643,6 +22690,7 @@ window.fiaVerdictApproval = {
 };
 
 wrap("applyStewardPermissions", function () {
+    loadApprovers();
     const box = $("verdictApprovalRulesBox");
     if (box) box.style.display = isApprover() ? "block" : "none";
     renderRulesBox(); renderHint(); renderAll();
@@ -22661,7 +22709,10 @@ wrap("adminLogout", function () {
     ["verdictApprovalsPanel", "verdictApprovalInfo", "verdictApprovalHint", "verdictApprovalRulesBox"].forEach(id => { const el = $(id); if (el) el.style.display = "none"; });
 });
 // Odświeżanie stanu „publikuje…” (blokada wygasa po 2 min, jeśli publikujący zamknął kartę).
-setInterval(() => { if (isAdminAuthenticated && (globalIncidents || []).some(r => hasPending(r) && r.pendingVerdict.publishing)) renderAll(); }, 30000);
+setInterval(() => {
+    if (isAdminAuthenticated && !approversLoaded) loadApprovers();
+    if (isAdminAuthenticated && (globalIncidents || []).some(r => hasPending(r) && r.pendingVerdict.publishing)) renderAll();
+}, 30000);
 renderHint();
 })();
 </script>
